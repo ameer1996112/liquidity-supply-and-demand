@@ -184,6 +184,32 @@ def test_custom_date_range_fails_closed_when_strategy_report_keeps_wrong_range(m
     worker._ensure_chart_history_for_custom_range.assert_not_awaited()
 
 
+def test_custom_date_optimizer_pins_pine_date_filter_fixed_overrides() -> None:
+    optimizer = TradingViewOptimizer(
+        pairs=["USDJPY"],
+        bayesian_mode=True,
+        n_trials=1,
+        generate_report=False,
+        fixed_overrides={"rr_mode": "fixed_3.0"},
+        backtest_range="custom",
+        custom_start_date="2021-01-01",
+        custom_end_date="2021-12-31",
+    )
+
+    assert optimizer.backtest_range == "custom"
+    assert optimizer.custom_start_date == "2021-01-01"
+    assert optimizer.custom_end_date == "2021-12-31"
+    assert optimizer.fixed_overrides["rr_mode"] == "fixed_3.0"
+    assert optimizer.fixed_overrides["enable_date_filter"] is True
+    assert optimizer.fixed_overrides["start_date"] == "2021-01-01"
+    assert optimizer.fixed_overrides["end_date"] == "2021-12-31"
+
+
+def test_date_input_values_match_tradingview_datetime_rendering() -> None:
+    assert TabWorker._setting_value_matches("2021-01-01", "2021-01-01T00:00", "input")
+    assert TabWorker._setting_value_matches("2021-12-31", "2021-12-31 23:59", "input")
+
+
 class StrategyTradeCoveragePage(DummyPage):
     def __init__(self, payload: dict, *, deep_backtesting: bool = False) -> None:
         super().__init__(title="EURUSD 5 Vantage")

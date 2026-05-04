@@ -1,19 +1,35 @@
 {
   "schema_version": 1,
-  "created_at": "2026-05-04T13:40:58.167425+00:00",
-  "source_files": [],
-  "prop_profile": "generic_cfd_safe",
-  "status": "completed_with_no_trade",
-  "rejection_reasons": {},
-  "warnings": [],
+  "status": "completed",
+  "dry_run": true,
+  "started_at": "2026-05-04T18:17:51.362416Z",
+  "finished_at": "2026-05-04T18:17:51.362619Z",
+  "pairs": [
+    "GBPJPY",
+    "USDJPY",
+    "EURJPY",
+    "GBPUSD",
+    "XAUUSD",
+    "NAS100"
+  ],
   "broker": "vantage",
   "brokers": [
     "vantage",
     "oanda",
     "fxcm"
   ],
-  "stages": {
-    "selector": "completed"
-  },
-  "decision": "NO_TRADE"
+  "prop_profile": "alpha_50k_safe",
+  "timeframe": "5m",
+  "executed_steps": [
+    "rulebook",
+    "fidelity",
+    "session_discovery",
+    "walk_forward",
+    "frozen_validation",
+    "stability",
+    "stress",
+    "prop_sim",
+    "approved_candidates",
+    "daily_permissions"
+  ]
 }

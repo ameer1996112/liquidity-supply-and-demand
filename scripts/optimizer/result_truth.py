@@ -126,7 +126,7 @@ class ResultTruth:
         elif self.missing_evidence:
             self.trust_status = "untrusted"
         elif self.warnings:
-            self.trust_status = "watch_only"
+            self.trust_status = "trusted_with_warnings"
         else:
             self.trust_status = "trusted"
 

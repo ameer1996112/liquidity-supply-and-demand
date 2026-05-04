@@ -52,6 +52,9 @@ def simulate_prop_account(
             breaches.append("daily_loss_breach")
         if _num(metrics, "max_drawdown_pct") > float(profile.get("safe_max_dd_pct") or 0.0):
             breaches.append("max_loss_breach")
+    max_dd_hit_rate_pct = min(100.0, max(0.0, (_num(metrics, "max_drawdown_pct") / max(float(profile.get("safe_max_dd_pct") or 1.0), 1.0)) * 25.0))
+    daily_loss_breach_rate_pct = min(100.0, max(0.0, (_num(metrics, "max_daily_loss_pct") / max(float(profile.get("safe_daily_loss_pct") or 1.0), 1.0)) * 10.0))
+    prop_survival_score_pct = max(0.0, min(100.0, 100.0 - max_dd_hit_rate_pct - daily_loss_breach_rate_pct - len(breaches) * 25.0))
     if trades is None:
         warnings.append("No trade-level data available, daily loss check approximated from metrics.")
     status = "rejected" if breaches else ("watch_only" if trades is None else "passed")
@@ -59,8 +62,15 @@ def simulate_prop_account(
     return {
         "symbol": symbol,
         "prop_profile": profile_name,
+        "profile": profile_name,
         "status": status,
         "simulation_precision": "trade_level" if trades else "approximate",
+        "precision": "trade_level" if trades else "approximate",
+        "prop_survival_score_pct": round(prop_survival_score_pct),
+        "max_dd_hit_rate_pct": round(max_dd_hit_rate_pct),
+        "daily_loss_breach_rate_pct": round(daily_loss_breach_rate_pct),
+        "median_days_to_target": int(metrics.get("median_days_to_target", 0) or 0),
+        "recommended_risk_per_trade_pct": risk,
         "risk_recommendation": {
             "risk_per_trade_pct": risk,
             "max_symbols_active": int(profile.get("max_symbols_active", 1) or 1),

@@ -89,6 +89,14 @@ def execute_for_profile(
     # ── 4. Re-apply PropGuard multiplier (may have been set by guard above) ──
     if acct_multiplier_key in payload:
         payload["_risk_multiplier"] = payload[acct_multiplier_key]
+    approved_pair_multiplier = float(payload.get("_approved_pair_risk_multiplier", 1.0))
+    if approved_pair_multiplier < 1.0:
+        current_mult = float(payload.get("_risk_multiplier", 1.0))
+        payload["_risk_multiplier"] = current_mult * approved_pair_multiplier
+        logger.info(
+            "ApprovedPairsGuard [%s]: multiplier %.2f → %.2f",
+            account_name, current_mult, payload["_risk_multiplier"],
+        )
 
     # ── 5. Half-risk for 2nd daily trade ─────────────────────────────────────
     max_daily = getattr(s, "pine_max_trades_per_day", 0)

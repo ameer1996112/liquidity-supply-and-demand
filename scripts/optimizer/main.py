@@ -141,6 +141,22 @@ Examples:
         default=PROP_FIRM_MAX_DD_PCT,
         help=f"Prop-firm max DD%% hard limit (default: {PROP_FIRM_MAX_DD_PCT}%%)",
     )
+    parser.add_argument(
+        "--backtest-range",
+        choices=["30d", "90d", "365d", "all", "custom"],
+        default="365d",
+        help="TradingView backtest window preset or custom",
+    )
+    parser.add_argument(
+        "--custom-start-date",
+        type=str,
+        help="Custom backtest start date (YYYY-MM-DD), required with --backtest-range custom",
+    )
+    parser.add_argument(
+        "--custom-end-date",
+        type=str,
+        help="Custom backtest end date (YYYY-MM-DD), required with --backtest-range custom",
+    )
 
     # ── Report ──
     parser.add_argument(
@@ -231,6 +247,9 @@ Examples:
         dd_limit=args.dd_limit,
         generate_report=not args.no_report,
         fixed_overrides=fixed_overrides,
+        backtest_range=args.backtest_range,
+        custom_start_date=args.custom_start_date,
+        custom_end_date=args.custom_end_date,
     )
     asyncio.run(optimizer.run())
 

@@ -56,6 +56,10 @@ configure_logging()
 logger = get_logger("trinity.worker")
 
 MAX_OPEN_POSITIONS = 3
+_approved_pairs_guard = None
+_approved_pairs_guard_path = None
+_trading_permission_guard = None
+_trading_permission_guard_paths = None
 # NOTE: Actual RF threshold is settings.ml_min_confidence (default 0.60).
 # This constant is only used in _build_ml_rejection_reasoning for legacy logging.
 ML_MIN_CONFIDENCE = 0.60
@@ -1426,6 +1430,14 @@ def _execute_for_profile(
     # Apply PropGuard multiplier from the guards that just ran
     if acct_multiplier_key in payload:
         payload["_risk_multiplier"] = payload[acct_multiplier_key]
+    approved_pair_multiplier = float(payload.get("_approved_pair_risk_multiplier", 1.0))
+    if approved_pair_multiplier < 1.0:
+        current_mult = float(payload.get("_risk_multiplier", 1.0))
+        payload["_risk_multiplier"] = current_mult * approved_pair_multiplier
+        logger.info(
+            "ApprovedPairsGuard [%s]: multiplier %.2f → %.2f",
+            account_name, current_mult, payload["_risk_multiplier"],
+        )
 
     # ── Half-risk enforcement for 2nd daily trade (Python-side authority) ────────────
     # Pine Script also applies half-risk for the 2nd trade, but Python is the authority.
@@ -1666,9 +1678,62 @@ def process_trade(payload: Dict[str, Any]):
         logger.warning("GLOBAL SAFETY REJECTED [%s]: %s", symbol, global_rejection)
         return
 
+    run_mode = str(payload.get("run_mode", "PAPER")).upper()
+
+    # ── Trading Permission Guard (global — research approval + daily permission) ──
+    if (
+        getattr(s, "enable_trading_permission_guard", getattr(s, "enable_approved_pairs_guard", True))
+        and not payload.get("_e2e_test")
+    ):
+        try:
+            from src.core.guard_rails.trading_permission_guard import (
+                TradingPermissionGuard,
+                DEFAULT_APPROVED_CANDIDATES_PATH,
+                DEFAULT_DAILY_PERMISSIONS_PATH,
+                DEFAULT_EMERGENCY_STOP_PATH,
+            )
+
+            global _trading_permission_guard, _trading_permission_guard_paths
+            approved_candidates_path = str(getattr(s, "approved_candidates_file", "") or DEFAULT_APPROVED_CANDIDATES_PATH)
+            daily_permissions_path = str(getattr(s, "daily_trade_permissions_file", "") or DEFAULT_DAILY_PERMISSIONS_PATH)
+            emergency_stop_path = str(getattr(s, "emergency_stop_file", "") or DEFAULT_EMERGENCY_STOP_PATH)
+            guard_paths = (approved_candidates_path, daily_permissions_path, emergency_stop_path)
+            if _trading_permission_guard is None or _trading_permission_guard_paths != guard_paths:
+                _trading_permission_guard = TradingPermissionGuard(
+                    approved_candidates_path=approved_candidates_path,
+                    daily_permissions_path=daily_permissions_path,
+                    emergency_stop_path=emergency_stop_path,
+                )
+                _trading_permission_guard_paths = guard_paths
+            passed, reason = _trading_permission_guard.check(payload)
+            if not passed:
+                if len(matching_profiles) > 1:
+                    save_result_for_profiles(payload, "trading_permission_rejected", reason, 0.0, matching_profiles)
+                else:
+                    save_result(payload, "trading_permission_rejected", reason, 0.0, account_name=account_name)
+                log_event(None, "trading_permission_rejected", "worker", {"symbol": symbol, "reason": reason})
+                log_guard_decision("trading_permission", "rejected", reason, symbol)
+                logger.warning("TRADING PERMISSION REJECTED [%s]: %s", symbol, reason)
+                return
+            logger.info(
+                "TradingPermissionGuard: PASSED [%s] status=%s risk_pct=%.4f",
+                symbol,
+                payload.get("_trading_permission_status"),
+                float(payload.get("_trading_permission_risk_pct") or 0.0),
+            )
+        except Exception as e:
+            logger.error("Trading permission guard crashed: %s", e, exc_info=True)
+            if run_mode == "LIVE":
+                reason = f"TRADING_PERMISSION_GUARD_ERROR: {e}"
+                if len(matching_profiles) > 1:
+                    save_result_for_profiles(payload, "trading_permission_rejected", reason, 0.0, matching_profiles)
+                else:
+                    save_result(payload, "trading_permission_rejected", reason, 0.0, account_name=account_name)
+                log_guard_decision("trading_permission", "rejected", reason, symbol)
+                return
+
     # ── Signal Staleness Guard (global — same signal for all accounts) ──
     # Skip when _e2e_test=true (E2E test uses static prices; guard would reject)
-    run_mode = str(payload.get("run_mode", "PAPER")).upper()
     if (
         run_mode == "LIVE"
         and getattr(s, "enable_staleness_guard", True)

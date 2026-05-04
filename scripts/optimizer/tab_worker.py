@@ -50,6 +50,7 @@ _HISTORY_COVERAGE_MIN_RATIO = 0.80
 _HISTORY_LOAD_MAX_ATTEMPTS = 12
 _HISTORY_LOAD_SLEEP = 3.0
 _TRADE_COVERAGE_MIN_RATIO = 0.80
+PINE_DATE_PARAM_NAMES = {"start_date", "end_date"}
 
 _LOADING_INDICATORS = [
     "Updating report", "Calculating...", "Loading...", "Compiling..."
@@ -3504,6 +3505,9 @@ class TabWorker:
             return actual_text.lower() == str(expected).lower()
 
         expected_text = str(expected).strip()
+        if TabWorker._date_value_matches(expected_text, actual_text):
+            return True
+
         expected_num = None
         actual_num = None
         try:
@@ -3522,6 +3526,13 @@ class TabWorker:
             if collapsed_actual and actual_text != collapsed_actual:
                 return expected_text.startswith(collapsed_actual)
         return False
+
+    @staticmethod
+    def _date_value_matches(expected_text: str, actual_text: str) -> bool:
+        """Return True when TradingView renders an ISO date with time attached."""
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", expected_text):
+            return False
+        return actual_text.startswith(expected_text)
 
     async def _verify_params_in_open_dialog(self, params: dict) -> bool:
         """Verify the open settings dialog contains the params we just applied."""
@@ -3602,6 +3613,19 @@ class TabWorker:
             (result or {}).get("newValue"),
         )
         return bool((result or {}).get("ok"))
+
+    @staticmethod
+    def _pine_date_input_value(title: str, value: object) -> str:
+        date_text = str(value).strip()
+        datetime.fromisoformat(date_text)
+        if "T" in date_text or " " in date_text:
+            return date_text.replace(" ", "T")
+        if title == "end_date":
+            return f"{date_text}T23:59"
+        return f"{date_text}T00:00"
+
+    async def _set_date_input_by_title(self, title: str, value: object) -> bool:
+        return await self._set_input_by_title(title, self._pine_date_input_value(title, value))
 
     async def _set_select_by_title(self, title: str, value: str) -> bool:
         result = await self.page.evaluate(
@@ -4196,6 +4220,8 @@ class TabWorker:
                         continue  # already handled
                     if name in CHECKBOX_PARAM_NAMES:
                         applied = await self._toggle_checkbox_by_title(name, bool(value))
+                    elif name in PINE_DATE_PARAM_NAMES:
+                        applied = await self._set_date_input_by_title(name, value)
                     elif isinstance(value, str):
                         applied = await self._set_select_by_title(name, value)
                     else:
@@ -4439,6 +4465,8 @@ class TabWorker:
                     continue
                 if name in CHECKBOX_PARAM_NAMES:
                     applied = await self._toggle_checkbox_by_title(name, bool(value))
+                elif name in PINE_DATE_PARAM_NAMES:
+                    applied = await self._set_date_input_by_title(name, value)
                 elif isinstance(value, str):
                     applied = await self._set_select_by_title(name, value)
                 else:

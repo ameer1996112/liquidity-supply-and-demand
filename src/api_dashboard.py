@@ -1,7 +1,10 @@
 """Dashboard Summary API — aggregates multi-account PnL, positions, and stats."""
 
 import logging
+import json
 from datetime import datetime, timedelta, date, timezone
+from pathlib import Path
+from typing import Any
 from typing import List, Optional
 
 from fastapi import APIRouter
@@ -12,6 +15,8 @@ from src.adapters.supabase_api import get_api_supabase as _get_supabase
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+OPTIMIZATION_RESULTS_DIR = PROJECT_ROOT / "scripts" / "optimization_results"
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -53,6 +58,14 @@ class DashboardSummary(BaseModel):
     total_trades_today: int
     max_drawdown_pct: float
     accounts: List[AccountSummaryItem]
+
+
+def _read_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return default
+    return payload if isinstance(payload, dict) else default
 
 
 @router.get("/summary", response_model=DashboardSummary)
@@ -171,3 +184,32 @@ async def get_dashboard_summary():
         max_drawdown_pct=max_drawdown_pct,
         accounts=account_items,
     )
+
+
+@router.get("/trade-permissions")
+async def get_trade_permissions_dashboard() -> dict[str, Any]:
+    daily = _read_json(
+        OPTIMIZATION_RESULTS_DIR / "daily_trade_permissions.json",
+        {"global_decision": "NO_TRADE", "permissions": {}, "blocked": {}, "watch_only": {}},
+    )
+    approved = _read_json(
+        OPTIMIZATION_RESULTS_DIR / "approved_candidates.json",
+        {"candidates": {}},
+    )
+    summary = _read_json(
+        OPTIMIZATION_RESULTS_DIR / "pipeline_summary.json",
+        {},
+    )
+    candidates = approved.get("candidates") if isinstance(approved.get("candidates"), dict) else {}
+    return {
+        "global_decision": daily.get("global_decision", "NO_TRADE"),
+        "allowed_today": daily.get("permissions", {}),
+        "blocked_today": daily.get("blocked", {}),
+        "watch_only": daily.get("watch_only", {}),
+        "research_approved_candidates": candidates,
+        "expiring_candidates": summary.get("expiring_candidates", []),
+        "recent_rejects": summary.get("recent_rejects", []),
+        "issue_detector": summary.get("issue_detector", {"status": "not_available"}),
+        "execution_health": summary.get("execution_health", {"status": "not_available"}),
+        "account_risk_buffer": summary.get("account_risk_buffer", {"status": "not_available"}),
+    }

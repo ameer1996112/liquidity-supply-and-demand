@@ -110,6 +110,7 @@ def pass_window(row: dict[str, Any], window: str) -> tuple[bool, list[str]]:
     dd = metric(row, "max_drawdown_pct")
     trades = metric(row, "total_trades")
     params = row.get("params")
+    result_truth = row.get("result_truth")
 
     if status != "completed":
         reasons.append(f"status={status or 'missing'}")
@@ -134,6 +135,16 @@ def pass_window(row: dict[str, Any], window: str) -> tuple[bool, list[str]]:
         reasons.append(f"dd={dd} > {rules['max_dd']}")
     if not isinstance(params, dict) or not params:
         reasons.append("missing_params")
+    if not isinstance(result_truth, dict):
+        reasons.append("missing_result_truth")
+    else:
+        truth_status = str(
+            result_truth.get("status")
+            or result_truth.get("trust_status")
+            or ""
+        )
+        if truth_status not in {"trusted", "trusted_with_warnings"}:
+            reasons.append(f"result_truth_{truth_status or 'missing'}")
     return len(reasons) == 0, reasons
 
 

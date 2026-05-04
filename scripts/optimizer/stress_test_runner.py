@@ -41,11 +41,14 @@ def evaluate_stress_tests(
             reasons.append(f"{name}_dd_breaches_profile")
     if not trade_list:
         warnings.append("trade_list_unavailable")
+        warnings.append("no_trade_level_export")
         warnings.append("best_trade_best_day_monte_carlo_unavailable")
     status = "rejected" if reasons else ("watch_only" if not trade_list else "passed")
     return {
         "symbol": symbol,
         "status": status,
+        "precision": "trade_level" if trade_list else "approximate",
+        "reason": "no_trade_level_export" if not trade_list and not reasons else "",
         "base_metrics": base_metrics,
         "stress_metrics": stress_metrics,
         "rejection_reasons": reasons,

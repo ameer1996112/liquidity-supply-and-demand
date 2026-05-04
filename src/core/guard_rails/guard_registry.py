@@ -191,6 +191,39 @@ _register(GuardDefinition(
 ))
 
 _register(GuardDefinition(
+    guard_id="trading_permission_guard",
+    setting_key="enable_trading_permission_guard",
+    name="Daily Trading Permissions",
+    description="Blocks trades not explicitly allowed by daily_trade_permissions.json and approved_candidates.json",
+    user_description="Only allows trades that are research-approved and explicitly permitted for today. Watch-only pairs cannot trade.",
+    tier="critical",
+    group="trade_quality",
+    value_type="bool",
+    default=True,
+    scope="global",
+    thresholds=[
+        ThresholdDef("approved_candidates_file", "Approved Candidates File", "str", "scripts/optimization_results/approved_candidates.json", None, None, ""),
+        ThresholdDef("daily_trade_permissions_file", "Daily Permissions File", "str", "scripts/optimization_results/daily_trade_permissions.json", None, None, ""),
+    ],
+))
+
+_register(GuardDefinition(
+    guard_id="approved_pairs_guard",
+    setting_key="enable_approved_pairs_guard",
+    name="Approved Pairs",
+    description="Legacy guard for optimizer-generated approved_pairs.json. Prefer trading_permission_guard for DEV-266.",
+    user_description="Legacy approved-pairs control. Daily trading permissions are the safer production control.",
+    tier="critical",
+    group="trade_quality",
+    value_type="bool",
+    default=True,
+    scope="global",
+    thresholds=[
+        ThresholdDef("approved_pairs_file", "Approved Pairs File", "str", "scripts/optimization_results/approved_pairs.json", None, None, ""),
+    ],
+))
+
+_register(GuardDefinition(
     guard_id="correlation_guard",
     setting_key="trinity_max_positions",
     name="Correlation & Position Limit",

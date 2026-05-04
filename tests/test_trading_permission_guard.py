@@ -1,0 +1,87 @@
+import json
+from datetime import datetime, timezone
+
+from src.core.guard_rails.trading_permission_guard import TradingPermissionGuard
+
+
+def _write_permissions(tmp_path, status: str = "TRADE_NORMAL_RISK") -> tuple:
+    approved = tmp_path / "approved_candidates.json"
+    daily = tmp_path / "daily_trade_permissions.json"
+    emergency = tmp_path / "emergency_stop.json"
+    approved.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "candidates": {
+                    "USDJPY": {
+                        "candidate_status": "RESEARCH_APPROVED",
+                        "params_hash": "abc123",
+                    }
+                },
+            }
+        )
+    )
+    daily.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "permissions": {
+                    "USDJPY": {
+                        "status": status,
+                        "risk_per_trade_pct": 0.25,
+                        "max_trades_today": 1,
+                        "session_utc": {"start": 0, "end": 9},
+                        "expires_at": "2026-05-05T09:00:00Z",
+                        "reasons": ["research approved"],
+                    }
+                },
+            }
+        )
+    )
+    emergency.write_text(json.dumps({"active": False}))
+    return approved, daily, emergency
+
+
+def test_guard_allows_only_explicit_daily_trade_permission(tmp_path) -> None:
+    approved, daily, emergency = _write_permissions(tmp_path)
+    guard = TradingPermissionGuard(
+        approved_candidates_path=approved,
+        daily_permissions_path=daily,
+        emergency_stop_path=emergency,
+        now_provider=lambda: datetime(2026, 5, 5, 8, 0, tzinfo=timezone.utc),
+    )
+
+    passed, reason = guard.check({"symbol": "USDJPY", "params_hash": "abc123", "risk_per_trade_pct": 0.2})
+
+    assert passed is True
+    assert reason == ""
+
+
+def test_guard_blocks_watch_only_and_stale_params_hash(tmp_path) -> None:
+    approved, daily, emergency = _write_permissions(tmp_path, "WATCH_ONLY")
+    guard = TradingPermissionGuard(
+        approved_candidates_path=approved,
+        daily_permissions_path=daily,
+        emergency_stop_path=emergency,
+        now_provider=lambda: datetime(2026, 5, 5, 8, 0, tzinfo=timezone.utc),
+    )
+
+    passed, reason = guard.check({"symbol": "USDJPY", "params_hash": "wrong", "risk_per_trade_pct": 0.2})
+
+    assert passed is False
+    assert "permission_status_not_tradeable" in reason
+
+
+def test_guard_blocks_excessive_risk_and_outside_session(tmp_path) -> None:
+    approved, daily, emergency = _write_permissions(tmp_path)
+    guard = TradingPermissionGuard(
+        approved_candidates_path=approved,
+        daily_permissions_path=daily,
+        emergency_stop_path=emergency,
+        now_provider=lambda: datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc),
+    )
+
+    passed, reason = guard.check({"symbol": "USDJPY", "params_hash": "abc123", "risk_per_trade_pct": 0.5})
+
+    assert passed is False
+    assert "outside_permission_session" in reason

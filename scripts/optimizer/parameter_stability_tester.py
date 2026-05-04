@@ -21,8 +21,13 @@ def generate_neighbor_params(params: dict[str, Any], limit: int = 30) -> list[di
     variants: list[dict[str, Any]] = []
     adjustments: dict[str, list[float | int]] = {
         "risk_reward_ratio": [-0.5, -0.2, 0.2, 0.5],
-        "liq_entry_max_dist": [-0.10, 0.10],
-        "max_bars_held": [-0.10, 0.10],
+        "liq_entry_max_dist": [-0.20, 0.20],
+        "liq_max_distance_pips_forex": [-0.20, 0.20],
+        "liq_max_distance_pips_gold": [-0.20, 0.20],
+        "liq_max_distance_pips_index": [-0.20, 0.20],
+        "max_sweep_to_touch_bars": [-0.20, 0.20],
+        "max_peak_to_touch_bars": [-0.20, 0.20],
+        "max_bars_held": [-0.20, 0.20],
         "min_body_perc": [-5, 5],
         "stop_loss_buffer_pips": [-0.10, 0.10],
         "trading_start_hour": [-1, 1],
@@ -37,7 +42,16 @@ def generate_neighbor_params(params: dict[str, Any], limit: int = 30) -> list[di
             value = params[key]
             if isinstance(value, bool):
                 continue
-            if key in {"liq_entry_max_dist", "max_bars_held", "stop_loss_buffer_pips"}:
+            if key in {
+                "liq_entry_max_dist",
+                "liq_max_distance_pips_forex",
+                "liq_max_distance_pips_gold",
+                "liq_max_distance_pips_index",
+                "max_sweep_to_touch_bars",
+                "max_peak_to_touch_bars",
+                "max_bars_held",
+                "stop_loss_buffer_pips",
+            }:
                 variant[key] = type(value)(max(0, float(value) * (1 + float(delta))))
             else:
                 variant[key] = type(value)(float(value) + float(delta))
@@ -69,8 +83,8 @@ def evaluate_stability(symbol: str, original: dict[str, Any], neighbor_results: 
     original_pf = _num(original, "profit_factor")
     if profitable_rate < 0.40:
         reasons.append("profitable_neighbor_rate_below_0.40")
-    if pf_pass_rate < 0.30:
-        reasons.append("pf_neighbor_rate_below_0.30")
+    if pf_pass_rate < 0.40:
+        reasons.append("pf_neighbor_rate_below_0.40")
     if median_pf < 1.05:
         reasons.append("median_neighbor_pf_below_1.05")
     if median_dd > original_dd + 1.5:
@@ -81,6 +95,7 @@ def evaluate_stability(symbol: str, original: dict[str, Any], neighbor_results: 
         "symbol": symbol,
         "status": "rejected" if reasons else "passed",
         "stability_score": min(profitable_rate, pf_pass_rate),
+        "stability_score_pct": round(min(profitable_rate, pf_pass_rate) * 100.0, 2),
         "profitable_neighbor_rate": profitable_rate,
         "pf_neighbor_rate": pf_pass_rate,
         "median_neighbor_pf": median_pf,

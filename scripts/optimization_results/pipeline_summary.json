@@ -1,21 +1,18 @@
 {
   "schema_version": 1,
-  "created_at": "2026-05-04T13:40:58.167425+00:00",
-  "source_files": [],
-  "prop_profile": "generic_cfd_safe",
-  "status": "completed_with_no_trade",
-  "rejection_reasons": {},
-  "warnings": [],
-  "broker": "vantage",
-  "brokers": [
-    "vantage",
-    "oanda",
-    "fxcm"
-  ],
-  "stages": {
-    "selector": "completed"
+  "global_decision": "NO_TRADE",
+  "allowed_today": [],
+  "blocked_today": [],
+  "research_approved_candidates": [],
+  "expiring_candidates": [],
+  "recent_rejects": [],
+  "issue_detector": {
+    "status": "not_run"
   },
-  "decision": "NO_TRADE",
-  "allowed_symbols": [],
-  "blocked_symbols": {}
+  "execution_health": {
+    "status": "not_checked"
+  },
+  "account_risk_buffer": {
+    "status": "not_checked"
+  }
 }

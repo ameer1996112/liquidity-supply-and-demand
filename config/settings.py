@@ -168,6 +168,26 @@ class Settings(BaseSettings):
     trinity_max_currency_exposure: int = Field(default=2, ge=1, le=5)
     trinity_max_correlation_group: int = Field(default=1, ge=1, le=3)
     trinity_allow_hedging: bool = Field(default=False)
+    enable_trading_permission_guard: bool = Field(
+        default=True,
+        description="Enable DEV-266 daily trading permission guard.",
+        validation_alias=AliasChoices("ENABLE_TRADING_PERMISSION_GUARD", "enable_trading_permission_guard"),
+    )
+    approved_candidates_file: str = Field(
+        default="",
+        description="Path to optimizer approved_candidates.json.",
+        validation_alias=AliasChoices("APPROVED_CANDIDATES_FILE", "approved_candidates_file"),
+    )
+    daily_trade_permissions_file: str = Field(
+        default="",
+        description="Path to optimizer daily_trade_permissions.json.",
+        validation_alias=AliasChoices("DAILY_TRADE_PERMISSIONS_FILE", "daily_trade_permissions_file"),
+    )
+    emergency_stop_file: str = Field(
+        default="",
+        description="Path to emergency_stop.json.",
+        validation_alias=AliasChoices("EMERGENCY_STOP_FILE", "emergency_stop_file"),
+    )
 
     # Dynamic risk scaling (swarm-inspired)
     enable_risk_scaling: bool = True

@@ -183,6 +183,8 @@ class TradingViewOptimizer:
         generate_report: bool = True,
         fixed_overrides: dict = None,
         backtest_range: str = "365d",
+        custom_start_date: str | None = None,
+        custom_end_date: str | None = None,
     ):
         self.pairs = pairs
         self.broker = broker
@@ -193,9 +195,27 @@ class TradingViewOptimizer:
         self.dd_limit = dd_limit
         self.daily_dd_limit = _DEFAULT_DAILY_DD_LIMIT_PCT
         self.generate_report = generate_report
-        self.fixed_overrides = fixed_overrides or {}
         self.backtest_range = normalize_backtest_range(backtest_range)
         self.backtest_range_label = backtest_range_to_label(self.backtest_range)
+        self.custom_start_date = custom_start_date or ""
+        self.custom_end_date = custom_end_date or ""
+        self.fixed_overrides = dict(fixed_overrides or {})
+        if self.custom_start_date or self.custom_end_date:
+            if self.backtest_range != "custom":
+                raise ValueError("custom_start_date/custom_end_date require backtest_range='custom'")
+            if not self.custom_start_date or not self.custom_end_date:
+                raise ValueError("custom_start_date and custom_end_date must be provided together")
+            start = datetime.fromisoformat(self.custom_start_date)
+            end = datetime.fromisoformat(self.custom_end_date)
+            if start > end:
+                raise ValueError("custom_start_date must be on or before custom_end_date")
+            self.fixed_overrides.update(
+                {
+                    "enable_date_filter": True,
+                    "start_date": self.custom_start_date,
+                    "end_date": self.custom_end_date,
+                }
+            )
         self.results: list[BacktestResult] = []
         self.best_per_pair: dict[str, BacktestResult] = {}
         self.page: Optional[Page] = None
