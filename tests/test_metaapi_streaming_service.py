@@ -79,7 +79,7 @@ def test_streaming_close_uses_broker_deal_time_for_close_timestamps():
     assert update["updated_at"] != deal_time
 
 
-def test_streaming_close_updates_realized_pnl_for_already_closed_row():
+def test_streaming_close_skips_already_closed_row_with_realized_pnl():
     original_close = "2026-04-27T06:05:00+00:00"
     sb = _FakeSupabase(
         [
@@ -89,8 +89,8 @@ def test_streaming_close_updates_realized_pnl_for_already_closed_row():
                 "exit_time": original_close,
                 "closed_at": original_close,
                 "broker_order_id": "89146771",
-                "pnl_usd": 1126.76,
-                "pnl": 1126.76,
+                "pnl_usd": 420.0,
+                "pnl": 420.0,
             }
         ]
     )
@@ -100,18 +100,15 @@ def test_streaming_close_updates_realized_pnl_for_already_closed_row():
             {
                 "entryType": "DEAL_ENTRY_OUT",
                 "positionId": "89146771",
-                "profit": -127.64,
+                "profit": 1126.76,
                 "swap": 0,
-                "commission": 0,
+                "commission": -0.4,
+                "time": "2026-04-27T06:07:00+00:00",
             }
         )
     )
 
-    update = sb.table_obj.updates[-1]
-    assert update["pnl_usd"] == -127.64
-    assert update["pnl"] == -127.64
-    assert update["closed_at"] == original_close
-    assert update["exit_time"] == original_close
+    assert sb.table_obj.updates == []
 
 
 def test_streaming_stores_net_broker_pnl_including_commission_and_swap():

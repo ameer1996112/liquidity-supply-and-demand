@@ -115,6 +115,15 @@ class _DealHandler:
             for row in matching_rows:
                 already_closed = str(row.get("status") or "").upper() == "CLOSED"
                 has_close_timestamp = bool(row.get("exit_time") or row.get("closed_at"))
+                has_realized_pnl = row.get("pnl_usd") is not None or row.get("pnl") is not None
+                if already_closed and has_close_timestamp and has_realized_pnl:
+                    logger.info(
+                        "[MetaApi Stream] Skipping duplicate close for position=%s signal=%s; "
+                        "row already has realized PnL",
+                        position_id,
+                        row.get("id"),
+                    )
+                    continue
                 update_data = {
                     "status": "CLOSED",
                     "pnl_usd": broker_pnl,
