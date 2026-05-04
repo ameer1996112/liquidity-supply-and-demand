@@ -96,7 +96,9 @@ class _DealHandler:
         try:
             rows_result = (
                 self._sb.table("trading_signals")
-                .select("id,status,exit_time,closed_at")
+                .select(
+                    "id,status,exit_time,closed_at,pnl_usd,pnl,commission,swap"
+                )
                 .eq("broker_order_id", position_id)
                 .execute()
             )
@@ -113,13 +115,6 @@ class _DealHandler:
             for row in matching_rows:
                 already_closed = str(row.get("status") or "").upper() == "CLOSED"
                 has_close_timestamp = bool(row.get("exit_time") or row.get("closed_at"))
-                if already_closed and has_close_timestamp:
-                    logger.debug(
-                        "[MetaApi Stream] Ignoring replayed close for already-closed position=%s row=%s",
-                        position_id, row.get("id"),
-                    )
-                    continue
-
                 update_data = {
                     "status": "CLOSED",
                     "pnl_usd": broker_pnl,
@@ -129,8 +124,13 @@ class _DealHandler:
                     "outcome": "win" if broker_pnl > 0 else "loss" if broker_pnl < 0 else "breakeven",
                     "updated_at": now,
                 }
-                if not (already_closed and has_close_timestamp):
-                    timestamp = close_time or now
+                existing_close_time = row.get("exit_time") or row.get("closed_at")
+                timestamp = close_time or (
+                    existing_close_time
+                    if already_closed and has_close_timestamp
+                    else now
+                )
+                if timestamp:
                     update_data["exit_time"] = timestamp
                     update_data["closed_at"] = timestamp
 

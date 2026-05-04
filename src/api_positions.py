@@ -2,7 +2,7 @@
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Query
@@ -728,12 +728,19 @@ def cleanup_stale_positions():
 
 
 @router.post("/backfill-pnl")
-def backfill_missing_pnl(days: int = Query(default=90, ge=1, le=365)):
+def backfill_missing_pnl(
+    days: int = Query(default=90, ge=1, le=365),
+    overwrite_existing: bool = Query(
+        default=False,
+        description="When true, refresh broker PnL even if pnl_usd already has a value.",
+    ),
+):
     """
-    Backfill actual broker PnL for CLOSED trades that have pnl_usd=null.
+    Backfill actual broker PnL for CLOSED trades.
 
-    Iterates through recently closed signals with no PnL, fetches their
-    deal history from MetaAPI by broker_order_id, and writes the real P&L.
+    By default this only repairs rows with pnl_usd=null. Pass
+    overwrite_existing=true to repair rows that were closed manually before the
+    broker close event wrote realized PnL.
     """
     sb = _get_supabase()
     adapter = _get_adapter()
@@ -741,16 +748,19 @@ def backfill_missing_pnl(days: int = Query(default=90, ge=1, le=365)):
     if not hasattr(adapter, "get_deals_by_position"):
         return {"status": "error", "message": "Adapter does not support get_deals_by_position"}
 
-    # Find closed signals with no PnL
-    cutoff = (datetime.now(timezone.utc) - __import__("datetime").timedelta(days=days)).isoformat()
+    # Find closed signals with no PnL, or explicitly refresh existing PnL.
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     try:
-        resp = sb.table("trading_signals").select(
-            "id, broker_order_id, symbol"
+        query = sb.table("trading_signals").select(
+            "id, broker_order_id, symbol, pnl_usd, pnl"
         ).in_(
             "status", ["CLOSED", "closed", "executed", "EXECUTED"]
-        ).is_("pnl_usd", "null").not_.is_("broker_order_id", "null").gte(
+        ).not_.is_("broker_order_id", "null").gte(
             "created_at", cutoff
-        ).execute()
+        )
+        if not overwrite_existing:
+            query = query.is_("pnl_usd", "null")
+        resp = query.execute()
         candidates = resp.data or []
     except Exception as exc:
         return {"status": "error", "message": f"DB query failed: {exc}"}

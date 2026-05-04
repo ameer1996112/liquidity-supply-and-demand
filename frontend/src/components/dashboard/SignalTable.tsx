@@ -597,8 +597,9 @@ export function SignalTable({
         const broker = brokerMap[String(signal.id)];
         const livePnl = broker?.live_pnl;
         const dbPnl = getPnl(signal);
+        const shouldShowLivePnl = isOpenStatus(signal.status) && livePnl != null;
 
-        if (livePnl != null) {
+        if (shouldShowLivePnl) {
           const isPos = livePnl >= 0;
           return (
             <span

@@ -79,7 +79,7 @@ def test_streaming_close_uses_broker_deal_time_for_close_timestamps():
     assert update["updated_at"] != deal_time
 
 
-def test_streaming_replay_without_deal_time_does_not_update_closed_row():
+def test_streaming_close_updates_realized_pnl_for_already_closed_row():
     original_close = "2026-04-27T06:05:00+00:00"
     sb = _FakeSupabase(
         [
@@ -89,6 +89,8 @@ def test_streaming_replay_without_deal_time_does_not_update_closed_row():
                 "exit_time": original_close,
                 "closed_at": original_close,
                 "broker_order_id": "89146771",
+                "pnl_usd": 1126.76,
+                "pnl": 1126.76,
             }
         ]
     )
@@ -105,7 +107,11 @@ def test_streaming_replay_without_deal_time_does_not_update_closed_row():
         )
     )
 
-    assert sb.table_obj.updates == []
+    update = sb.table_obj.updates[-1]
+    assert update["pnl_usd"] == -127.64
+    assert update["pnl"] == -127.64
+    assert update["closed_at"] == original_close
+    assert update["exit_time"] == original_close
 
 
 def test_streaming_stores_net_broker_pnl_including_commission_and_swap():

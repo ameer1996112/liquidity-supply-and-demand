@@ -92,7 +92,6 @@ FastAPI routers grouped by domain. One file per domain.
 | `src/api_alerts.py` | Alert configuration |
 | `src/api_analytics.py` | Analytics and PnL |
 | `src/api_analytics_signals_perf.py` | Signal performance analytics |
-| `src/api_backtests.py` | Backtest endpoints |
 | `src/api_broker_profiles.py` | Broker profile CRUD |
 | `src/api_config.py` | System configuration |
 | `src/api_copilot.py` | AI copilot endpoints |
@@ -134,7 +133,6 @@ Domain logic layer. Do not call these from API handlers directly — route throu
 | `src/services/alert_engine.py` | Alert evaluation engine |
 | `src/services/alert_service.py` | Alert CRUD |
 | `src/services/background_sync_worker.py` | Background sync tasks |
-| `src/services/backtest_engine.py` | Backtesting logic |
 | `src/services/broker_reconciliation.py` | Broker vs. DB reconciliation |
 | `src/services/chart_generator.py` | Chart generation |
 | `src/services/consistency_analyzer.py` | Data consistency checks |

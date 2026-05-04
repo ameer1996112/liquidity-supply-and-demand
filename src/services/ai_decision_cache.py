@@ -1,5 +1,5 @@
 """
-Sprint 4.1: AI decision cache for backtest reruns.
+AI decision cache for repeated optimizer/debate evaluations.
 
 Cache key = hash(strategy_version + prompt_version + model + signal_hash + candle_context_hash)
 """

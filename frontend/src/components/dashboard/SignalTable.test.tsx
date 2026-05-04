@@ -5,6 +5,7 @@ import { createRoot, Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SignalTable } from './SignalTable';
 import type { TradingSignal } from '@/types/trading';
+import type { ActivePosition } from '@/hooks/usePositions';
 import { useState } from 'react';
 
 const signals: TradingSignal[] = [
@@ -158,5 +159,47 @@ describe('SignalTable', () => {
 
     expect(container.textContent?.toLowerCase()).not.toContain('processing');
     expect(container.textContent).toContain('CLOSED');
+  });
+
+  it('uses realized DB PnL instead of live broker PnL for closed signals', () => {
+    const closedSignal: TradingSignal = {
+      ...signals[0],
+      id: '515',
+      symbol: 'XAUUSD',
+      pnl: 420.64,
+      pnl_usd: 420.64,
+      commission: 0,
+      swap: 0,
+      status: 'closed',
+    };
+    const brokerMap: Record<string, ActivePosition> = {
+      '515': {
+        id: 515,
+        symbol: 'XAUUSD',
+        side: 'sell',
+        entry: 4604.85,
+        sl: 4613.37,
+        tp: 4468.53,
+        size: 0.08,
+        broker_order_id: '89146771',
+        current_price: 4464.25,
+        live_pnl: 1126.76,
+        live_pnl_pct: 2.25,
+        hold_duration_seconds: 3600,
+        created_at: closedSignal.created_at,
+        zone_type: null,
+        entry_model: null,
+        rr_ratio: null,
+        is_stale: false,
+        broker_exists: false,
+      },
+    };
+
+    act(() => {
+      root.render(<SignalTable signals={[closedSignal]} brokerMap={brokerMap} />);
+    });
+
+    expect(container.textContent).toContain('420.64');
+    expect(container.textContent).not.toContain('1126.76');
   });
 });
