@@ -122,7 +122,7 @@ describe('SignalTable', () => {
     act(() => {
       root.render(
         <SignalTable
-          signals={[signals[0]]}
+          signals={[{ ...signals[0], status: 'OPEN' }]}
           councilMap={{
             'sig-1': {
               recommendation: 'pending',
@@ -137,5 +137,26 @@ describe('SignalTable', () => {
 
     expect(container.textContent?.toLowerCase()).toContain('processing');
     expect(container.textContent?.toLowerCase()).not.toContain('skip');
+  });
+
+  it('does not show stale pending council placeholders for closed signals', () => {
+    act(() => {
+      root.render(
+        <SignalTable
+          signals={[signals[0]]}
+          councilMap={{
+            'sig-1': {
+              recommendation: 'pending',
+              confidence: 0,
+              votes: {},
+              status: 'pending',
+            },
+          }}
+        />
+      );
+    });
+
+    expect(container.textContent?.toLowerCase()).not.toContain('processing');
+    expect(container.textContent).toContain('CLOSED');
   });
 });

@@ -95,6 +95,10 @@ function isFilteredStatus(status: string): boolean {
   return s === 'filtered' || s === 'symbol_blacklisted';
 }
 
+function isTerminalStatus(status: string): boolean {
+  return isClosedStatus(status) || isRejectedStatus(status) || isFilteredStatus(status);
+}
+
 /** Left-border color class based on signal side */
 function sideBorderColor(side: string): string {
   const s = (side ?? '').toLowerCase();
@@ -259,9 +263,22 @@ function SideBadge({ side }: { side: string }) {
   );
 }
 
-function CouncilBadge({ summary }: { summary: CouncilSummary | undefined }) {
-  if (!summary)
-    return <span className='font-mono text-[10px] text-[var(--to-text-dim)]/40'>—</span>;
+function CouncilPlaceholder({ title }: { title?: string }) {
+  return (
+    <span className='font-mono text-[10px] text-[var(--to-text-dim)]/40' title={title}>
+      —
+    </span>
+  );
+}
+
+function CouncilBadge({
+  summary,
+  suppressPending,
+}: {
+  summary: CouncilSummary | undefined;
+  suppressPending?: boolean;
+}) {
+  if (!summary) return <CouncilPlaceholder />;
 
   const isAllow = summary.recommendation === 'allow';
   const conf = summary.confidence;
@@ -269,6 +286,10 @@ function CouncilBadge({ summary }: { summary: CouncilSummary | undefined }) {
   const hasVotes = voteEntries.length > 0;
   const isPending =
     summary.status === 'pending' || summary.recommendation === 'pending';
+
+  if (isPending && suppressPending) {
+    return <CouncilPlaceholder title='Council result was not finalized for this completed signal' />;
+  }
 
   if (isPending) {
     return (
@@ -653,7 +674,10 @@ export function SignalTable({
         </span>
       ),
       render: safeRender('council', (signal) => (
-        <CouncilBadge summary={councilMap[String(signal.id)]} />
+        <CouncilBadge
+          summary={councilMap[String(signal.id)]}
+          suppressPending={isTerminalStatus(signal.status)}
+        />
       )),
     },
     {

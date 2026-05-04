@@ -23,6 +23,30 @@ def _get_supabase():
     return create_client(s.supabase_url, key)
 
 
+def _run_summary(row: Dict[str, Any]) -> Dict[str, Any]:
+    rec = str(row.get("recommendation") or "allow").lower()
+    return {
+        "recommendation": rec,
+        "confidence": row.get("confidence", 0),
+        "votes": row.get("votes") or {},
+        "status": "pending" if rec == "pending" else "complete",
+    }
+
+
+def _prefer_run_summary(
+    runs: Dict[str, Any],
+    signal_id: str,
+    row: Dict[str, Any],
+) -> None:
+    """Keep completed council rows ahead of pending placeholders."""
+    summary = _run_summary(row)
+    existing = runs.get(signal_id)
+    if existing and existing.get("status") != "pending":
+        return
+    if summary["status"] == "complete" or not existing:
+        runs[signal_id] = summary
+
+
 @router.get("", response_model=Dict[str, Any])
 def get_ai_run_by_signal(signal_id: int = Query(..., description="Trading signal ID")):
     """
@@ -118,27 +142,24 @@ def get_ai_runs_bulk(signal_ids: str = Query(..., description="Comma-separated s
         # Pass 1: direct signal_id lookup
         resp = (
             sb.table("ai_runs")
-            .select("signal_id, recommendation, confidence, votes")
+            .select("signal_id, recommendation, confidence, votes, created_at")
             .in_("signal_id", int_ids)
+            .order("created_at", desc=True)
             .execute()
         )
         runs: Dict[str, Any] = {}
         if resp.data:
-            # Keep only the latest row per signal_id (data comes unordered)
             for row in resp.data:
                 sid = str(row.get("signal_id"))
-                if sid not in runs:
-                    rec = row.get("recommendation", "allow")
-                    runs[sid] = {
-                        "recommendation": rec,
-                        "confidence": row.get("confidence", 0),
-                        "votes": row.get("votes") or {},
-                        "status": "pending" if rec == "pending" else "complete",
-                    }
+                _prefer_run_summary(runs, sid, row)
 
         # Pass 2: fallback via pipeline_traces for any still-missing signals
         # (covers older positions recorded before the race condition fix)
-        missing_ids = [sid for sid in int_ids if str(sid) not in runs]
+        missing_ids = [
+            sid
+            for sid in int_ids
+            if str(sid) not in runs or runs[str(sid)].get("status") == "pending"
+        ]
         if missing_ids:
             try:
                 traces_resp = (
@@ -157,8 +178,9 @@ def get_ai_runs_bulk(signal_ids: str = Query(..., description="Comma-separated s
                         corr_ids = list(corr_to_signal.keys())
                         ai_resp = (
                             sb.table("ai_runs")
-                            .select("correlation_id, recommendation, confidence, votes")
+                            .select("correlation_id, recommendation, confidence, votes, created_at")
                             .in_("correlation_id", corr_ids)
+                            .order("created_at", desc=True)
                             .execute()
                         )
                         if ai_resp.data:
@@ -166,17 +188,8 @@ def get_ai_runs_bulk(signal_ids: str = Query(..., description="Comma-separated s
                                 corr = row.get("correlation_id")
                                 if corr and corr in corr_to_signal:
                                     sid = str(corr_to_signal[corr])
-                                    if sid not in runs:
-                                        rec = row.get("recommendation", "allow")
-                                        # Skip unfinished placeholder rows
-                                        if rec == "pending":
-                                            continue
-                                        runs[sid] = {
-                                            "recommendation": rec,
-                                            "confidence": row.get("confidence", 0),
-                                            "votes": row.get("votes") or {},
-                                            "status": "complete",
-                                        }
+                                    if str(row.get("recommendation") or "").lower() != "pending":
+                                        _prefer_run_summary(runs, sid, row)
             except Exception:
                 pass  # Fallback failure is silent — never break the main response
 
