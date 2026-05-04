@@ -10,12 +10,14 @@ try:
     from .asset_classifier import classify_asset
     from .audit_result import audit_result
     from .config import RESULTS_DIR
+    from .prop_profiles import load_prop_profile, params_pass_prop_profile
     from .trade_count_anomaly import detect_trade_count_anomaly
 except ImportError:  # Allows `python scripts/optimizer/robust_filter.py`.
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from scripts.optimizer.asset_classifier import classify_asset
     from scripts.optimizer.audit_result import audit_result
     from scripts.optimizer.config import RESULTS_DIR
+    from scripts.optimizer.prop_profiles import load_prop_profile, params_pass_prop_profile
     from scripts.optimizer.trade_count_anomaly import detect_trade_count_anomaly
 
 WINDOWS = ("365d", "90d", "30d")
@@ -48,6 +50,13 @@ RULES = {
 
 OUTPUT_PASSED_FILE = RESULTS_DIR / "robust_passed.json"
 OUTPUT_REJECTED_FILE = RESULTS_DIR / "robust_rejected.json"
+
+DECISIONS = (
+    "TRADE_NORMAL_RISK",
+    "TRADE_REDUCED_RISK",
+    "WATCH_ONLY",
+    "NO_TRADE",
+)
 
 
 def load_results(path: Path) -> dict[str, dict[str, Any]]:
@@ -149,6 +158,47 @@ def _params_digest(params: dict[str, Any]) -> str:
     return json.dumps(params, sort_keys=True, separators=(",", ":"))
 
 
+def _status_passed(rows: dict[str, dict[str, Any]], key: str) -> bool:
+    return bool(rows) and all(row.get(key) == "passed" for row in rows.values())
+
+
+def _proof_failures(symbol: str, rows: dict[str, dict[str, Any]]) -> list[str]:
+    reasons: list[str] = []
+    if not _status_passed(rows, "strategy_fidelity_status"):
+        reasons.append("strategy_fidelity_failed")
+    if not _status_passed(rows, "prop_profile_status"):
+        reasons.append("prop_profile_failed")
+
+    params = next((row.get("params") for row in rows.values() if isinstance(row.get("params"), dict)), {})
+    profile_name = next(
+        (
+            str(row.get("prop_profile"))
+            for row in rows.values()
+            if row.get("prop_profile")
+        ),
+        "generic_cfd_safe",
+    )
+    if isinstance(params, dict) and params:
+        try:
+            ok, prop_reasons = params_pass_prop_profile(params, load_prop_profile(profile_name), symbol)
+        except KeyError:
+            ok, prop_reasons = False, [f"unknown_prop_profile:{profile_name}"]
+        if not ok:
+            reasons.extend(prop_reasons)
+    return reasons
+
+
+def decide_trade_action(candidates: list[dict[str, Any]]) -> str:
+    if not candidates:
+        return "NO_TRADE"
+    best = candidates[0]
+    if best.get("current_regime_status") == "mismatch":
+        return "WATCH_ONLY"
+    if best.get("risk_mode") == "reduced":
+        return "TRADE_REDUCED_RISK"
+    return "TRADE_NORMAL_RISK"
+
+
 def evaluate_candidates(
     all_results: dict[str, dict[str, dict[str, Any]]],
 ) -> tuple[list[dict[str, Any]], dict[str, dict[str, list[str]]]]:
@@ -181,6 +231,9 @@ def evaluate_candidates(
         anomaly = detect_trade_count_anomaly(rows)
         if anomaly:
             failures.setdefault("trade_count_anomaly", []).append(str(anomaly["reason"]))
+        proof_failures = _proof_failures(symbol, rows)
+        if proof_failures:
+            failures.setdefault("proof", []).extend(proof_failures)
 
         if failures:
             rejected[symbol] = failures
@@ -197,6 +250,9 @@ def evaluate_candidates(
                 "allowed_regimes": [],
                 "blocked_regimes": ["NEWS_RISK", "SPREAD_RISK"],
                 "regime_attribution_status": "not_available",
+                "strategy_fidelity_status": "passed",
+                "prop_profile_status": "passed",
+                "final_decision": "TRADE_NORMAL_RISK",
             }
         )
 
@@ -215,6 +271,9 @@ def _passed_payload(passed: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "allowed_regimes": candidate["allowed_regimes"],
             "blocked_regimes": candidate["blocked_regimes"],
             "regime_attribution_status": candidate["regime_attribution_status"],
+            "strategy_fidelity_status": candidate["strategy_fidelity_status"],
+            "prop_profile_status": candidate["prop_profile_status"],
+            "final_decision": candidate["final_decision"],
         }
         for candidate in passed
     }
@@ -242,6 +301,7 @@ def _print_summary(
         print(f"{symbol}:")
         for window, reasons in failures.items():
             print(f"  {window}: {', '.join(reasons)}")
+    print(f"\nFINAL DECISION: {decide_trade_action(passed)}")
 
 
 def main(

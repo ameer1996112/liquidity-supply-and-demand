@@ -124,10 +124,10 @@ def test_backtest_result_serializes_pair_decision() -> None:
 def test_optimizer_run_enriches_timeout_partial_best(monkeypatch) -> None:
     partial_best = BacktestResult(
         symbol="EURUSD",
-        params={"max_daily_loss_pct": 3.5},
+        params={"max_daily_loss_pct": 3.0},
         verified_symbol="EURUSD",
         net_profit=1200.0,
-        total_trades=22,
+        total_trades=42,
         win_rate=55.0,
         profit_factor=1.24,
         max_drawdown=500.0,
@@ -175,5 +175,5 @@ def test_optimizer_run_enriches_timeout_partial_best(monkeypatch) -> None:
 
     enriched = optimizer.best_per_pair["EURUSD"]
     assert enriched.decision["status"] == "PASS"
-    assert enriched.forward_metrics["max_daily_loss_pct"] == 3.5
+    assert enriched.forward_metrics["max_daily_loss_pct"] == 3.0
     assert saved["EURUSD"].decision["risk_weight"] == 1.0

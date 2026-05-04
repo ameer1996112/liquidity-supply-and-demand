@@ -18,6 +18,18 @@ CHECKPOINT_FILE = RESULTS_DIR / "checkpoint.json"
 
 PROP_FIRM_MAX_DD_PCT = 10.0   # Hard limit: score = 0 if DD% exceeds this
 
+PROP_PROFILE_LOCKED_PARAMS = (
+    "risk_per_trade_pct",
+    "risk_pct",
+    "daily_kill_pct",
+    "total_kill_pct",
+    "max_daily_loss_pct",
+    "max_trades_per_day",
+    "news_blackout_enabled",
+    "max_position_size_lots",
+    "max_lots_per_10k",
+)
+
 # ─── Bayesian optimization ────────────────────────────────────────────────────
 
 N_BAYESIAN_TRIALS = 150        # Total Optuna trials per pair (increased: 21 params now vs 16)
@@ -53,8 +65,7 @@ OPTUNA_SEARCH_SPACE: dict = {
     "max_zones":                {"type": "int",         "low": 10,   "high": 30},
 
     # ── Daily trade limits ────────────────────────────────────────────────────
-    "max_trades_per_day":       {"type": "int",         "low": 1,    "high": 3},
-    "max_daily_loss_pct":       {"type": "float",       "low": 2.0,  "high": 3.0},   # prop firm safe range
+    # Prop-firm safety limits are profile-owned, not optimized.
     "max_daily_profit_pct":     {"type": "float",       "low": 3.0,  "high": 8.0},   # lock profits early
 
     # ── Session hours (key insight: different pairs peak in different sessions)
@@ -69,6 +80,31 @@ LIQ_DISTANCE_RANGES: dict = {
     "forex": {"low": 10.0,  "high": 35.0,  "param": "liq_max_distance_pips_forex"},
     "gold":  {"low": 80.0,  "high": 250.0, "param": "liq_max_distance_pips_gold"},
     "index": {"low": 250.0, "high": 800.0, "param": "liq_max_distance_pips_index"},
+}
+
+ASSET_CLASS_PARAM_SPACES: dict[str, dict[str, dict]] = {
+    "forex": {
+        **OPTUNA_SEARCH_SPACE,
+        "liq_max_distance_pips_forex": {"type": "float", "low": 10.0, "high": 35.0},
+    },
+    "jpy": {
+        **OPTUNA_SEARCH_SPACE,
+        "liq_max_distance_pips_forex": {"type": "float", "low": 8.0, "high": 30.0},
+    },
+    "gold": {
+        **OPTUNA_SEARCH_SPACE,
+        "liq_max_distance_pips_gold": {"type": "float", "low": 80.0, "high": 250.0},
+    },
+    "index": {
+        **OPTUNA_SEARCH_SPACE,
+        "liq_max_distance_pips_index": {"type": "float", "low": 250.0, "high": 800.0},
+    },
+    "futures": {
+        **OPTUNA_SEARCH_SPACE,
+        "max_contracts": {"type": "int", "low": 1, "high": 2},
+        "estimated_daily_loss_usd": {"type": "float", "low": 100.0, "high": 700.0},
+        "estimated_max_loss_usd": {"type": "float", "low": 250.0, "high": 1200.0},
+    },
 }
 
 OPTIMIZER_SYNTHETIC_PARAMS = ("rr_mode",)
@@ -93,6 +129,7 @@ OPTIMIZER_CONTEXT_PARAM_DEFAULTS = {
     "trade_direction": "Both",
     "account_size_usd": 50000,
     "risk_per_trade_pct": 0.5,
+    "max_daily_loss_pct": 3.0,
     "enable_date_filter": False,
     "invalidate_on_wick": True,
     "structure_mode": "Relaxed (Wicks)",
@@ -107,6 +144,7 @@ OPTIMIZER_CONTEXT_PARAM_DEFAULTS = {
     "max_usd_risk_cap": 0.0,
     "use_half_risk_second_trade": True,
     "enable_trade_limit": True,
+    "max_trades_per_day": 3,
     "filter_trading_hours": True,
     "require_htf_flip": True,
     "enable_ai_lite_mode": False,
