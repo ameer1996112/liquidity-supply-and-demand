@@ -169,8 +169,8 @@ class Settings(BaseSettings):
     trinity_max_correlation_group: int = Field(default=1, ge=1, le=3)
     trinity_allow_hedging: bool = Field(default=False)
     enable_trading_permission_guard: bool = Field(
-        default=True,
-        description="Enable DEV-266 daily trading permission guard.",
+        default=False,
+        description="Enable DEV-266 daily trading permission guard after optimized pairs are ready.",
         validation_alias=AliasChoices("ENABLE_TRADING_PERMISSION_GUARD", "enable_trading_permission_guard"),
     )
     approved_candidates_file: str = Field(
