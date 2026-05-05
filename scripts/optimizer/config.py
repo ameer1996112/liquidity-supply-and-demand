@@ -153,6 +153,33 @@ OPTIMIZER_CONTEXT_PARAM_DEFAULTS = {
 }
 
 
+def parse_fixed_overrides(raw: str | None) -> dict:
+    """Parse comma-separated key=value optimizer overrides from CLI flags."""
+    fixed_overrides: dict = {}
+    if not raw:
+        return fixed_overrides
+    for pair in raw.split(","):
+        pair = pair.strip()
+        if "=" not in pair:
+            continue
+        key, value = pair.split("=", 1)
+        value = value.strip()
+        if value.lower() == "true":
+            parsed: object = True
+        elif value.lower() == "false":
+            parsed = False
+        else:
+            try:
+                parsed = int(value)
+            except ValueError:
+                try:
+                    parsed = float(value)
+                except ValueError:
+                    parsed = value
+        fixed_overrides[key.strip()] = parsed
+    return fixed_overrides
+
+
 def materialize_result_params(params: dict) -> dict:
     """Return a complete params snapshot for optimizer replay/manual entry."""
     materialized = {**OPTIMIZER_CONTEXT_PARAM_DEFAULTS, **params}

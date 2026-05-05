@@ -1,0 +1,5551 @@
+00:00 All right, yo. So, today I'm going to be
+00:02 
+
+00:02 doing literally just a chill little back
+00:04 
+
+00:04 testing session. Honestly, if I'm being
+00:07 
+
+00:07 completely honest, I'm not really want
+00:08 
+
+00:08 to back test anymore. Can't lie. And I
+00:10 
+
+00:10 don't really need to. I mean, I'm
+00:12 
+
+00:12 constantly in the live markets and I've
+00:14 
+
+00:14 gone through all of the data that
+00:15 
+
+00:15 actually can go in backwards. So I don't
+00:18 
+
+00:18 actually yeah need to but I thought you
+00:21 
+
+00:21 guys especially you of which are newer
+00:24 
+
+00:24 to the strategy would really really
+00:26 
+
+00:26 benefit from me going through and saying
+00:28 
+
+00:28 my exact thought process over
+00:30 
+
+00:30 everything. I just try and touch on
+00:32 
+
+00:32 everything lightly and yeah I'll go
+00:35 
+
+00:35 through like a month or so over here on
+00:36 
+
+00:36 gold see what kind of percent gain we
+00:38 
+
+00:38 can get over that time and I mean that's
+00:42 
+
+00:42 pretty much it. really really simple
+00:44 
+
+00:44 idea, but it should benefit all of us
+00:46 
+
+00:46 quite a lot. Should benefit me actually
+00:49 
+
+00:49 back testing for the first time in ages,
+00:50 
+
+00:50 too.
+00:52 
+
+00:52 Um, I'm just going to be using my simple
+00:54 
+
+00:54 supply demand strategy. Most of you
+00:56 
+
+00:56 probably know it. If you don't, I'm just
+00:58 
+
+00:58 going to be looking for a level of
+00:59 
+
+00:59 liquidity in front of my supply or
+01:01 
+
+01:01 demand zone. And it's just going to be
+01:05 
+
+01:05 an extra confluence that no one really
+01:07 
+
+01:07 uses to be honest for some reason. It's
+01:09 
+
+01:09 literally one of the biggest movers of
+01:12 
+
+01:12 the market, but it's just going to be
+01:14 
+
+01:14 increasing our win rate, increasing our
+01:16 
+
+01:16 risk rewards, and
+01:19 
+
+01:19 just make a really powerful strategy, as
+01:21 
+
+01:21 I always say. So, what I'm seeing right
+01:23 
+
+01:23 now, and what I'm going to do pretty
+01:25 
+
+01:25 much at the start of every day is just
+01:27 
+
+01:27 get a quick little feel on trend. Um,
+01:30 
+
+01:30 you really don't need to zoom out far. I
+01:32 
+
+01:32 know for maybe different time frames,
+01:33 
+
+01:33 you do like top down. We're just going
+01:36 
+
+01:36 to be looking at the current trend for
+01:38 
+
+01:38 the five minute, which is why I like it
+01:40 
+
+01:40 so much. Just less work to be honest.
+01:43 
+
+01:43 Not being lazy or anything. Um, we were
+01:46 
+
+01:46 going bullish, but reacted off something
+01:49 
+
+01:49 to the left and we've been making
+01:51 
+
+01:51 consistent bearish market structure. So,
+01:54 
+
+01:54 if you were to look, some of you
+01:56 
+
+01:56 probably saw,
+01:58 
+
+01:58 nope, completely invalid. Uh, yeah,
+02:01 
+
+02:01 we're going to be using we're not going
+02:03 
+
+02:03 to be using accuracy zones. if you
+02:05 
+
+02:05 wondered.
+02:07 
+
+02:07 But yeah, something like this would not
+02:09 
+
+02:09 be valid. And I'll quickly explain why,
+02:10 
+
+02:10 quickly touch on it. Um, really not nice
+02:14 
+
+02:14 liquidity. Oh, that's not a line. Really
+02:16 
+
+02:16 not nice liquidity at all. Um, pretty
+02:20 
+
+02:20 much one candle
+02:22 
+
+02:22 and all of this structure towards the
+02:25 
+
+02:25 zone is just not great to see. If you
+02:28 
+
+02:28 want to go upwards, why are we showing
+02:29 
+
+02:29 such bearish intent? You know what I
+02:32 
+
+02:32 mean? So something like this that is
+02:35 
+
+02:35 going in favor of the current trend
+02:37 
+
+02:37 would be great and it's got a great
+02:39 
+
+02:39 level of liquidity in front of it. I
+02:41 
+
+02:41 really really like the look of this on
+02:42 
+
+02:42 markup liquidity
+02:44 
+
+02:44 liquidity's lowest broken.
+02:47 
+
+02:47 All we need to see now is some
+02:48 
+
+02:48 rejections to be honest and this will be
+02:52 
+
+02:52 the first valid trade.
+02:56 
+
+02:56 Yeah, that's also very nice to see.
+02:59 
+
+02:59 Can't lie.
+03:01 
+
+03:01 um kind of made a swing towards our
+03:04 
+
+03:04 zone. I can draw this out. Made a swing
+03:07 
+
+03:07 towards our zone. If you were to come
+03:08 
+
+03:08 here and then come up, we'll be pretty
+03:10 
+
+03:10 much doing what I was just saying. Kind
+03:12 
+
+03:12 of make a bullish structure towards our
+03:14 
+
+03:14 zone. It's not always going to
+03:16 
+
+03:16 completely invalidate it for us. But
+03:19 
+
+03:19 this is kind of using it as a
+03:21 
+
+03:21 confluence. Um made that swing and then
+03:24 
+
+03:24 broke another low. pretty much just
+03:26 
+
+03:26 adding another level of liquidity
+03:28 
+
+03:28 and confirming trend.
+03:31 
+
+03:31 All right, gold. Let's try and get Okay,
+03:34 
+
+03:34 that's valid entry. Went too quick
+03:37 
+
+03:37 there. Try not to go too quick. It's
+03:40 
+
+03:40 also on two.
+03:43 
+
+03:43 Um, so flip entry would be valid. That's
+03:45 
+
+03:45 kind of more technical. I'm not going to
+03:48 
+
+03:48 go through flip in this video really.
+03:51 
+
+03:51 Um, if you wanted to break down on my
+03:53 
+
+03:53 different entry models, that will also
+03:54 
+
+03:54 be in my Discord. Quite a lot will be
+03:56 
+
+03:56 over in my Discord.
+03:58 
+
+03:58 Um, stop loss of 423 pips. Something
+04:03 
+
+04:03 else that's in my Discord. I'll chuck it
+04:04 
+
+04:04 on screen right now. Give you guys some
+04:05 
+
+04:05 source. This is going to be the optional
+04:08 
+
+04:08 TP rules for gold specifically. There'll
+04:10 
+
+04:10 be one of these for every single
+04:11 
+
+04:11 different pair that I trade. And it's
+04:13 
+
+04:13 pretty much saying for this many pips in
+04:15 
+
+04:15 our stop loss, what should we be
+04:17 
+
+04:17 targeting? And it's been back tested
+04:19 
+
+04:19 over years. And it's just taking into
+04:21 
+
+04:21 account the overall volatility of the
+04:23 
+
+04:23 current market. Like if we were to go to
+04:26 
+
+04:26 one to three here, this is going to be
+04:28 
+
+04:28 major brace of structure and whatnot.
+04:31 
+
+04:31 It's just kind of um
+04:33 
+
+04:33 yeah, just going off the volatility per
+04:36 
+
+04:36 setup and you can use that for literally
+04:38 
+
+04:38 every single setup. So 400 pips, that'll
+04:41 
+
+04:41 be in the 200 plus pips. And
+04:45 
+
+04:45 I mean, let's just kind of see what kind
+04:47 
+
+04:47 of
+04:49 
+
+04:49 see what kind of volume we can get is
+04:51 
+
+04:51 what I was going to say. Jesus.
+04:55 
+
+04:55 All right. Nice. Really, really nice.
+04:57 
+
+04:57 1.5% already. This is definitely what
+05:00 
+
+05:00 I'd consider an A+ trade. Um, A to A+.
+05:04 
+
+05:04 Uh I wasn't a big fan a huge fan on
+05:07 
+
+05:07 going and showing this many rejections
+05:10 
+
+05:10 from a point towards the left but I mean
+05:13 
+
+05:13 everything else the liquidity weather
+05:15 
+
+05:15 zone responds really really nice 1.5%.
+05:17 
+
+05:17 We could also target potentially the low
+05:20 
+
+05:20 for a one to two just knowing that
+05:22 
+
+05:22 liquidity likes to sit on lows and
+05:24 
+
+05:24 highs. Um there'll be a level of stop
+05:28 
+
+05:28 losses just below here the market wants
+05:30 
+
+05:30 to seek out. Yeah, really nice.
+05:35 
+
+05:35 We'll see if the market wants to go
+05:37 
+
+05:37 lower. It's actually the end of session,
+05:39 
+
+05:39 so we'll just see tomorrow. Um, why am I
+05:42 
+
+05:42 deleting it? Nice. Right to the next
+05:46 
+
+05:46 day. That is a 1 to 1.5.
+05:49 
+
+05:49 Yeah, I'll just be going off those
+05:50 
+
+05:50 optional TP rules pretty much all video.
+05:54 
+
+05:54 Right. Okay. I've kind of gone really
+05:57 
+
+05:57 fast. Okay. Way too fast. Let me not
+05:60 
+
+05:60 look.
+06:02 
+
+06:02 Right. What am I seeing? Super bullish.
+06:06 
+
+06:06 Very, very bullish. Um, literally from
+06:09 
+
+06:09 the start of the day, just been showing
+06:10 
+
+06:10 higher highs and higher lows. Really
+06:13 
+
+06:13 simple stuff. Can't really get much
+06:15 
+
+06:15 simpler than that. Don't need to look
+06:16 
+
+06:16 further back at all. Um,
+06:22 
+
+06:22 I'm seeing a couple of valid zones. Once
+06:24 
+
+06:24 again, no accuracy zones if you know
+06:26 
+
+06:26 what that is. just because on gold and
+06:29 
+
+06:29 NAS we won't be using accuracy zones.
+06:32 
+
+06:32 Um
+06:34 
+
+06:34 these two zones I'll also mark out the
+06:36 
+
+06:36 levels of liquidity and why they're
+06:39 
+
+06:39 valid
+06:41 
+
+06:41 since they broke liquidity's high in
+06:44 
+
+06:44 both examples
+06:46 
+
+06:46 came up for this example made liquidity
+06:49 
+
+06:49 broke liquidity's high and you can see
+06:51 
+
+06:51 the exact same just here broke that
+06:53 
+
+06:53 high. So these two are super valid for
+06:57 
+
+06:57 me.
+06:58 
+
+06:58 Um, yeah, definitely not in the market
+06:60 
+
+07:00 for sells right now.
+07:03 
+
+07:03 Has that tapped?
+07:05 
+
+07:05 No, because I've not got it marked out
+07:08 
+
+07:08 perfectly. Right, that's better. Um,
+07:12 
+
+07:12 see if we can get rejections.
+07:15 
+
+07:15 Has that tapped now? Feel like I'm not
+07:17 
+
+07:17 marking it out right.
+07:20 
+
+07:20 Yeah, I'd say that's tapped literally by
+07:22 
+
+07:22 the pip. Um, but we're showing so many
+07:25 
+
+07:25 rejections already. so many so much
+07:29 
+
+07:29 and this is why it's really important to
+07:31 
+
+07:31 actually wait for an energy model.
+07:33 
+
+07:33 Thought that would be a good point to
+07:34 
+
+07:34 mention. Um if we entered here because
+07:36 
+
+07:36 we I don't know had FOMO and didn't want
+07:39 
+
+07:39 to miss the trade then we would have
+07:41 
+
+07:41 gotten stopped out by coming you know
+07:43 
+
+07:43 deeper into zone to actually get our
+07:46 
+
+07:46 entry which is where the investors are
+07:48 
+
+07:48 going to be getting in at we finally got
+07:49 
+
+07:49 back to this price that they wanted to
+07:52 
+
+07:52 actually take. So, that's going to be
+07:55 
+
+07:55 our entry model. Just directional close
+07:56 
+
+07:56 every single time.
+07:59 
+
+07:59 Um, stop loss really, really tight. See
+08:02 
+
+08:02 how tight we can actually get it.
+08:05 
+
+08:05 Right. Reason I did that, we're now
+08:08 
+
+08:08 actually one under 100 pips, which if we
+08:11 
+
+08:11 go back to the optional TP rules, um,
+08:15 
+
+08:15 save that somewhere or just join the
+08:17 
+
+08:17 Discord, that'll be in there. Um, that's
+08:21 
+
+08:21 going to put us to a one to three, which
+08:22 
+
+08:22 will just be really really I mean it's
+08:26 
+
+08:26 yeah 0.5 R up from the category just
+08:31 
+
+08:31 under it might as well. I mean that's
+08:34 
+
+08:34 half of a loss just covered. Definitely
+08:37 
+
+08:37 worth kind of trying to preserve capital
+08:40 
+
+08:40 and make extra capital where possible
+08:42 
+
+08:42 just kind of holding winners
+08:43 
+
+08:43 potentially. Um, once again, I'm just
+08:46 
+
+08:46 going to be using the optional TP rules,
+08:47 
+
+08:47 which just makes stuff really easy.
+08:50 
+
+08:50 Um, yeah, let's just see movement. Oh
+08:53 
+
+08:53 my, oh my god, that's three candles. I'm
+08:56 
+
+08:56 already there, right? That was a lot
+08:58 
+
+08:58 quicker than I expected.
+08:60 
+
+08:60 Um,
+09:02 
+
+09:02 plus 3%. Literally just going to be 1%
+09:04 
+
+09:04 in pretty much every trade on the 5m
+09:06 
+
+09:06 minute. Simple stuff. Going off the
+09:09 
+
+09:09 theory that we just mentioned, there may
+09:11 
+
+09:11 be liquidity sitting above here for a 1
+09:14 
+
+09:14 to 4.5 or up here for a 6RR.
+09:18 
+
+09:18 Now, these are both one candle
+09:21 
+
+09:21 liquidities. They won't be valid for our
+09:23 
+
+09:23 liquidity for our zone, but there may be
+09:27 
+
+09:27 valid liquidity to take for a takerit.
+09:31 
+
+09:31 Um, yeah, just not super super
+09:33 
+
+09:33 convincing, but there still will be kind
+09:35 
+
+09:35 of like a weaker level. So, there's
+09:37 
+
+09:37 potential to literally double. Oh my
+09:40 
+
+09:40 god. Okay. I thought we were going to
+09:42 
+
+09:42 come down there, right? Yeah. Wow. 6R.
+09:45 
+
+09:45 I'm just going to be adding um 3% for
+09:48 
+
+09:48 all of my back tested results.
+09:51 
+
+09:51 Um I'll make a cute little spreadsheet
+09:54 
+
+09:54 with all of my Oh, I've actually got it
+09:56 
+
+09:56 up here. Um yeah, all of my results. So,
+09:59 
+
+09:59 that'll be over in my Discord, too. Just
+10:02 
+
+10:02 kind of putting it numeric numerically.
+10:07 
+
+10:07 easier to kind of read.
+10:09 
+
+10:09 And yeah, I mean, one to three RR that
+10:13 
+
+10:13 is insane pretty much for any strategy.
+10:15 
+
+10:15 I can't lie, that's a lot better than
+10:17 
+
+10:17 quite a few. Not going to judge or or
+10:20 
+
+10:20 compare to other strategies, but I
+10:22 
+
+10:22 definitely like not going for one to
+10:24 
+
+10:24 ones every trade.
+10:26 
+
+10:26 Nudge, nudge. Right, let's not talk on
+10:29 
+
+10:29 that. Let's talk about our strategy.
+10:31 
+
+10:31 Right. um coming towards the end of the
+10:35 
+
+10:35 day, I wouldn't really take this lower
+10:38 
+
+10:38 zone anymore. Um as you can see, pretty
+10:42 
+
+10:42 much with the the first trade I was
+10:44 
+
+10:44 talking about that demand example and
+10:47 
+
+10:47 it's a demand and we're seeing bearish
+10:50 
+
+10:50 structure toward zone, which if we're
+10:54 
+
+10:54 looking for buys, why would we be going
+10:57 
+
+10:57 against a bearish trend, you know, a
+10:60 
+
+10:60 downtrend? So probably wouldn't be valid
+11:02 
+
+11:02 for me anymore even if we do get an
+11:04 
+
+11:04 entry now. Um
+11:08 
+
+11:08 yeah, especially just making once again
+11:10 
+
+11:10 another swing broken broken breaking and
+11:13 
+
+11:13 I think it yeah just straight up closing
+11:15 
+
+11:15 side anyway so it wouldn't have even
+11:17 
+
+11:17 given a valid entry
+11:19 
+
+11:19 right
+11:21 
+
+11:21 good capital preservation on that one
+11:23 
+
+11:23 too. Uh if we close inside zone before
+11:26 
+
+11:26 entry, that's just going to be
+11:28 
+
+11:28 completely invalid for us. And we're at
+11:30 
+
+11:30 three again. Nice. Already
+11:34 
+
+11:34 4.5 R up. That is a really really nice
+11:37 
+
+11:37 start. Okay, I've actually gone too far.
+11:41 
+
+11:41 That's going to be really important when
+11:42 
+
+11:42 back testing. Try not to go too fast cuz
+11:45 
+
+11:45 um let's say if you see an entry and
+11:49 
+
+11:49 then you go back and you're like, "Oh
+11:50 
+
+11:50 no, I would have entered there. I swear,
+11:52 
+
+11:52 guys. I swear it's it's not really
+11:54 
+
+11:54 showing to yourself that it can be super
+11:56 
+
+11:56 profitable. Um you're kind of going off
+11:59 
+
+11:59 hindsight in a sense. You want to trade
+12:02 
+
+12:02 back testing how you're trading in the
+12:03 
+
+12:03 actual live markets. That would be
+12:06 
+
+12:06 entering before your sin that it goes in
+12:09 
+
+12:09 your favor. Obviously,
+12:11 
+
+12:11 um what am I seeing today? Once again,
+12:13 
+
+12:13 just looking over trend pretty
+12:16 
+
+12:16 uptrending some space for potential
+12:19 
+
+12:19 retracement. So, I'd be looking for
+12:22 
+
+12:22 buys.
+12:24 
+
+12:24 No valid demands, though.
+12:27 
+
+12:27 Potential. Nope. Oh, I was seeing if we
+12:30 
+
+12:30 could break this high. That'd be a nice
+12:31 
+
+12:31 level of liquidity just formed here.
+12:34 
+
+12:34 Looks like we didn't want to.
+12:39 
+
+12:39 What time are we at now? Still just 10.
+12:42 
+
+12:42 Kind of have to see a whole move, whole
+12:44 
+
+12:44 setup being formed, which it's not
+12:46 
+
+12:46 looking very likely.
+12:49 
+
+12:49 one now.
+12:51 
+
+12:51 No valid zones to the left. Yeah, I
+12:54 
+
+12:54 broken low. I'm just going to go to the
+12:56 
+
+12:56 next day. No valid trades there. And
+12:59 
+
+12:59 there is going to be days like that.
+12:60 
+
+12:60 Once again, we're trading like six
+13:02 
+
+13:02 pairs, I'm pretty sure. So, can't expect
+13:06 
+
+13:06 a trade every single day on just one of
+13:08 
+
+13:08 our pairs. That would kind of be too
+13:10 
+
+13:10 much work to be honest. So, um yeah, one
+13:14 
+
+13:14 sec.
+13:16 
+
+13:16 My bad. Stay hydrated, guys. Um
+13:20 
+
+13:20 uptrending
+13:22 
+
+13:22 same as before clear fair value gaps
+13:25 
+
+13:25 imbalances and just clear space for
+13:27 
+
+13:27 retracement.
+13:29 
+
+13:29 I'm looking for buys valid demand that
+13:32 
+
+13:32 I'll mark out
+13:35 
+
+13:35 uh
+13:36 
+
+13:36 some more even lower but we'll see if we
+13:39 
+
+13:39 actually get down to that point.
+13:42 
+
+13:42 what I'll actually do then.
+13:46 
+
+13:46 Oh, that's that
+13:49 
+
+13:49 hasn't even given valid entry yet.
+13:51 
+
+13:51 Anyways,
+13:54 
+
+13:54 that's given valid entry. This was valid
+13:57 
+
+13:57 for break. I will just go off close just
+13:59 
+
+13:59 to be super transparent.
+14:01 
+
+14:01 Um, once again, I just don't want to
+14:05 
+
+14:05 give anyone the wrong idea.
+14:08 
+
+14:08 155. That does actually put us into the
+14:10 
+
+14:10 bracket below. So, it would have been
+14:11 
+
+14:11 good to get that flip, but yeah, we're
+14:14 
+
+14:14 just going for one to 1.5. Now, I'll
+14:17 
+
+14:17 test it for both. In fact, it might even
+14:19 
+
+14:19 be similar TPS.
+14:21 
+
+14:21 Um, if we're down here, we'd actually be
+14:24 
+
+14:24 targeting. Okay, just a one to two with
+14:28 
+
+14:28 150 plus
+14:32 
+
+14:32 one to two would be there. So, yeah,
+14:34 
+
+14:34 definitely would have been good to get
+14:35 
+
+14:35 that break. Pretty much just saying that
+14:38 
+
+14:38 that was valid for break.
+14:41 
+
+14:41 See some movement. That's great
+14:44 
+
+14:44 movement. Actually really, really nice.
+14:46 
+
+14:46 Jesus, these candles are crazy. Swear I
+14:50 
+
+14:50 don't usually see these candles in live
+14:52 
+
+14:52 markets. I mean, these would have been
+14:54 
+
+14:54 trades that I took to be honest. But
+14:57 
+
+14:57 super super clean. I just love movement
+14:60 
+
+15:00 like that. Once again, potential to take
+15:02 
+
+15:02 to the high. for uptrending. Michael
+15:05 
+
+15:05 will likely just want to
+15:08 
+
+15:08 yeah break that high.
+15:11 
+
+15:11 Um also liquidity sitting above there
+15:14 
+
+15:14 just so much pulling upwards. Also the
+15:17 
+
+15:17 previous retracement we'll see if we
+15:18 
+
+15:18 want to continue going upwards
+15:21 
+
+15:21 but once again I'm going to be taking
+15:23 
+
+15:23 the optional TP rules one to five one to
+15:28 
+
+15:28 1.5. One to five would have been nice.
+15:31 
+
+15:31 um 1 to 1.5 is still just a great risk
+15:34 
+
+15:34 reward which will yeah really just treat
+15:37 
+
+15:37 us longterm
+15:39 
+
+15:39 still valid zones that actually also
+15:41 
+
+15:41 formed another valid zone if you wanted
+15:44 
+
+15:44 to come down to that another one up here
+15:48 
+
+15:48 I mean okay I was not looking I guess
+15:51 
+
+15:51 that's the retracement I was just
+15:52 
+
+15:52 talking about always nice um
+15:58 
+
+15:58 yeah I mean definitely not coming down
+16:00 
+
+16:00 to any zones at this point straight to
+16:03 
+
+16:03 the next day.
+16:05 
+
+16:05 Uh I mean this is just a great example.
+16:07 
+
+16:07 We're ticking everything that the market
+16:09 
+
+16:09 wants to see before continuing in our
+16:11 
+
+16:11 direction. Um there's like kind of three
+16:14 
+
+16:14 core pillars or core factors, however
+16:18 
+
+16:18 cringe you want to say it. I need to
+16:19 
+
+16:19 come up with a cool quote.
+16:22 
+
+16:22 Where was I going with this? Market
+16:23 
+
+16:23 structure, liquidity, and just supply
+16:26 
+
+16:26 and demand zones. reached that demand,
+16:28 
+
+16:28 got liquidity, and now this is just
+16:31 
+
+16:31 straight market structure to the upside.
+16:34 
+
+16:34 Right to our session 8:00, I'm looking
+16:39 
+
+16:39 for sales literally all day. We've just
+16:41 
+
+16:41 been downtrending really, really
+16:43 
+
+16:43 cleanly, too. And like I literally just
+16:46 
+
+16:46 said, very, very clear um
+16:51 
+
+16:51 space for retracement. We're never going
+16:53 
+
+16:53 to just continue in this straight line
+16:55 
+
+16:55 forever. So, um, that's why price is
+16:58 
+
+16:58 going to want to retrace.
+17:00 
+
+17:00 Valid supplies. Oh, actually mark out
+17:02 
+
+17:02 this one just here.
+17:04 
+
+17:04 Um, another one just here.
+17:07 
+
+17:07 Kind of have another one above. Not as
+17:10 
+
+17:10 nice, but I'll see if you want to get up
+17:12 
+
+17:12 to there. Anyways,
+17:15 
+
+17:15 I just completely forgot the key to go
+17:18 
+
+17:18 forward.
+17:19 
+
+17:19 Um,
+17:21 
+
+17:21 see if we can get a nice rejection
+17:24 
+
+17:24 or a wick
+17:28 
+
+17:28 at all. Kind of not looking.
+17:31 
+
+17:31 Okay, that's valid entry. That is a very
+17:33 
+
+17:33 valid entry. I was going to say it's
+17:35 
+
+17:35 kind of not looking too nice. Kind of
+17:36 
+
+17:36 showing a lot of consolidation,
+17:39 
+
+17:39 which could also just be um a buildup of
+17:43 
+
+17:43 orders once again. um replace liquidity
+17:46 
+
+17:46 like I said in first example, second
+17:50 
+
+17:50 example, previous example.
+17:53 
+
+17:53 This was our valid liquidity came down,
+17:55 
+
+17:55 broke the low,
+17:57 
+
+17:57 came up, didn't tap yet, but we actually
+18:00 
+
+18:00 made another low kind of like internal
+18:02 
+
+18:02 structure that we went broke, then broke
+18:06 
+
+18:06 um confirming downtrend.
+18:08 
+
+18:08 Once again, directional close. Keeping
+18:11 
+
+18:11 our stop loss tight. 201 pips.
+18:15 
+
+18:15 If I actually mark out correctly,
+18:18 
+
+18:18 it's 206 pips. I thought we were going
+18:20 
+
+18:20 to go to the bracket below. Yeah, 203
+18:23 
+
+18:23 pips. I'm not getting there. I'm really
+18:25 
+
+18:25 pushing it. Right. That is 1 to 1.5.
+18:29 
+
+18:29 Once again, super super kind of like
+18:31 
+
+18:31 quite a lot of volatility in the market.
+18:33 
+
+18:33 I think that's kind of why there's a lot
+18:35 
+
+18:35 of one to 1.5s, but still like they
+18:39 
+
+18:39 really do add up. Still a really really
+18:41 
+
+18:41 great risk award. Jesus. Oh my god, I
+18:44 
+
+18:44 accidentally went forward like three
+18:46 
+
+18:46 candles and we're
+18:49 
+
+18:49 Yeah, retracing a lot. Um,
+18:53 
+
+18:53 nice 1 to 1.5 hit once again. As I
+18:56 
+
+18:56 always say, could have taken to the
+18:58 
+
+18:58 lows. I should probably try and say it
+18:60 
+
+18:60 before something like this happens last
+19:02 
+
+19:02 time. It's one of those things like you
+19:04 
+
+19:04 think of, but
+19:06 
+
+19:06 um if we look over to the left, we're
+19:08 
+
+19:08 kind of coming to a point where we could
+19:09 
+
+19:09 see
+19:11 
+
+19:11 some bullish momentum from. Not really
+19:14 
+
+19:14 any more fair value gaps to fill, like a
+19:16 
+
+19:16 tiny one. But yeah, we've filled pretty
+19:19 
+
+19:19 much most of that move.
+19:21 
+
+19:21 Um doubt we're going to come and see any
+19:24 
+
+19:24 more setups today anyway. already
+19:28 
+
+19:28 getting to midday.
+19:31 
+
+19:31 But yeah, I mean could have taken that
+19:32 
+
+19:32 from a 1 to 1.5 to something a lot
+19:35 
+
+19:35 crazier.
+19:39 
+
+19:39 Once again, not saying that 1 to 1.5 is
+19:41 
+
+19:41 bad. It's literally I'm going to be
+19:43 
+
+19:43 taking these optional TP rules most of
+19:44 
+
+19:44 the time and it's so easy. It's
+19:47 
+
+19:47 literally just so simple, makes sense,
+19:49 
+
+19:49 and I can trust it since I back tested
+19:51 
+
+19:51 it. I made these sheets. It's just
+19:56 
+
+19:56 um yeah, I went too fast before we
+19:60 
+
+20:00 actually ended session, but this
+20:03 
+
+20:03 completely got invalidated. Just close
+20:06 
+
+20:06 inside. That's not going to be valid
+20:08 
+
+20:08 anymore for us, right? Another Oh, one
+20:13 
+
+20:13 to three. Another one to 1.5.
+20:16 
+
+20:16 Uh, I don't know what percent up we're
+20:18 
+
+20:18 at right now, but we are 100% win rate
+20:21 
+
+20:21 right now. Um, not to say we're always
+20:24 
+
+20:24 going to be,
+20:26 
+
+20:26 even if we did have a loss, even if we
+20:28 
+
+20:28 had two losses, these rises are going to
+20:31 
+
+20:31 be covering so much of that to a point
+20:33 
+
+20:33 where it's not really going to put a
+20:34 
+
+20:34 dent in our profitability into our
+20:37 
+
+20:37 actual profits.
+20:40 
+
+20:40 Um,
+20:42 
+
+20:42 downtrending. I think we can all kind of
+20:44 
+
+20:44 nod our heads. This is uh making a lot
+20:48 
+
+20:48 of lower lows, lower highs.
+20:50 
+
+20:50 That was not very clear, but the chart
+20:54 
+
+20:54 is very clear. Um
+20:58 
+
+20:58 if we go up here, it might be a lot less
+21:02 
+
+21:02 clear.
+21:05 
+
+21:05 Why I say that? It's kind of a
+21:09 
+
+21:09 really really strong level of support
+21:12 
+
+21:12 just down here. three pretty big taps
+21:16 
+
+21:16 once again from that area of
+21:18 
+
+21:18 consolidation that I mentioned
+21:20 
+
+21:20 previously.
+21:22 
+
+21:22 Um, have to wait and see. We can
+21:24 
+
+21:24 definitely trade up within that noise. I
+21:26 
+
+21:26 wouldn't really be looking for sales now
+21:28 
+
+21:28 anyway,
+21:30 
+
+21:30 unless we were to break this low.
+21:35 
+
+21:35 Do we consider that another tap? Okay,
+21:37 
+
+21:37 that's breaking off the low. That's more
+21:40 
+
+21:40 like what I was talking about. Um,
+21:43 
+
+21:43 already half one there.
+21:46 
+
+21:46 Any supplies? Yeah, I think we can all
+21:48 
+
+21:48 see this. Okay,
+21:51 
+
+21:51 really do love to jinx myself. There was
+21:53 
+
+21:53 a valid supply here. Lovely level of
+21:55 
+
+21:55 liquidity.
+21:57 
+
+21:57 Lovely. When do I say lovely? Um,
+22:02 
+
+22:02 not really any more valid setups though.
+22:04 
+
+22:04 So, that was kind of everything. So,
+22:06 
+
+22:06 definitely no trades going to be
+22:08 
+
+22:08 presented today.
+22:12 
+
+22:12 Okay. Yeah, 3:00. That's somebody
+22:13 
+
+22:13 talking like Trump power. Somebody just
+22:17 
+
+22:17 messing up the markets. Nice that it's
+22:19 
+
+22:19 always more or less at the end of our
+22:21 
+
+22:21 session.
+22:23 
+
+22:23 Um,
+22:26 
+
+22:26 what I'm seeing right now, we're sitting
+22:28 
+
+22:28 on a lot of gaps. Once again, pretty
+22:30 
+
+22:30 much every day has presented a lot of
+22:34 
+
+22:34 area for retracement.
+22:36 
+
+22:36 But just looking at you know what's
+22:39 
+
+22:39 going on right now current trends kind
+22:42 
+
+22:42 of uptrending there is a valid demand
+22:47 
+
+22:47 um
+22:49 
+
+22:49 we'll see what price okay
+22:53 
+
+22:53 uh so pretty much what I'm seeing I kind
+22:56 
+
+22:56 of need to like say what I'm seeing
+22:58 
+
+22:58 sometimes I I just make noises
+23:00 
+
+23:00 not very descriptive um liquidity is
+23:04 
+
+23:04 valid high is valid zone.
+23:09 
+
+23:09 There it is. That's valid. Um,
+23:14 
+
+23:14 but yeah, not really the nicest. As you
+23:16 
+
+23:16 can see here,
+23:18 
+
+23:18 it's just I mean the swing that
+23:19 
+
+23:19 liquidity formed on completely valid,
+23:22 
+
+23:22 but here kind of looking pretty choppy.
+23:24 
+
+23:24 I mean, just explain it's kind of hard,
+23:27 
+
+23:27 but if I was to draw it out, made that
+23:30 
+
+23:30 higher high and then failed to break
+23:33 
+
+23:33 that higher high. If we broke up here
+23:35 
+
+23:35 and then came down, that would be
+23:36 
+
+23:36 really, really nice.
+23:39 
+
+23:39 Just failing to break highs isn't always
+23:41 
+
+23:41 going to be the nicest. Still not
+23:42 
+
+23:42 invalid. Just going to be making it from
+23:45 
+
+23:45 a potential A setup into probably like a
+23:47 
+
+23:47 B.
+23:49 
+
+23:49 Um, yeah, I'm just going to say B. I
+23:51 
+
+23:51 wouldn't really say B+ for this. Great
+23:53 
+
+23:53 rejections, though. I was going to say
+23:55 
+
+23:55 I'm going to forward test this. I'm
+23:56 
+
+23:56 going to forward test it in back
+23:58 
+
+23:58 testing. It's always just great to see.
+23:60 
+
+23:60 I mean, I'm already here. I might as
+24:02 
+
+24:02 well see what would happen. So if I see
+24:04 
+
+24:04 something like this in the live markets,
+24:06 
+
+24:06 I can go off historical data and
+24:08 
+
+24:08 actually just say what's happened
+24:09 
+
+24:09 before. That kind of makes sense. Entry
+24:12 
+
+24:12 would just be here. Stop loss
+24:15 
+
+24:15 157 pips. 1 to2
+24:19 
+
+24:19 kind of a big stop loss considering how
+24:21 
+
+24:21 big this setup is proportionally.
+24:24 
+
+24:24 But I mean take profit still at the
+24:27 
+
+24:27 high. It's got potential.
+24:29 
+
+24:29 Not really something I'd look to take.
+24:31 
+
+24:31 It's not really the nicest to me. I just
+24:33 
+
+24:33 like to be more confident. I mean, I've
+24:35 
+
+24:35 said so much kind of swaying me
+24:37 
+
+24:37 otherwise that I've got the the
+24:40 
+
+24:40 discipline to not take
+24:43 
+
+24:43 not A+ trades.
+24:46 
+
+24:46 Wow.
+24:48 
+
+24:48 That's
+24:49 
+
+24:49 a loss. Once again, I said I wouldn't
+24:52 
+
+24:52 take it, so I'm not going to count that
+24:54 
+
+24:54 as a loss towards my back testing
+24:58 
+
+24:58 results. The same way that I wouldn't
+24:59 
+
+24:59 count that as a win if it was to win.
+25:01 
+
+25:01 Literally, yeah, just like a forward
+25:03 
+
+25:03 test in back testing. Kind of a dumb way
+25:05 
+
+25:05 to say it, but I hope you guys know what
+25:08 
+
+25:08 I mean. Um, right, just kind of on to
+25:11 
+
+25:11 the next one. There is a much much nicer
+25:16 
+
+25:16 demand below it. Still just at 10. We
+25:20 
+
+25:20 are sitting on a lot of gaps. We're just
+25:21 
+
+25:21 going to have to wait and see to be
+25:23 
+
+25:23 honest. Like rejections, it is a pretty
+25:25 
+
+25:25 big demand. I can't lie.
+25:29 
+
+25:29 Let's just see. Let's just see.
+25:35 
+
+25:35 Okay. Yeah, closing side. Anyway, that
+25:37 
+
+25:37 makes stuff so much easier.
+25:41 
+
+25:41 And um yeah, that was our level of
+25:44 
+
+25:44 liquidity. Super super clean. I love the
+25:46 
+
+25:46 zone. It was our bottom zone. Maybe a
+25:49 
+
+25:49 bit big even for how big the setup was.
+25:51 
+
+25:51 Maybe
+25:54 
+
+25:54 it's all right. It's not the best. It's
+25:56 
+
+25:56 not the worst. It's would have just been
+25:58 
+
+25:58 all right. and invalidated. That's
+26:01 
+
+26:01 something really really nice and might
+26:03 
+
+26:03 as well talk about it whilst I'm looking
+26:04 
+
+26:04 for another potential setup. I'll just
+26:07 
+
+26:07 remove this quickly.
+26:10 
+
+26:10 Um supply up here potentially kind of
+26:13 
+
+26:13 showing bullish towards. We'll see. Um
+26:16 
+
+26:16 don't hate it if we were to come up
+26:17 
+
+26:17 here. If what I was saying, if a setup
+26:21 
+
+26:21 isn't going to have the investors inside
+26:23 
+
+26:23 the market to actually want to buy off
+26:26 
+
+26:26 it, then it isn't going to show the
+26:27 
+
+26:27 rejections enough to give us our valid
+26:30 
+
+26:30 entry model. And that's going to let us
+26:33 
+
+26:33 prever preserve so much capital. Um,
+26:38 
+
+26:38 are we in session? Yeah. No, I actually
+26:40 
+
+26:40 do quite like this zone, especially
+26:42 
+
+26:42 after invalidating both demands.
+26:46 
+
+26:46 Um,
+26:49 
+
+26:49 it's still showing rejections down here.
+26:51 
+
+26:51 Wouldn't be valid for us, but it's
+26:52 
+
+26:52 probably valid for someone with all of
+26:55 
+
+26:55 these gaps below. I would definitely
+26:58 
+
+26:58 look to take this. Let me give a little
+27:00 
+
+27:00 bit of a breakdown here. Right.
+27:02 
+
+27:02 Liquidity. Liquidity's lows broken.
+27:05 
+
+27:05 Super super clean. Um, if you were to
+27:08 
+
+27:08 come up from there, A+, no doubt about
+27:11 
+
+27:11 it.
+27:13 
+
+27:13 Um
+27:14 
+
+27:14 then what we saw, we kind of saw what
+27:18 
+
+27:18 could have been bullish structure to the
+27:21 
+
+27:21 upside, but then we broke another low
+27:22 
+
+27:22 confirming a downtrend. This is
+27:24 
+
+27:24 something that I would take in the
+27:26 
+
+27:26 markets
+27:27 
+
+27:27 and stop loss is not big at all. Well,
+27:31 
+
+27:31 it might be technically. No.
+27:35 
+
+27:35 Let's see how frugal we can be. Oh, no.
+27:37 
+
+27:37 I don't think we're pushing it to a
+27:40 
+
+27:40 um I don't think you should push it or
+27:43 
+
+27:43 like try and push it to the the bracket
+27:45 
+
+27:45 below or anything. It's not something
+27:47 
+
+27:47 that I do live markets. Just kind of
+27:49 
+
+27:49 having fun with it. I'm not a big fan of
+27:51 
+
+27:51 back testing. Trying to make it as fun
+27:53 
+
+27:53 as possible, I guess. Um yeah. Anyways,
+27:57 
+
+27:57 105 pip stop loss 1 to 2.5. Once again,
+28:01 
+
+28:01 for how big structure is, I'd say we
+28:03 
+
+28:03 could target more than that. For this
+28:05 
+
+28:05 video, I'm just going to take those
+28:08 
+
+28:08 optional TP rules, though, just being
+28:10 
+
+28:10 super transparent and showing you how
+28:12 
+
+28:12 mechanical this strategy can actually
+28:14 
+
+28:14 be. If you wanted to, you didn't have to
+28:16 
+
+28:16 think at all.
+28:18 
+
+28:18 Literally, don't have to put a thought
+28:20 
+
+28:20 into it. Just kind of like look through
+28:21 
+
+28:21 the rule book that I have and just um
+28:24 
+
+28:24 put it straight into the charts. And as
+28:26 
+
+28:26 you can see, [ __ ] already just great
+28:30 
+
+28:30 movement.
+28:31 
+
+28:31 Um, nice.
+28:34 
+
+28:34 So clean. Really, really clean. So, as
+28:37 
+
+28:37 you can see, um, if you get up the
+28:41 
+
+28:41 optional TP rules, there will be options
+28:43 
+
+28:43 to close at break even. I mean, here it
+28:45 
+
+28:45 didn't even close break even, but that's
+28:48 
+
+28:48 that's always going to be a potential.
+28:49 
+
+28:49 Maybe you're in draw down or something.
+28:51 
+
+28:51 That is just going to be great for once
+28:53 
+
+28:53 again preserving capital. It's always
+28:55 
+
+28:55 going to be good to uh play longterm,
+28:59 
+
+28:59 you know, keep your hands on as much
+28:60 
+
+28:60 capital as you can. Yeah. Yeah, I mean
+29:02 
+
+29:02 wouldn't it be even wicked you out at
+29:03 
+
+29:03 break even on this trade and go straight
+29:06 
+
+29:06 to
+29:08 
+
+29:08 take profit once again and I've actually
+29:11 
+
+29:11 stopped it before it's shown it. Let's
+29:13 
+
+29:13 see if there is any liquidity sitting
+29:15 
+
+29:15 below this low. I mean below this low
+29:17 
+
+29:17 kind of optimistic
+29:20 
+
+29:20 um yeah super clean. Are you feeling
+29:23 
+
+29:23 optimistic? Looks like the market is
+29:25 
+
+29:25 let's see if a 1 to8 is hit.
+29:29 
+
+29:29 Ah, of course the one time I actually
+29:31 
+
+29:31 bloody tried. Um,
+29:35 
+
+29:35 yeah, kind of showing a lot of
+29:36 
+
+29:36 rejections off of this demand down here.
+29:39 
+
+29:39 Invalidated for us. I wouldn't want to
+29:41 
+
+29:41 go against our zone that's just shown so
+29:45 
+
+29:45 many rejections anyway. But once again,
+29:49 
+
+29:49 two swings here and fair value gaps
+29:52 
+
+29:52 below could have gone to fill the fair
+29:55 
+
+29:55 value gaps. The more experience you get,
+29:57 
+
+29:57 the more intuition you can kind of have
+29:59 
+
+29:59 just saying like,
+30:02 
+
+30:02 yeah, imbalances in the market here.
+30:04 
+
+30:04 There's a lot of liquidity sitting below
+30:05 
+
+30:05 these two swings here. Like, it it's
+30:08 
+
+30:08 going to allow you to literally, for
+30:11 
+
+30:11 this example, double your take profit so
+30:14 
+
+30:14 so easily. Um, so just keep that in
+30:17 
+
+30:17 mind. Something to back test, something
+30:19 
+
+30:19 to take notes on 100%. And just try and
+30:22 
+
+30:22 be aware in live markets. Don't get
+30:24 
+
+30:24 greedy. It's not going to be about
+30:25 
+
+30:25 getting greedy. It's going to be about
+30:27 
+
+30:27 maximizing our winners and outside of
+30:31 
+
+30:31 session. Straight to the next day.
+30:35 
+
+30:35 Really, really great results so far.
+30:37 
+
+30:37 Have I lost? No, I don't. No, I haven't.
+30:40 
+
+30:40 There was that one trade, but I
+30:42 
+
+30:42 literally explained how much I didn't
+30:44 
+
+30:44 like it.
+30:46 
+
+30:46 So, 100% win rate. I will give myself a
+30:50 
+
+30:50 pat on the back for that. I'm not going
+30:51 
+
+30:51 to give a myself a pat on the back for
+30:54 
+
+30:54 just going straight through our bloody
+30:56 
+
+30:56 session.
+30:57 
+
+30:57 Um, need to wake up a bit, right? What
+30:60 
+
+30:60 am I seeing
+31:02 
+
+31:02 once again? What is it with like 1:00
+31:05 
+
+31:05 a.m. and gold?
+31:07 
+
+31:07 A lot of area for retracement.
+31:10 
+
+31:10 We'll see if we continue making bearish
+31:13 
+
+31:13 market structure to actually look for
+31:15 
+
+31:15 sells. There is a valid zone valid as
+31:20 
+
+31:20 per se. Not really nice at all. Not not
+31:24 
+
+31:24 showing clear direction especially with
+31:26 
+
+31:26 this current swing.
+31:29 
+
+31:29 Um something to keep my eye on.
+31:32 
+
+31:32 Validated this demand. So don't need to
+31:34 
+
+31:34 think about that because we did
+31:36 
+
+31:36 technique break a high but once again
+31:38 
+
+31:38 we're sitting on so much to the
+31:39 
+
+31:39 downside. I would not have liked that at
+31:41 
+
+31:41 all.
+31:42 
+
+31:42 Um see what we can do. potentially break
+31:45 
+
+31:45 a low would really be convincing.
+31:49 
+
+31:49 Kind of matched but technically broken.
+31:53 
+
+31:53 There was a potential supply here. I am
+31:56 
+
+31:56 kind of going fast.
+31:59 
+
+31:59 Potential supply here completely got
+32:00 
+
+32:00 invalidated. Anyway, just closing side.
+32:03 
+
+32:03 Um
+32:06 
+
+32:06 yeah, more or less just still that zone
+32:08 
+
+32:08 that I was looking at up here.
+32:13 
+
+32:13 If you want to come up cleanly, if we
+32:15 
+
+32:15 come up now, I probably wouldn't take.
+32:18 
+
+32:18 Yeah, this is terrible. We're pretty
+32:20 
+
+32:20 much just showing a complete range. Just
+32:23 
+
+32:23 straight consolidation.
+32:25 
+
+32:25 Nothing that I want to be trading in.
+32:27 
+
+32:27 I'm just going to remove this now. Pass
+32:29 
+
+32:29 our session anyway.
+32:31 
+
+32:31 Jeez, another no trade day, which is
+32:35 
+
+32:35 not bad at all. So much better than a
+32:37 
+
+32:37 loss day.
+32:39 
+
+32:39 Even if it was a loss day. Have I just
+32:41 
+
+32:41 gone through an entire day?
+32:46 
+
+32:46 How's that happen then?
+32:49 
+
+32:49 How have I done that? Right. Um I'm
+32:52 
+
+32:52 seeing bearish 100%.
+32:55 
+
+32:55 Show. Um we're reacting from a potential
+32:57 
+
+32:57 area just going off logic. There's a lot
+33:01 
+
+33:01 of bullish momentum from here. So
+33:04 
+
+33:04 there's potential to be uh what am I
+33:07 
+
+33:07 trying to say? uh investors buying from
+33:11 
+
+33:11 here. We'll see if we want to go bullish
+33:12 
+
+33:12 from here, here, here, here. Said that a
+33:15 
+
+33:15 lot. That and that will pretty much just
+33:18 
+
+33:18 be determined by are we going to break
+33:19 
+
+33:19 this high up here or we're going to
+33:21 
+
+33:21 break this low down here. And then also
+33:23 
+
+33:23 continuations off of that. Are we going
+33:25 
+
+33:25 to continue to make that structure?
+33:27 
+
+33:27 Broke the high after that was
+33:30 
+
+33:30 conveniently marked out for me after
+33:32 
+
+33:32 showing a strong level of resistance.
+33:35 
+
+33:35 I'm in for buys. Not to say that there
+33:38 
+
+33:38 will be any setups thrown today. There's
+33:40 
+
+33:40 not really been a start of a setup apart
+33:43 
+
+33:43 from if a level of liquidity is formed
+33:45 
+
+33:45 in front of there. But um I'll leave
+33:49 
+
+33:49 this on to remind myself. But yeah,
+33:51 
+
+33:51 we're definitely looking bullish.
+33:53 
+
+33:53 Um
+33:55 
+
+33:55 cleanly so too.
+33:58 
+
+33:58 Yeah, this invalidated. It didn't even
+33:60 
+
+34:00 make liquidity yet. But even if we were
+34:02 
+
+34:02 to make liquidity and la
+34:06 
+
+34:06 invalidated
+34:08 
+
+34:08 also showing great rejections once again
+34:10 
+
+34:10 if I can mark this out without being an
+34:13 
+
+34:13 idiot
+34:15 
+
+34:15 just a triple tap coming towards the end
+34:17 
+
+34:17 of our zone. So I can't uh capitalize
+34:20 
+
+34:20 off of that. But it's going to be stuff
+34:22 
+
+34:22 like that that's going to be just like
+34:24 
+
+34:24 extra confluences. Um, pretty much just
+34:27 
+
+34:27 price action, just what likes to happen.
+34:32 
+
+34:32 And straight into the next day,
+34:34 
+
+34:34 potential supply. Not a big fan on how
+34:36 
+
+34:36 we're coming back up to the zone. I'll
+34:38 
+
+34:38 mark it out just so you can see what I'm
+34:39 
+
+34:39 talking about.
+34:41 
+
+34:41 Um,
+34:43 
+
+34:43 can't remember if I mentioned trend. Um,
+34:48 
+
+34:48 what bit more advanced, but you can
+34:51 
+
+34:51 definitely use it. Just going to be like
+34:53 
+
+34:53 visual kind of.
+34:55 
+
+34:55 Boom. Kind of tapping off a previous
+34:58 
+
+34:58 area that could have been resistance.
+35:00 
+
+35:00 Um, and it's pretty much determined by
+35:04 
+
+35:04 Spit it out. Arthur Ara, you guys don't
+35:07 
+
+35:07 know my name. Um, determined by
+35:12 
+
+35:12 Yeah, I mean, how many previous taps
+35:14 
+
+35:14 we've had off of a key kind of
+35:19 
+
+35:19 resistance, support, resistance area.
+35:22 
+
+35:22 You don't have to use that. It's kind of
+35:25 
+
+35:25 you don't need to you don't need to over
+35:26 
+
+35:26 complicate it. It's just going to be
+35:28 
+
+35:28 little stuff
+35:29 
+
+35:29 completely validated. I wasn't really in
+35:32 
+
+35:32 the market for sales for that reason.
+35:34 
+
+35:34 And once again, from the start of the
+35:36 
+
+35:36 day, all we've been showing is higher
+35:39 
+
+35:39 high, higher low, higher high, higher
+35:42 
+
+35:42 lows with, you know, a lot of other
+35:44 
+
+35:44 swings too. More minor swings.
+35:49 
+
+35:49 Valid demand. Couple valid demands.
+35:51 
+
+35:51 Yeah, couple valid. really really nice
+35:53 
+
+35:53 demands with a lot of time in the day to
+35:56 
+
+35:56 actually come back down.
+35:60 
+
+35:60 Kind of more of a fan liquidity here is
+36:03 
+
+36:03 really nice. So, this is valid. But I
+36:06 
+
+36:06 like how this zone is formed more. We're
+36:08 
+
+36:08 on the bottom of a swing. Pretty much
+36:11 
+
+36:11 saying if we're up trending, that's the
+36:12 
+
+36:12 lowest point we're going to want to go
+36:14 
+
+36:14 before continuing in our direction. Um,
+36:18 
+
+36:18 just another confluence. I love as many
+36:20 
+
+36:20 confluences as I can get without over
+36:23 
+
+36:23 complicating it. Um, there's a I think
+36:27 
+
+36:27 there's a sweet spot when it comes to
+36:29 
+
+36:29 knowing a lot and knowing too much.
+36:33 
+
+36:33 Does that make sense? No, I meant to say
+36:35 
+
+36:35 there's a fine line.
+36:37 
+
+36:37 So, uh, it's easy to go overboard, but I
+36:41 
+
+36:41 mean I don't look at any other
+36:43 
+
+36:43 strategies. I don't do anything like
+36:45 
+
+36:45 that. Right. I think this is end of the
+36:48 
+
+36:48 day. Yeah.
+36:50 
+
+36:50 to the next.
+36:52 
+
+36:52 Saved by the bell. I started waffling
+36:54 
+
+36:54 for real. Um, so I've gone over how many
+36:58 
+
+36:58 days? I'll remove these so I don't
+37:01 
+
+37:01 confuse myself. How many days have we
+37:04 
+
+37:04 gone over? Started on the 15th.
+37:08 
+
+37:08 Um, I couldn't go to the start of the
+37:10 
+
+37:10 month, so I thought exactly midway
+37:11 
+
+37:11 through the month would be the next best
+37:13 
+
+37:13 thing for all of us OCD fellas. I don't
+37:17 
+
+37:17 have OCD.
+37:19 
+
+37:19 Um,
+37:21 
+
+37:21 so yeah, pretty much 14 days, half a
+37:24 
+
+37:24 month or so. Don't know how many trades
+37:26 
+
+37:26 we've gotten, but we haven't actually
+37:28 
+
+37:28 had a loser yet, which is
+37:32 
+
+37:32 never a bad thing. L never a bad thing.
+37:34 
+
+37:34 Once again, even if we did, it wouldn't
+37:36 
+
+37:36 matter considering how much capital
+37:38 
+
+37:38 we've actually made off the back of the
+37:40 
+
+37:40 strategy.
+37:42 
+
+37:42 um today
+37:45 
+
+37:45 kind of showing possible rejections, not
+37:48 
+
+37:48 from a valid demand for us once again,
+37:50 
+
+37:50 but from a potential area of demand. So,
+37:54 
+
+37:54 we'll see if you want to go bullish, see
+37:55 
+
+37:55 if you want to go bearish. Um looks like
+37:58 
+
+37:58 we're continuing in this bearish market
+37:60 
+
+37:60 structure. I'm in for sells right now.
+38:03 
+
+38:03 Well, no, I'm not in for cells. I'm
+38:04 
+
+38:04 looking to get in for cells here. um
+38:09 
+
+38:09 zone kind of made on a swing. Once
+38:11 
+
+38:11 again, just another little confluence
+38:13 
+
+38:13 that we like to see. Liquidity is very
+38:15 
+
+38:15 nice.
+38:17 
+
+38:17 Um I mean, we just see a lot of wicks
+38:20 
+
+38:20 and none of them took out the one before
+38:23 
+
+38:23 it. You know that there will be a pretty
+38:25 
+
+38:25 strong level of liquidity here. Excuse
+38:28 
+
+38:28 me. Here. Um
+38:32 
+
+38:32 okay, that also works. Thanks guys. just
+38:37 
+
+38:37 completely invalidate it. Um, not a fan
+38:40 
+
+38:40 of up here
+38:42 
+
+38:42 for that reason too. I guess
+38:45 
+
+38:45 am a fan of up at this supply zone a bit
+38:48 
+
+38:48 further back getting a bit old. Uh, also
+38:52 
+
+38:52 coming to the end of the day, so we'll
+38:54 
+
+38:54 see. Um,
+38:56 
+
+38:56 reason I like this liquidity liquidity
+39:01 
+
+39:01 um, liquidity
+39:03 
+
+39:03 all of which broke their respective
+39:04 
+
+39:04 lows.
+39:06 
+
+39:06 Um,
+39:08 
+
+39:08 like even if we were looking at this
+39:10 
+
+39:10 one, it's still just a super valid
+39:12 
+
+39:12 level. Not too far from zone.
+39:15 
+
+39:15 Nice size of zone made on a swing. All
+39:18 
+
+39:18 of the little stuff that I mentioned
+39:20 
+
+39:20 already that I look for every setup.
+39:24 
+
+39:24 Did we just close inside? Are we dead
+39:27 
+
+39:27 right now? No, that's actually not a
+39:29 
+
+39:29 closing set just yet.
+39:36 
+
+39:36 Right. That meant that's meant that
+39:39 
+
+39:39 completely just shot through. Um, but if
+39:42 
+
+39:42 it wanted to lose, it didn't even give
+39:43 
+
+39:43 us a valid entry model. Once again, just
+39:45 
+
+39:45 wait for our entry models. It's going to
+39:47 
+
+39:47 reward us longterm.
+39:50 
+
+39:50 Uh, you might have seen this back here.
+39:53 
+
+39:53 This other zone didn't like it at all.
+39:55 
+
+39:55 Um, wasn't formed on a swing.
+39:59 
+
+39:59 Wasn't the highest point in our
+40:01 
+
+40:01 structure.
+40:02 
+
+40:02 Um yeah, just kind of a lot of Yeah,
+40:05 
+
+40:05 getting really old, too. Um shot
+40:08 
+
+40:08 straight through.
+40:12 
+
+40:12 Nice.
+40:13 
+
+40:13 Just going to the next day. There's
+40:15 
+
+40:15 literally going to be no valid setups
+40:18 
+
+40:18 that we're going to come back to in this
+40:19 
+
+40:19 short amount of time. Showing a lot of
+40:21 
+
+40:21 potential retracements,
+40:24 
+
+40:24 even more potential retracements for the
+40:26 
+
+40:26 next day that I've already gone balls
+40:28 
+
+40:28 deep into.
+40:30 
+
+40:30 Oh my god, man.
+40:31 
+
+40:31 Uh what am I seeing?
+40:35 
+
+40:35 Demand
+40:37 
+
+40:37 pretty bloody big demand. Uh very large
+40:41 
+
+40:41 especially considering the proportion of
+40:45 
+
+40:45 the the zone to the setup. Would like to
+40:48 
+
+40:48 see the zone smaller. Liquidity
+40:50 
+
+40:50 is in fairness very nice. Liquidity
+40:54 
+
+40:54 highs clearly broken a lot of closes
+40:56 
+
+40:56 above. I think we're at alltime highs.
+40:58 
+
+40:58 So, we're not actually rejecting off of
+41:01 
+
+41:01 anything further to the left. Might not
+41:03 
+
+41:03 be alltime highs. I'm only on the 5
+41:04 
+
+41:04 minute and I don't know [ __ ] about
+41:06 
+
+41:06 economics. Um, or the economy.
+41:12 
+
+41:12 Yeah, we'll just have to wait and see
+41:14 
+
+41:14 for rejections. Don't know if it'll be
+41:16 
+
+41:16 something. No, not yet. Don't know if it
+41:19 
+
+41:19 would be something that I would actually
+41:20 
+
+41:20 take,
+41:23 
+
+41:23 [Music]
+41:25 
+
+41:25 especially now. I mean, we've shown
+41:28 
+
+41:28 a bearish swing against us. Um, I'll
+41:33 
+
+41:33 forward test it once again. I don't know
+41:35 
+
+41:35 if I'm going to add this to my back
+41:38 
+
+41:38 tests.
+41:40 
+
+41:40 Just Yeah. No, let's let's add it. Let's
+41:43 
+
+41:43 add it. And it it has actually already
+41:49 
+
+41:49 uh given an entry and gotten stopped
+41:51 
+
+41:51 out. So, we'll see if there's re-entry.
+41:55 
+
+41:55 um everything apart from kind of the
+41:57 
+
+41:57 zone itself, the size of zone and um
+42:03 
+
+42:03 where zone was formed, not on a swing
+42:05 
+
+42:05 and we're sitting on some gaps. Apart
+42:07 
+
+42:07 from those really really clean if you
+42:10 
+
+42:10 just squint really hard and don't look
+42:12 
+
+42:12 at the bottom of the setup and it is
+42:14 
+
+42:14 very clean and now I've actually made a
+42:17 
+
+42:17 swing potentially to the downside. So
+42:19 
+
+42:19 it's kind of put this from B+ to B. It
+42:22 
+
+42:22 was never really a a setup to be honest.
+42:25 
+
+42:25 Um, no, I'd say it was a setup. I mean,
+42:27 
+
+42:27 it's just the zone really put me off,
+42:29 
+
+42:29 but this is kind of showing why bigger
+42:32 
+
+42:32 zones aren't as valid. And this is a
+42:34 
+
+42:34 great talking point quickly. I mean,
+42:35 
+
+42:35 this is a back testing video. This isn't
+42:37 
+
+42:37 like a a big lesson, but my thought
+42:40 
+
+42:40 process on bigger zones is essentially
+42:43 
+
+42:43 we tapped into zone just if this was a
+42:46 
+
+42:46 deeper wick, then it would be more
+42:47 
+
+42:47 valid. the fact that I'm looking at this
+42:50 
+
+42:50 green candle just here. I'll actually go
+42:52 
+
+42:52 back so you can see what I'm talking
+42:53 
+
+42:53 about. Um,
+42:56 
+
+42:56 there is a price in this entire zone
+42:59 
+
+42:59 that institutions and banks want to get
+43:00 
+
+43:00 in on. We don't know what price that
+43:02 
+
+43:02 actually is. It may be down here, maybe
+43:04 
+
+43:04 down here, maybe down here. That's why
+43:07 
+
+43:07 on a smaller zone literally um
+43:10 
+
+43:10 proportionally to the pips there's going
+43:13 
+
+43:13 to be a much higher chance or ratio that
+43:16 
+
+43:16 we are going to hit that specific price
+43:18 
+
+43:18 or at least wicket it um where they're
+43:21 
+
+43:21 going to be getting in at with there's
+43:24 
+
+43:24 literally like I wonder how many pips
+43:26 
+
+43:26 this is to the entire zone. That's our
+43:28 
+
+43:28 chance that that was the price that they
+43:29 
+
+43:29 wanted. It's just that whole kind of
+43:32 
+
+43:32 thing. That's how I like to see it. I
+43:33 
+
+43:33 don't know how if that's like you know
+43:35 
+
+43:35 actually what's going on. But as you can
+43:38 
+
+43:38 see from the next handle uh candle, we
+43:41 
+
+43:41 get a deeper wick in uh inside insider
+43:43 
+
+43:43 zone. Can't talk right now. And yeah, we
+43:47 
+
+43:47 shoot off. So this may have been
+43:50 
+
+43:50 potential for flip, which is another one
+43:53 
+
+43:53 of my entry models that I mentioned
+43:54 
+
+43:54 before. But I mean, this kind of shows
+43:58 
+
+43:58 all three. I probably would have taken
+43:59 
+
+43:59 break as kind of the the middle ground
+44:02 
+
+44:02 of riskiness if you want to see it that
+44:04 
+
+44:04 way. Considering it's a re-entry, you
+44:06 
+
+44:06 kind of want to be a bit safer. So, if
+44:08 
+
+44:08 you did just take it at the directional
+44:10 
+
+44:10 close, that's still also completely
+44:13 
+
+44:13 valid. Um,
+44:17 
+
+44:17 I'm going to look at both. Let's look at
+44:20 
+
+44:20 both. Just um kind of covering all
+44:22 
+
+44:22 bases. I'll put it in my back tests as
+44:25 
+
+44:25 close. Why not? It would have the same
+44:28 
+
+44:28 takeprofit anyway. Literally, all of
+44:30 
+
+44:30 them are over 200 pips. So, I'll just go
+44:33 
+
+44:33 off directional close. [ __ ] it. Um, frog
+44:38 
+
+44:38 it
+44:40 
+
+44:40 1 to 1.5 as we know. Just refer back to
+44:43 
+
+44:43 that spreadsheet for every single
+44:45 
+
+44:45 setups. You're going to be able to refer
+44:46 
+
+44:46 to my optional TP rules. Dare I hurt
+44:49 
+
+44:49 myself up? They're [ __ ] gas.
+44:52 
+
+44:52 Literally so useful. But
+44:55 
+
+44:55 I'd say there's definitely space to go
+44:57 
+
+44:57 higher than these TP rules. Uh,
+45:02 
+
+45:02 let's see movement anyway before I gas
+45:05 
+
+45:05 myself up. Another tap. Not great to
+45:09 
+
+45:09 see. Uh, well, is great to see. It's
+45:12 
+
+45:12 great to see it's not great to see.
+45:14 
+
+45:14 Okay, [ __ ] me. It's not great to see us
+45:17 
+
+45:17 coming back down to zone, but
+45:20 
+
+45:20 theoretically, if we are to come back
+45:22 
+
+45:22 down to zone, showing rejections once
+45:24 
+
+45:24 again is going to be the best case
+45:25 
+
+45:25 scenario. And
+45:30 
+
+45:30 This is the ugliest thing I've ever
+45:32 
+
+45:32 seen. That's more like it. Gold. That's
+45:35 
+
+45:35 more like it. Um,
+45:39 
+
+45:39 nice. Okay. Was a win. Not the cleanest.
+45:43 
+
+45:43 I'm going to throw my hands up in the
+45:44 
+
+45:44 air. Say, Jesus, that wasn't nice to see
+45:47 
+
+45:47 at all. Uh, probably
+45:50 
+
+45:50 potentially a break even, unless you
+45:52 
+
+45:52 just wanted to stay out of it. Um, and
+45:54 
+
+45:54 I'm not saying that emotionally, just
+45:57 
+
+45:57 saying that because we're not seeing
+45:59 
+
+45:59 literally within two hours or an hour,
+46:03 
+
+46:03 hour and a half any kind of movement is
+46:06 
+
+46:06 is super choppy.
+46:09 
+
+46:09 Uh, lower chance that institutions and
+46:11 
+
+46:11 banks are actually in this trade
+46:13 
+
+46:13 specifically, but it won. I'll leave it
+46:15 
+
+46:15 in my back tests since I also kind of
+46:17 
+
+46:17 onboarded the risk on the the fake out
+46:22 
+
+46:22 even before I saw this one win. So that
+46:25 
+
+46:25 would technically be plus 0.5%.
+46:30 
+
+46:30 If this is re-entry, you could be safe
+46:32 
+
+46:32 and cover your previous loss that uh was
+46:34 
+
+46:34 the original entry or you can go for
+46:36 
+
+46:36 more. Once again, just going to do you
+46:39 
+
+46:39 have the buffer on your account? Um, if
+46:42 
+
+46:42 this was to lose, would you be
+46:43 
+
+46:43 completely all right with that? Is it
+46:45 
+
+46:45 going to [ __ ] up your psychology? You
+46:47 
+
+46:47 have to look at yourself and actually
+46:48 
+
+46:48 look at what am I okay with? Um, by this
+46:52 
+
+46:52 point, I'd definitely be out the trade.
+46:53 
+
+46:53 I mean, yeah, we're coming to swap
+46:56 
+
+46:56 hours.
+46:58 
+
+46:58 Um, that whole kind of thing.
+47:01 
+
+47:01 I mean, yeah, onto the next day.
+47:02 
+
+47:02 Obviously, I was just kind of seeing how
+47:03 
+
+47:03 that might have panned out.
+47:06 
+
+47:06 Yesesh, that's a lot of movement. Um,
+47:10 
+
+47:10 right. Start of our session
+47:14 
+
+47:14 showing bearish technically if you
+47:16 
+
+47:16 wanted to look at it just like [ __ ]
+47:18 
+
+47:18 fist in your face. Technically showing
+47:20 
+
+47:20 bearish. But if we look to the left,
+47:22 
+
+47:22 reacting off of a potential point that
+47:24 
+
+47:24 we could go bullish from. I'd need to
+47:26 
+
+47:26 see more confirmation before I double
+47:29 
+
+47:29 down on anything right now.
+47:32 
+
+47:32 Um,
+47:36 
+
+47:36 okay.
+47:38 
+
+47:38 So, there was kind of a zone here. Not
+47:41 
+
+47:41 great. Not bad, though. It's actually
+47:44 
+
+47:44 the lowest demand on this entire swing.
+47:46 
+
+47:46 There is some more gaps below still.
+47:49 
+
+47:49 Um,
+47:51 
+
+47:51 but yeah, completely invalidated before
+47:53 
+
+47:53 I even gave entry. There is also another
+47:55 
+
+47:55 one very far back.
+47:59 
+
+47:59 Realistically, it's rare that I' uh
+48:03 
+
+48:03 I'd ever actually take something like
+48:05 
+
+48:05 this in like in live markets just
+48:08 
+
+48:08 because I like to see the zone formed
+48:12 
+
+48:12 and tapped on the same day. So, the same
+48:14 
+
+48:14 kind of institutions, investors, banks
+48:17 
+
+48:17 that missed that original uh original
+48:19 
+
+48:19 move to begin with would still be
+48:22 
+
+48:22 getting into it like they're still
+48:23 
+
+48:23 interested. Um,
+48:27 
+
+48:27 I mean that just makes sense. It's kind
+48:28 
+
+48:28 of like you can look at it as a more
+48:31 
+
+48:31 active zone if it's more recent.
+48:34 
+
+48:34 Still going to be potential once again.
+48:38 
+
+48:38 Um, it's kind of experience.
+48:42 
+
+48:42 It's going to come off as, you know,
+48:45 
+
+48:45 behavior when we get to zone. Is it
+48:47 
+
+48:47 going to reject? Well, [ __ ] me. Yeah, it
+48:49 
+
+48:49 is. Okay. Entry.
+48:53 
+
+48:53 Um,
+48:56 
+
+48:56 I'm going to say that I would have taken
+48:59 
+
+48:59 break on this. I didn't actually see
+49:00 
+
+49:00 this original wick before I I called
+49:03 
+
+49:03 anything.
+49:04 
+
+49:04 But I say this because and not just
+49:07 
+
+49:07 because we've shot off with good volume.
+49:09 
+
+49:09 I promise. If I zoom in a lot, you can
+49:11 
+
+49:11 see we almost closed bullish. That is
+49:13 
+
+49:13 showing also with a wick this big that
+49:16 
+
+49:16 uh we've got the rejections. Like it's
+49:18 
+
+49:18 clear to see we have good rejections.
+49:21 
+
+49:21 um if it closed literally a pip or two
+49:25 
+
+49:25 higher. Okay, actually might be more
+49:28 
+
+49:28 like 15 for gold.
+49:31 
+
+49:31 That's only because it's [ __ ] tiny
+49:33 
+
+49:33 pips uh or a lot of volatility actually.
+49:37 
+
+49:37 Um that would have been a valid entry if
+49:39 
+
+49:39 this was to close literally that much
+49:42 
+
+49:42 smaller amount higher. So breaking um
+49:47 
+
+49:47 just kind of reduces the chance that we
+49:51 
+
+49:51 shoot off without actually giving our
+49:53 
+
+49:53 valid entry. Um as something that you
+49:56 
+
+49:56 can take with yourself into live
+49:59 
+
+49:59 markets. If you know the theory behind
+50:01 
+
+50:01 swings, the hour candle started here.
+50:04 
+
+50:04 Every higher time frame candle, even I
+50:06 
+
+50:06 mean here, we can see that every candle
+50:09 
+
+50:09 has a wick. We we get rid of that lower
+50:11 
+
+50:11 wick before continuing to the upside.
+50:13 
+
+50:13 Once again, just another confluence.
+50:16 
+
+50:16 Um, wouldn't make it valid for flip
+50:18 
+
+50:18 entry.
+50:20 
+
+50:20 If that if you're more interested on
+50:22 
+
+50:22 that, I'm not going to go into a deep
+50:23 
+
+50:23 dive on that here. That's kind of
+50:25 
+
+50:25 advanced stuff for the strategy. Um, but
+50:28 
+
+50:28 breakup candle. Um, 338 pips. Once
+50:32 
+
+50:32 again, it's still just going to be a 1
+50:34 
+
+50:34 to 1.5.
+50:36 
+
+50:36 Um, with this kind of volatility, I'd
+50:38 
+
+50:38 definitely aim higher live markets. Um,
+50:41 
+
+50:41 not going to lie to you. Yeah. like
+50:43 
+
+50:43 we've already almost tapped that.
+50:46 
+
+50:46 And
+50:48 
+
+50:48 I mean, other than these gaps, there's
+50:51 
+
+50:51 not much more room below us that we need
+50:54 
+
+50:54 to go. Like, there's not much going
+50:56 
+
+50:56 against us. That's all I'm trying to
+50:57 
+
+50:57 say. I really do like this setup. It's
+50:60 
+
+50:60 just the timing, how long it actually
+51:01 
+
+51:01 took. Uh, that's kind of put me off.
+51:04 
+
+51:04 But, as you can see, nice 1 to 1.5 hit.
+51:08 
+
+51:08 Kind of said that before I knew it hit.
+51:11 
+
+51:11 That would have been a generational or a
+51:13 
+
+51:13 loss if that lost. Um
+51:17 
+
+51:17 I mean I'll just keep it in mind. Would
+51:18 
+
+51:18 there be liquidity sitting above here? I
+51:21 
+
+51:21 mean technically yes, but just how
+51:23 
+
+51:23 strong like is the market going to seek
+51:25 
+
+51:25 it? Cuz we could 3x our um reward if we
+51:31 
+
+51:31 were to go off those theories
+51:33 
+
+51:33 technically actually like [ __ ]
+51:37 
+
+51:37 we could get a better risk reward.
+51:39 
+
+51:39 That's what I'm trying to say.
+51:40 
+
+51:40 Especially with how big the
+51:43 
+
+51:43 uh whole setup actually is. Is that
+51:46 
+
+51:46 valid? No.
+51:49 
+
+51:49 Uh yeah, I mean all of those were seek
+51:52 
+
+51:52 out
+51:54 
+
+51:54 valid entry down here. No, what I'm
+51:56 
+
+51:56 seeing and I mean I'm kind of skipping
+51:58 
+
+51:58 over it cuz they're all invalidating or
+51:60 
+
+51:60 not hitting. Uh demand here completely
+52:03 
+
+52:03 invalidated. Demand here completely
+52:06 
+
+52:06 invalidated. and it will kind of be
+52:08 
+
+52:08 riding off the back of this one. Can't
+52:10 
+
+52:10 lie. Like we're showing so much bullish
+52:13 
+
+52:13 momentum after we've hit a demand. Like
+52:17 
+
+52:17 yeah, looking good for buyers, but we're
+52:18 
+
+52:18 getting to the end of the day and we
+52:20 
+
+52:20 haven't tapped any of those. So
+52:21 
+
+52:21 unfortunately straight to the next day,
+52:24 
+
+52:24 which I mean it's not unfortunate. We
+52:25 
+
+52:25 just hit a [ __ ] 1 to 1.5 technically
+52:28 
+
+52:28 or or realistically it would probably be
+52:30 
+
+52:30 more than that. But um once again I'm
+52:32 
+
+52:32 just being super transparent and
+52:34 
+
+52:34 mechanical going off the back tested
+52:37 
+
+52:37 data data. Uh this tapped before
+52:43 
+
+52:43 our
+52:45 
+
+52:45 session before 8 a.m.
+52:50 
+
+52:50 Right. Um
+52:53 
+
+52:53 even then not the nicest. I mean kind of
+52:56 
+
+52:56 made a a swing to the downside. kind of
+52:59 
+
+52:59 didn't break these highs up here. Like
+53:01 
+
+53:01 it broke liquidities high. Not super
+53:03 
+
+53:03 convincing. Not convincing me. Uh
+53:05 
+
+53:05 probably wouldn't have taken
+53:08 
+
+53:08 um
+53:10 
+
+53:10 theoretically. Why am I saying that?
+53:12 
+
+53:12 Like a nique. Okay. Right.
+53:17 
+
+53:17 It's just stuff like this that kind of
+53:19 
+
+53:19 makes it confusing. Um let me get that
+53:22 
+
+53:22 out of the way because that's not a
+53:23 
+
+53:23 valid trade. Trendwise, as we can see,
+53:27 
+
+53:27 not super convinced either way. Probably
+53:30 
+
+53:30 looking I mean, it's kind of bullish,
+53:32 
+
+53:32 but then we're also got got some bearish
+53:35 
+
+53:35 tendencies. Lower high made, lower low
+53:38 
+
+53:38 broken just here. Also lower low broken
+53:40 
+
+53:40 just here. Also lower high made just
+53:43 
+
+53:43 here. So, um could definitely be
+53:47 
+
+53:47 Oh, no. Yeah. No, this isn't a valid
+53:48 
+
+53:48 supply anyway. What am I talking about?
+53:51 
+
+53:51 Um,
+53:53 
+
+53:53 we made a green candle and then we
+53:55 
+
+53:55 tapped. So any investors would have just
+53:57 
+
+53:57 gotten that better price there,
+54:00 
+
+54:00 right? Cool. Don't have to think about
+54:02 
+
+54:02 that. Would have lost anyway. Perfect.
+54:05 
+
+54:05 But it would have lost because it isn't
+54:06 
+
+54:06 valid for our for our strategy. Is this
+54:10 
+
+54:10 demand going to get rejections? Nope.
+54:13 
+
+54:13 Um, there was a demand just here.
+54:17 
+
+54:17 Potential demand just here.
+54:20 
+
+54:20 If we get rejections, obviously
+54:24 
+
+54:24 this day is us.
+54:29 
+
+54:29 Doesn't look like anything's really
+54:31 
+
+54:31 going to plan out today. Are we going to
+54:35 
+
+54:35 come down in
+54:37 
+
+54:37 10 minutes?
+54:40 
+
+54:40 Hell no. Oh, that was cringe. Right.
+54:42 
+
+54:42 8:00 a.m. the next day. Simple, simple
+54:45 
+
+54:45 stuff. I mean, it's literally This is
+54:48 
+
+54:48 what I was saying at the start of the
+54:49 
+
+54:49 video. Wow, I skipped a lot. Um,
+54:51 
+
+54:51 nothing's happens. Market isn't on [ __ ]
+54:53 
+
+54:53 It's fine. Um,
+54:57 
+
+54:57 can't remember what I was going to say.
+54:59 
+
+54:59 Ah, it's going to annoy me. I'll chuck
+55:01 
+
+55:01 up on the screen if it was something
+55:02 
+
+55:02 important. Feel like it might have been.
+55:05 
+
+55:05 No, it's going to be rinse and repeat
+55:06 
+
+55:06 with the strategy. It's literally I've
+55:08 
+
+55:08 done the same thing in the markets every
+55:10 
+
+55:10 single day. Start of the day, look for
+55:12 
+
+55:12 trend. Uh next just look for any zone or
+55:16 
+
+55:16 any indications further left that we may
+55:19 
+
+55:19 break our current structure.
+55:22 
+
+55:22 Um like like uh like this literally
+55:26 
+
+55:26 exactly like this. If you guys can see
+55:28 
+
+55:28 this there there's an area of
+55:29 
+
+55:29 consolidation that we may go bullish
+55:31 
+
+55:31 from. And as you can see I mean it was
+55:33 
+
+55:33 out of session but we have continued
+55:36 
+
+55:36 bullish since. Kind of need more
+55:38 
+
+55:38 confirmation to be confident on anything
+55:40 
+
+55:40 right now.
+55:42 
+
+55:42 Um, some of you might have seen this.
+55:44 
+
+55:44 Not valid really. One candle liquidity
+55:48 
+
+55:48 wasn't really like a valid swing or
+55:50 
+
+55:50 anything like that. Not something that I
+55:51 
+
+55:51 would look at.
+55:53 
+
+55:53 Right. Yeah. Just waiting for a setup
+55:56 
+
+55:56 now to be honest. What time is it now?
+55:59 
+
+55:59 Quart 11. Still definitely time if the
+56:01 
+
+56:01 market wants to put a roll up its
+56:04 
+
+56:04 sleeves and throw sign.
+56:08 
+
+56:08 Still nothing.
+56:11 
+
+56:11 Still nothing.
+56:14 
+
+56:14 Once again, if we're going off
+56:16 
+
+56:16 technicals, this is like technically
+56:19 
+
+56:19 valid. Not really. Large zone liquidity
+56:22 
+
+56:22 is not nice at all. It's kind of like
+56:25 
+
+56:25 spotted out um bearish candles rather
+56:28 
+
+56:28 than a nice swing formed. This is kind
+56:30 
+
+56:30 of like a valid swing, but then showing
+56:34 
+
+56:34 so many uh upper wicks which just kind
+56:38 
+
+56:38 of shows rejections. It's sellers
+56:40 
+
+56:40 pushing buying momentum down. Um,
+56:44 
+
+56:44 not something that I'd look at. Super
+56:46 
+
+56:46 choppy, too. I mean, it's wicks both
+56:48 
+
+56:48 sides. Anything could happen. Would kind
+56:51 
+
+56:51 of be crossing your fingers if you were
+56:53 
+
+56:53 to enter on that. And
+56:56 
+
+56:56 I mean, yeah, we're outside of session
+56:58 
+
+56:58 anyway.
+56:60 
+
+57:00 Nice. Let's not get it wrong this time.
+57:02 
+
+57:02 8:00 a.m.
+57:04 
+
+57:04 What am I seeing? Bullish. pretty pretty
+57:08 
+
+57:08 clearly bullish, breaking more major
+57:10 
+
+57:10 structure as well as all of these just
+57:13 
+
+57:13 minor swings and whatnot.
+57:16 
+
+57:16 Um, demand wise potential just here.
+57:23 
+
+57:23 Uh, more just looking for more zones to
+57:26 
+
+57:26 be formed to be honest. Unless this one
+57:30 
+
+57:30 gets tapped.
+57:32 
+
+57:32 Not really liking it anymore.
+57:36 
+
+57:36 Like this would have been great, but
+57:39 
+
+57:39 it's just making swings now and it's
+57:42 
+
+57:42 just kind of just doing whatever. Not a
+57:44 
+
+57:44 great fan.
+57:46 
+
+57:46 Are there any more zones that's been
+57:47 
+
+57:47 made? Yes, demand here potential. Um
+57:51 
+
+57:51 quite quite a clean one at that. Once
+57:53 
+
+57:53 again, pretty big just because of how
+57:55 
+
+57:55 volatile gold is, I guess. Uh but
+57:58 
+
+57:58 liquidity is great. break off liquidity.
+58:00 
+
+58:00 Just the same stuff as I have always
+58:02 
+
+58:02 said
+58:06 
+
+58:06 and just [ __ ] off.
+58:14 
+
+58:14 Okay, it's the first Friday of
+58:15 
+
+58:15 September. That's NFP. If I knew that it
+58:19 
+
+58:19 was NFP, then I wouldn't have even
+58:20 
+
+58:20 marked out this. I just I actually don't
+58:23 
+
+58:23 trade NFP days. It's It's not worth it
+58:25 
+
+58:25 considering the risk of spreads and
+58:30 
+
+58:30 the fact that it's like the biggest news
+58:32 
+
+58:32 event that's going to happen. There's no
+58:34 
+
+58:34 point. Um high broken going to the
+58:39 
+
+58:39 upside. Would like to see more bullish
+58:42 
+
+58:42 structure. We're sitting on massive
+58:45 
+
+58:45 gaps. As we know, gaps like to be filled
+58:49 
+
+58:49 and retracement likes to be retraced.
+58:52 
+
+58:52 retracement.
+58:54 
+
+58:54 Um,
+58:57 
+
+58:57 still showing bullish though. No valid
+59:00 
+
+59:00 zones. If I zoom in a bit more, still,
+59:03 
+
+59:03 yeah, literally no valid zones.
+59:06 
+
+59:06 Maybe if it was accuracy, it would be
+59:07 
+
+59:07 valid, but this is why we don't use
+59:10 
+
+59:10 accuracy.
+59:12 
+
+59:12 Um, I think it tapped back here and just
+59:15 
+
+59:15 stopped out.
+59:17 
+
+59:17 Uh, it's back tested. It is. It's not
+59:20 
+
+59:20 just kind of giving another pair another
+59:23 
+
+59:23 rule for no reason. We
+59:26 
+
+59:26 have like know from experience. I know
+59:30 
+
+59:30 from all of my back testing
+59:33 
+
+59:33 that this wins more over the long term.
+59:36 
+
+59:36 Even if there's a potential accuracy
+59:37 
+
+59:37 zone that does show a winner that there
+59:40 
+
+59:40 there's probably another two or another
+59:43 
+
+59:43 three that don't. So, it's not worth it
+59:46 
+
+59:46 in the long term,
+59:48 
+
+59:48 which is exactly what we're doing it
+59:50 
+
+59:50 for, the long term. We're not looking
+59:51 
+
+59:51 for these quick one to 10 that don't
+59:53 
+
+59:53 mean anything when we lose 11 trades to
+59:56 
+
+59:56 get to that point, right?
+60:01 
+
+60:01 Bullish.
+60:02 
+
+60:02 Um, I know we did just break this low,
+60:05 
+
+60:05 but I mean, it's still looking bullish.
+60:07 
+
+60:07 We'll see if we break this high.
+60:10 
+
+60:10 Yes. See if we break this high would be
+60:14 
+
+60:14 I mean the ultimate confirmation.
+60:16 
+
+60:16 Um demand wise not seeing too much.
+60:20 
+
+60:20 Obviously there is valid demands but
+60:23 
+
+60:23 it's only as valid as price moves. Oh
+60:27 
+
+60:27 kind of spitting right now. The zones
+60:29 
+
+60:29 are only as valid as price that moves
+60:32 
+
+60:32 towards it. Nope. Never mind. Sounded so
+60:35 
+
+60:35 much better in my head.
+60:37 
+
+60:37 Um,
+60:41 
+
+60:41 what time we at? Okay. I don't hate
+60:43 
+
+60:43 this. Don't love it. Don't hate it. B be
+60:48 
+
+60:48 
+
+60:48 B be B be B be B be B be B be B be B be
+60:48 B be B kind K kind of setup zone formed
+60:50 
+
+60:50 on a swing. It's nice. Liquidity is all
+60:53 
+
+60:53 right. Uh two candles
+60:58 
+
+60:58 um forming kind of like a visual swing.
+61:01 
+
+61:01 That high's broken
+61:04 
+
+61:04 um and never actually replaced. But we
+61:06 
+
+61:06 do make another valid level of liquidity
+61:09 
+
+61:09 and break that high too. Showing great
+61:11 
+
+61:11 rejections would be something that I
+61:14 
+
+61:14 might look to take. Let me just back
+61:17 
+
+61:17 test it. I mean, we'll see firsthand
+61:19 
+
+61:19 with this kind of um internal breakage.
+61:23 
+
+61:23 What would happen?
+61:25 
+
+61:25 Uh
+61:27 
+
+61:27 anything else that I should mention
+61:28 
+
+61:28 right now?
+61:33 
+
+61:33 Nope.
+61:35 
+
+61:35 Oh my god. Wow. I mean, that's crazy.
+61:38 
+
+61:38 Even a B setup in the strategy is still
+61:41 
+
+61:41 hitting these. Okay. Yeah, this was a
+61:43 
+
+61:43 Sorry, I kind of just marked that out.
+61:46 
+
+61:46 300 pips is going to be 200 plus, which
+61:49 
+
+61:49 is 1 to 1.5. Most have been. I think
+61:52 
+
+61:52 it's just been a very volatile month for
+61:56 
+
+61:56 gold. Can't lie. Just a lot of money
+61:58 
+
+61:58 circulating in here. Um liquidity has
+62:03 
+
+62:03 been seek to if you have the discipline,
+62:05 
+
+62:05 if you have the the buffer to go for
+62:08 
+
+62:08 these technically riskier trades. Um it
+62:11 
+
+62:11 could have doubled literally at the
+62:12 
+
+62:12 close high and pretty much tripled at
+62:15 
+
+62:15 this
+62:17 
+
+62:17 highest high um that would definitely
+62:20 
+
+62:20 have liquidity sent above it. Nice. Good
+62:23 
+
+62:23 [ __ ] This is being a great um
+62:27 
+
+62:27 demonstration of the strategy. I think
+62:29 
+
+62:29 I've taken I don't I don't actually know
+62:32 
+
+62:32 how many trades I've taken. Eight,
+62:34 
+
+62:34 maybe nine. And other than that one loss
+62:41 
+
+62:41 over on Why am I talking like a robot?
+62:45 
+
+62:45 Uh the one loss that we actually
+62:47 
+
+62:47 re-entered and won off of. So, we're
+62:48 
+
+62:48 actually up on that setup alone. I think
+62:51 
+
+62:51 we have actually had a 100% win rate.
+62:55 
+
+62:55 Um,
+62:57 
+
+62:57 okay. I was going to say,
+63:00 
+
+63:00 doesn't matter what I was going to say
+63:01 
+
+63:01 because we are out of session. I was
+63:03 
+
+63:03 going to say there's like a demand down
+63:04 
+
+63:04 here, but it invalidated anyway.
+63:08 
+
+63:08 Once again, rinse and repeat straight to
+63:10 
+
+63:10 8:00 on the next day. Did go an hour too
+63:13 
+
+63:13 far, but it's on [ __ ] right now.
+63:16 
+
+63:16 Just consolidation
+63:19 
+
+63:19 from a potential point where we could go
+63:22 
+
+63:22 bearish from. gonna have to wait and
+63:24 
+
+63:24 see. I'm going to need multiple swings
+63:26 
+
+63:26 confirming a specific trend to actually
+63:29 
+
+63:29 take anything specific. Um, really
+63:32 
+
+63:32 really bullish
+63:34 
+
+63:34 and are we going to continue making
+63:37 
+
+63:37 bullish structure? T is the question.
+63:40 
+
+63:40 Nope. It's going to be a huge news event
+63:43 
+
+63:43 and it's going to mess up everything
+63:44 
+
+63:44 anyway. Also works. Do what you want.
+63:50 
+
+63:50 Sorry, I'm just so sarcastic today.
+63:52 
+
+63:52 Jeez. And that's the end of session. No
+63:55 
+
+63:55 setups on that day. Just kind of wasn't
+63:57 
+
+63:57 on much at all. I mean, from the start
+63:59 
+
+63:59 of the day, wasn't really showing too
+64:01 
+
+64:01 much potentially. So, something
+64:04 
+
+64:04 something could have happened. Didn't
+64:06 
+
+64:06 want to, and then you just wanted to
+64:08 
+
+64:08 hit. It's completely fine. Once again,
+64:11 
+
+64:11 that was probably a trade or two um
+64:14 
+
+64:14 thrown like a setup or two
+64:19 
+
+64:19 like a grade or something on other
+64:20 
+
+64:20 pairs. So we don't need to rely
+64:23 
+
+64:23 everything on gold if you wanted to. It
+64:25 
+
+64:25 is probably our one one of our most
+64:28 
+
+64:28 winning pairs probably top two top
+64:30 
+
+64:30 three. So um if you have the discipline
+64:33 
+
+64:33 to watch the market every single day and
+64:36 
+
+64:36 expect not to take a trade then
+64:39 
+
+64:39 I mean you can be insanely profitable
+64:41 
+
+64:41 trading this one pair alone. I mean,
+64:43 
+
+64:43 I'll do the tally anyway, but you will
+64:46 
+
+64:46 see um
+64:48 
+
+64:48 also through my wink wink nudge nudge
+64:51 
+
+64:51 back testing results spreadsheet
+64:54 
+
+64:54 over in my Discord. Free to join. Um
+64:60 
+
+65:00 yeah, I mean you you'll just see how
+65:01 
+
+65:01 profitable it actually is,
+65:04 
+
+65:04 right?
+65:07 
+
+65:07 Good that I didn't start talking once
+65:09 
+
+65:09 again. another 130 probably unemployment
+65:12 
+
+65:12 claims. Looks like USD news just
+65:15 
+
+65:15 considering how much effect it has on
+65:18 
+
+65:18 the market. USD is going to be the
+65:20 
+
+65:20 biggest treasury. So, it's pretty much
+65:22 
+
+65:22 going to affect every currency in some
+65:24 
+
+65:24 way. Um, even if it is just a little
+65:28 
+
+65:28 bit,
+65:30 
+
+65:30 I think I think that's right. Once
+65:32 
+
+65:32 again, I know [ __ ] all about economics
+65:35 
+
+65:35 or the economy. Um, don't know if those
+65:38 
+
+65:38 two are different at all. Right.
+65:42 
+
+65:42 Potential. Uh, I'm not a great fan. Um,
+65:47 
+
+65:47 forward test. I wouldn't take this in
+65:49 
+
+65:49 live markets. I'm just going to say that
+65:50 
+
+65:50 now before I like try and convince
+65:53 
+
+65:53 myself otherwise. This is not nice. And
+65:55 
+
+65:55 I'm going to explain why. I'm not going
+65:57 
+
+65:57 to say that this isn't a what I'm seeing
+66:00 
+
+66:00 is valid liquidity. multiple levels of
+66:04 
+
+66:04 valid liquidity are both break their
+66:06 
+
+66:06 respective highs. Um
+66:11 
+
+66:11 but coming back towards our zone which
+66:14 
+
+66:14 I'll talk about in a second. Don't like
+66:16 
+
+66:16 our zone that much. We make multiple
+66:18 
+
+66:18 swings to the downside. Still potential
+66:22 
+
+66:22 to retrace but who knows if this alone
+66:24 
+
+66:24 is going to hit our takeprofit. Quite a
+66:26 
+
+66:26 nice entry.
+66:28 
+
+66:28 I'm talking about everything right now.
+66:29 
+
+66:29 Jesus. Our zone itself not the best. It
+66:32 
+
+66:32 is kind of formed on a visual swing, but
+66:35 
+
+66:35 it's not backed up. We want to see it
+66:37 
+
+66:37 backed up by, I don't know, two to three
+66:39 
+
+66:39 candles. Some more bearish candles to
+66:42 
+
+66:42 show uh valid swing and confirm
+66:45 
+
+66:45 direction that, you know, we're going to
+66:48 
+
+66:48 get to this point and then continue to
+66:49 
+
+66:49 the upside rather than, you know, well,
+66:52 
+
+66:52 in a in a bullish market structure,
+66:53 
+
+66:53 we're not going to break
+66:55 
+
+66:55 a
+66:57 
+
+66:57 uh a higher high, are we? We're not
+66:59 
+
+66:59 going to make a lower low.
+67:01 
+
+67:01 um break a higher low. Sorry. You know
+67:05 
+
+67:05 what I mean?
+67:07 
+
+67:07 Um
+67:09 
+
+67:09 yeah. Yeah, I'll forward test but I
+67:11 
+
+67:11 would not take this in the live markets.
+67:15 
+
+67:15 Um
+67:17 
+
+67:17 that is a sell position.
+67:20 
+
+67:20 Nice.
+67:22 
+
+67:22 Just there.
+67:24 
+
+67:24 445 will also be a 1 to 2.5.
+67:30 
+
+67:30 Considering how big the structure is and
+67:32 
+
+67:32 it is actually filling these gaps. It's
+67:34 
+
+67:34 not a terrible take profit.
+67:37 
+
+67:37 It is not not going to be hit. It's just
+67:39 
+
+67:39 a lot less chance. Why are you going to
+67:42 
+
+67:42 take a lower quality setup when you
+67:43 
+
+67:43 could just wait for an A+ setup and it
+67:46 
+
+67:46 has that much higher chance to win? Are
+67:48 
+
+67:48 you going to be happy with taking a loss
+67:49 
+
+67:49 on this or are you just going to use
+67:50 
+
+67:50 hindsight to say, "Oh, I shouldn't have
+67:52 
+
+67:52 taken this trade because of this."
+67:56 
+
+67:56 I love how everything is so easily
+67:58 
+
+67:58 explainable. I said multiple reasons why
+68:00 
+
+68:00 I wouldn't take this and it lost. It is
+68:05 
+
+68:05 all logic with this strategy and I mean
+68:07 
+
+68:07 literally every little thing you can
+68:09 
+
+68:09 just explain coming to almost around
+68:11 
+
+68:11 that um month kind of time which is
+68:16 
+
+68:16 cool. Was kind of a setup down here made
+68:19 
+
+68:19 a visual swing wasn't something that I
+68:21 
+
+68:21 would take. Once again the zone is
+68:24 
+
+68:24 terrible. Um did I call this valid? Not
+68:27 
+
+68:27 valid for me. not valid for this
+68:28 
+
+68:28 strategy, especially this would be like
+68:31 
+
+68:31 a D tier setup. I'm only going to be
+68:34 
+
+68:34 taking A+ to like B sometimes within
+68:39 
+
+68:39 these gradings. There'll be a lot of
+68:40 
+
+68:40 different confluences that I can also
+68:42 
+
+68:42 use. Regardless,
+68:45 
+
+68:45 still looking bullish. Still have some
+68:46 
+
+68:46 time to potentially make a zone and tap
+68:52 
+
+68:52 like so.
+68:55 
+
+68:55 technically valid.
+68:58 
+
+68:58 Have we just seen some bearish structure
+69:00 
+
+69:00 breaking lows and then coming up and
+69:03 
+
+69:03 failing to kind of break these more
+69:05 
+
+69:05 major highs? Well, no, they're still
+69:07 
+
+69:07 minor highs, but
+69:10 
+
+69:10 um not something that take
+69:13 
+
+69:13 liquidity is also us like a few setups
+69:16 
+
+69:16 ago or like quite a few setups ago. I
+69:18 
+
+69:18 think I mentioned that earlier. Um this
+69:21 
+
+69:21 isn't a full swing, is it? this isn't
+69:23 
+
+69:23 going to be valid liquidity. It's
+69:25 
+
+69:25 multiple one candle liquidities. It's
+69:27 
+
+69:27 not one good swing. So, yeah, definitely
+69:30 
+
+69:30 not something I'd take. I think the only
+69:31 
+
+69:31 reason I mentioned is because I once
+69:33 
+
+69:33 again, hindsight saw these rejections.
+69:35 
+
+69:35 But, I mean, let's see. Doesn't hit.
+69:39 
+
+69:39 It's so easy to explain and it's going
+69:41 
+
+69:41 to preserve your capital so much long
+69:44 
+
+69:44 term just sticking to what you know
+69:47 
+
+69:47 because I think with this strategy it's
+69:50 
+
+69:50 so easy to um know a lot. It's not
+69:55 
+
+69:55 complicated. So you can get your head
+69:57 
+
+69:57 around so much of the market and the
+69:59 
+
+69:59 rest is just going to be experience.
+70:00 
+
+70:00 Once again, rinse and repeating,
+70:03 
+
+70:03 trading demo, trading smaller prop firm
+70:06 
+
+70:06 accounts and actually understanding the
+70:08 
+
+70:08 market more just from seeing it in
+70:11 
+
+70:11 action. And it's not finding a reason
+70:14 
+
+70:14 for every single loss, but it's finding
+70:17 
+
+70:17 a reason for your mistakes that is going
+70:20 
+
+70:20 to treat you long term
+70:22 
+
+70:22 um
+70:24 
+
+70:24 and actually make you improve. There's
+70:26 
+
+70:26 this I don't like it. liquidity is very
+70:28 
+
+70:28 far. Once again, we'll see if this loses
+70:31 
+
+70:31 and um if so, once again, it's just like
+70:35 
+
+70:35 another easy way to explain like why we
+70:39 
+
+70:39 lose. It's hard to
+70:43 
+
+70:43 link this to this zone at this point.
+70:45 
+
+70:45 Like liquidity was taken so long ago.
+70:48 
+
+70:48 Movement towards zone is actually so
+70:50 
+
+70:50 nice though. Um forward test still got a
+70:54 
+
+70:54 chance to win. Literally just a one to
+70:55 
+
+70:55 1.5. Super like not optimistic.
+70:60 
+
+70:60 Okay. Wow. That's one candle. That's a
+71:02 
+
+71:02 bit
+71:04 
+
+71:04 That's a bit crazy. Even lower quality
+71:06 
+
+71:06 setups can still win sometimes. We are
+71:08 
+
+71:08 still showing like um we're kind of
+71:11 
+
+71:11 going off two of the confluences.
+71:14 
+
+71:14 Liquidity isn't as much in play here.
+71:16 
+
+71:16 There is a swing, but it's more just
+71:18 
+
+71:18 going off market structure. You know,
+71:20 
+
+71:20 we're breaking that high, showing
+71:21 
+
+71:21 bullish. Um, and obviously our demand
+71:24 
+
+71:24 zone, not something that I would take.
+71:26 
+
+71:26 Not going to add it to the back test
+71:29 
+
+71:29 results.
+71:31 
+
+71:31 Let me take that off, too, so I don't
+71:33 
+
+71:33 confuse myself.
+71:35 
+
+71:35 Um,
+71:37 
+
+71:37 and we can just go I mean, is there
+71:40 
+
+71:40 still going to be time for a setup? If
+71:43 
+
+71:43 we break the high and come down to this
+71:45 
+
+71:45 kind of area very quickly. Yeah. Um, I
+71:49 
+
+71:49 don't hate this, but I don't like the
+71:50 
+
+71:50 fact that we're not really breaking any
+71:52 
+
+71:52 highs. Not a great fan.
+71:55 
+
+71:55 Um,
+71:59 
+
+71:59 let's see. Let's see.
+72:02 
+
+72:02 Only thing we can do right now.
+72:07 
+
+72:07 Okay, I'm just being a prick right now.
+72:10 
+
+72:10 There was a valid trade here that I I
+72:13 
+
+72:13 didn't I didn't expect to see set up
+72:14 
+
+72:14 formed and hit so quickly and something
+72:19 
+
+72:19 was turning me off. We didn't break this
+72:20 
+
+72:20 high convincingly. That's not going to
+72:23 
+
+72:23 be necessary. It's not going to
+72:25 
+
+72:25 completely invalidate a trade for us,
+72:27 
+
+72:27 but it would be great to see a break of
+72:29 
+
+72:29 structure further to the left. Why this
+72:32 
+
+72:32 is super valid.
+72:34 
+
+72:34 If we literally look at I mean pretty
+72:36 
+
+72:36 much in our entire session we've been
+72:38 
+
+72:38 going in an uptrend. Higher high, higher
+72:42 
+
+72:42 low. I'm terrible at marking this out.
+72:44 
+
+72:44 Higher high, higher low, higher high. We
+72:48 
+
+72:48 we've broken the these highs like three
+72:50 
+
+72:50 times consecutively. Four times,
+72:52 
+
+72:52 including this one. Um
+72:56 
+
+72:56 this is something that I actually would
+72:57 
+
+72:57 take. This wasn't great to see, but it's
+72:59 
+
+72:59 not going to invalidate it for us. It
+73:01 
+
+73:01 closed. Yeah, it showed kind of
+73:04 
+
+73:04 convincing breaks at this high. Um, once
+73:06 
+
+73:06 again, could be nicer. Probably
+73:09 
+
+73:09 around a B, maybe edging A. And I only
+73:13 
+
+73:13 say that because liquidity is so nice.
+73:16 
+
+73:16 Really, really nice liquidity movement
+73:18 
+
+73:18 towards zone. Really, really nice. Um,
+73:21 
+
+73:21 and our zone itself is the lowest zone
+73:23 
+
+73:23 on this entire swing. And this zone
+73:26 
+
+73:26 isn't valid. So that there's not much
+73:29 
+
+73:29 that the market might want to go down to
+73:31 
+
+73:31 if that makes sense. And for those three
+73:33 
+
+73:33 reasons, this is giving me a lot of
+73:36 
+
+73:36 confidence. I did also see it start
+73:38 
+
+73:38 shooting off. So my bad. I would have
+73:41 
+
+73:41 taken this regardless. I promise.
+73:44 
+
+73:44 Uh go and back test yourself. I'm
+73:46 
+
+73:46 literally just back testing this
+73:47 
+
+73:47 strategy today for two reasons. Mainly
+73:49 
+
+73:49 to show you guys. And additionally, I
+73:52 
+
+73:52 need to update my back test results over
+73:55 
+
+73:55 in my Discord. So, um, two birds with
+73:57 
+
+73:57 one stone. I think you guys can
+73:59 
+
+73:59 definitely learn a lot off of a I don't
+74:03 
+
+74:03 want to pat myself on the back, but off
+74:05 
+
+74:05 of a profitable traders Jesus back
+74:09 
+
+74:09 testing uh mindset. Um, yeah, I'm not a
+74:12 
+
+74:12 great fan of back testing. This isn't
+74:14 
+
+74:14 actually a bad session, though. Uh, once
+74:16 
+
+74:16 again, could have held to this
+74:17 
+
+74:17 liquidity. um giving us an entire RR
+74:21 
+
+74:21 more potential to go more to the left
+74:25 
+
+74:25 probably I wouldn't potentially I might
+74:28 
+
+74:28 hold till this high
+74:30 
+
+74:30 um
+74:33 
+
+74:33 it's crazy by putting us uh take profit
+74:36 
+
+74:36 up that much more is going to completely
+74:38 
+
+74:38 cover an entire loss. I love looking at
+74:41 
+
+74:41 it that way and that's why I like taking
+74:43 
+
+74:43 higher Rs. we can lose an entire trade
+74:46 
+
+74:46 and still be up a great risk reward on
+74:49 
+
+74:49 this one. And um they're the kind of
+74:51 
+
+74:51 things that's the kind of capital
+74:52 
+
+74:52 preservation that's going to treat you
+74:54 
+
+74:54 so nicely,
+74:56 
+
+74:56 so nice long term. You may not see it
+74:58 
+
+74:58 directly, but
+75:01 
+
+75:01 it's very nice. I'll go over couple more
+75:04 
+
+75:04 days
+75:06 
+
+75:06 just cuz I'm here and I'm I'm kind of in
+75:08 
+
+75:08 the swing of it.
+75:11 
+
+75:11 Uh 8:00 a.m.
+75:13 
+
+75:13 buys. I'm looking for buyers. Sitting on
+75:15 
+
+75:15 a lot of gaps. So, we'll see if we want
+75:16 
+
+75:16 to break these lows. We'll see if we
+75:18 
+
+75:18 want to invalidate every zone.
+75:21 
+
+75:21 Speaking of, there's actually no valid
+75:22 
+
+75:22 zones yet. So, one would have to be
+75:24 
+
+75:24 formed like so kind of listening to me.
+75:29 
+
+75:29 Um this is a valid demand. The lowest
+75:32 
+
+75:32 demand in all of these swings valid for
+75:35 
+
+75:35 us to take. this uh is an accuracy
+75:39 
+
+75:39 uh because we don't take accuracies.
+75:41 
+
+75:41 That's what I'm trying to say. Um great
+75:44 
+
+75:44 liquidity, great break of the high. All
+75:46 
+
+75:46 we need to see is some great movement
+75:48 
+
+75:48 back towards our zone.
+75:51 
+
+75:51 Um
+75:53 
+
+75:53 not bad. Broke the high once again.
+76:00 
+
+76:00 Oh yeah, we're outside of session now
+76:02 
+
+76:02 anyway. That's a shame. That was quite a
+76:04 
+
+76:04 nice setup. Don't think that's going to
+76:05 
+
+76:05 be okay invalidated. Once again, I was
+76:07 
+
+76:07 just going to say um don't think that's
+76:09 
+
+76:09 going to be valid for the day after,
+76:13 
+
+76:13 right? I'm just going to leave it here
+76:15 
+
+76:15 anyway. I've done over a month of back
+76:18 
+
+76:18 testing, which is fine for me. That's
+76:20 
+
+76:20 great for me. Um once again, I literally
+76:23 
+
+76:23 don't really back test anymore. So, it
+76:25 
+
+76:25 was definitely really nice. I thought I
+76:27 
+
+76:27 missed a trade. I did actually miss a
+76:29 
+
+76:29 trade. And that's why I kind of shut up
+76:30 
+
+76:30 there cuz um I just remember taking a
+76:34 
+
+76:34 trade on this day. Can't lie. Don't know
+76:37 
+
+76:37 what's so significant about the 16th. Um
+76:41 
+
+76:41 okay,
+76:43 
+
+76:43 nice. Just irrate my video, bro.
+76:45 
+
+76:45 Liquidity formed close to our zone. The
+76:49 
+
+76:49 zone itself not formed on a swing. Kind
+76:51 
+
+76:51 of formed on a visual swing, though. I
+76:52 
+
+76:52 don't hate the zone. Um, it's also a
+76:55 
+
+76:55 great size considering how
+76:57 
+
+76:57 proportionally big the setup is. Broke
+76:60 
+
+76:60 high multiple times, confirming trend,
+77:03 
+
+77:03 making other levels of liquidity and
+77:05 
+
+77:05 breaking highs. Yeah. Then we come
+77:07 
+
+77:07 pretty much straight back down to zone
+77:09 
+
+77:09 and give great rejections on three
+77:12 
+
+77:12 different candles. Did actually fake
+77:15 
+
+77:15 out. Um, unfortunate, but it's not
+77:19 
+
+77:19 terrible. It would just be a 1 to 1.5 on
+77:22 
+
+77:22 the original entry. And obviously a 1 to
+77:25 
+
+77:25 1.5 on the second entry. This would be
+77:29 
+
+77:29 breakup candle. We already had a uh had
+77:32 
+
+77:32 a valid entry into this trade
+77:36 
+
+77:36 and then it just gave another one 1 to
+77:38 
+
+77:38 1.5 risk-to-reward covers that prior
+77:41 
+
+77:41 trade fully plus giving us another 0.5
+77:45 
+
+77:45 um risk to play with. Once again could
+77:48 
+
+77:48 cover some of another loss.
+77:51 
+
+77:51 Um the exact same thing happened on that
+77:53 
+
+77:53 other re-entry that we took earlier. So
+77:55 
+
+77:55 those two added together actually add
+77:58 
+
+77:58 together to cover an entire loss which
+78:01 
+
+78:01 is not bad at all. Stumbling on my
+78:04 
+
+78:04 words. Oh my could have taken up to
+78:06 
+
+78:06 liquidity. Once again that's going to be
+78:08 
+
+78:08 completely up to intuition. I'm not
+78:09 
+
+78:09 going to mention that too much because
+78:12 
+
+78:12 you have no reason to like kind of
+78:14 
+
+78:14 believe me. I mean I've shown so much on
+78:17 
+
+78:17 the strategy already. All you can do to
+78:19 
+
+78:19 really trust me at this specific point
+78:21 
+
+78:21 in time is go and back test for
+78:24 
+
+78:24 yourself. Go and back test the strategy.
+78:26 
+
+78:26 Um, back test it on any of the valid
+78:29 
+
+78:29 pairs over the valid sessions that I
+78:31 
+
+78:31 trade 8:00 a.m. until 3:00 p.m. UK time
+78:35 
+
+78:35 with the valid TP rules with the valid
+78:37 
+
+78:37 entry models. Don't go and back test it
+78:40 
+
+78:40 invalidly.
+78:41 
+
+78:41 And then um if you don't see good
+78:43 
+
+78:43 results, I mean, you still probably
+78:44 
+
+78:44 will. It's still showing everything that
+78:46 
+
+78:46 the market wants to see, just not to a
+78:49 
+
+78:49 quality where it can be super super
+78:52 
+
+78:52 profitable in the long term. This is
+78:54 
+
+78:54 such a foolproof strategy. One of the
+78:56 
+
+78:56 most powerful strategies that I actually
+78:58 
+
+78:58 know of. I mean, the most powerful
+79:01 
+
+79:01 strategy that I know of cuz I know so
+79:02 
+
+79:02 much about it.
+79:04 
+
+79:04 And um yeah, that's going to be
+79:06 
+
+79:06 everything for today. Can't lie. All of
+79:09 
+
+79:09 this uh information is going to be
+79:11 
+
+79:11 available over in my Discord. Feel free
+79:12 
+
+79:12 to go and check that out if that
+79:14 
+
+79:14 interests you. Once again, entry models,
+79:17 
+
+79:17 simplified videos on that, simplified
+79:19 
+
+79:19 videos on trend, a full beginner course.
+79:22 
+
+79:22 If you're now starting out and you're
+79:24 
+
+79:24 still in that kind of like back testing
+79:26 
+
+79:26 period where you're still getting a lot
+79:27 
+
+79:27 wrong, definitely feel free to go and
+79:29 
+
+79:29 check that out. Um, I mean, I'd
+79:31 
+
+79:31 recommend it, of course. I mean, there
+79:33 
+
+79:33 are there are free channels in there
+79:34 
+
+79:34 where you can talk to like-minded
+79:36 
+
+79:36 traders, and it's always going to be
+79:37 
+
+79:37 useful. Anyways, hope you guys have
+79:39 
+
+79:39 benefited off of this in some way or
+79:41 
+
+79:41 another. Like, subscribe, all of that
+79:45 
+
+79:45 stuff. And I'll see you in the next one
+79:46 
+
+79:46 for some more information, some more
+79:48 
+
+79:48 knowledge. Right, waffling. See you
+79:50 
+
+79:50 later, guys. I was going to do that, but
+79:52 
+
+79:52 I don't want to.

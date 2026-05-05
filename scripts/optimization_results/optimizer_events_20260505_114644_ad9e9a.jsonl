@@ -1,0 +1,5 @@
+{"ts": "2026-05-05T11:46:44.208657+03:00", "run_id": "20260505_114644_ad9e9a", "event_type": "run_started", "mode": "bayesian", "workers": 4, "pairs": ["NAS100", "US500", "GBPJPY", "GBPCAD"], "dry_run": false, "broker": "vantage", "backtest_range": "Last 365 days"}
+{"ts": "2026-05-05T11:46:44.582264+03:00", "run_id": "20260505_114644_ad9e9a", "event_type": "pair_started", "worker_id": 0, "symbol": "NAS100", "broker": "vantage", "attempt": 1}
+{"ts": "2026-05-05T11:46:59.586051+03:00", "run_id": "20260505_114644_ad9e9a", "event_type": "pair_started", "worker_id": 1, "symbol": "US500", "broker": "vantage", "attempt": 1}
+{"ts": "2026-05-05T11:47:14.586253+03:00", "run_id": "20260505_114644_ad9e9a", "event_type": "pair_started", "worker_id": 2, "symbol": "GBPJPY", "broker": "vantage", "attempt": 1}
+{"ts": "2026-05-05T11:47:29.586969+03:00", "run_id": "20260505_114644_ad9e9a", "event_type": "pair_started", "worker_id": 3, "symbol": "GBPCAD", "broker": "vantage", "attempt": 1}

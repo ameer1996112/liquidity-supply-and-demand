@@ -1,0 +1,375 @@
+source_file,source_sheet,instrument,date,entry_time,hour,entry_type,side,rr,liquidity_tp_hit,comments
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-01-07,11:20,11,Directional,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-01-08,08:30,8,Flip,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-01-09,12:50,12,BoC,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-01-09,14:30,14,BoC,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-01-14,12:40,12,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-01-22,08:05,8,BoC,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-01-27,08:20,8,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-01-30,13:35,13,BoC,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-02-04,08:20,8,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-02-05,07:10,7,BoC,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-02-05,11:00,11,Flip,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-02-10,14:05,14,Directional,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-02-21,12:00,12,Flip,Buys,4.0,N,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-02-24,08:40,8,Directional,Buys,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-02-28,09:30,9,Flip,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-03-03,13:10,13,BoC,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-03-14,10:50,10,BoC,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-03-18,13:40,13,Directional,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-03-28,14:40,14,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-04-02,14:55,14,BoC,Buys,3.5,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-04-10,11:05,11,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-04-10,15:00,15,BoC,Buys,-1.0,Y,End of Session retest
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-04-11,15:00,15,Flip,Buys,4.0,Y,End of Session again
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-04-14,10:15,10,BoC,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-04-25,13:35,13,2nd Flip,Sells,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-05-01,13:45,13,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-05-08,15:00,15,Flip,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-05-16,08:05,8,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-05-20,13:20,13,BoC,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-06-02,14:30,14,Flip,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-06-04,08:35,8,Flip,Sells,4.0,N,No 30m bottom wick
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-06-06,09:45,9,Directional,Sells,-1.0,-,"Stopped by 1pip, ran to 1:8RR"
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-06-09,14:30,14,Flip,Buys,4.0,Y,"B setup, technically valid"
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-06-10,09:50,9,Flip,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-06-17,08:25,8,BoC,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-06-23,13:40,13,BoC,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-06-27,10:00,10,Flip,Sells,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-06-30,12:30,12,Flip,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-06-30,14:15,14,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-07-01,12:45,12,BoC,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-07-09,14:40,14,Directional,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-07-11,08:00,8,Flip,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-07-15,07:35,7,BoC,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-07-15,09:30,9,Flip,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-07-18,11:05,11,Directional,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-07-23,08:20,8,BoC,Sells,4.0,N,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-07-23,11:50,11,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-07-30,12:45,12,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-08-01,08:05,8,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-08-06,07:35,7,Directional,Sells,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-08-08,07:05,7,Directional,Sells,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-08-15,14:00,14,Flip,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-08-18,09:20,9,Directional,Buys,4.0,N,B setup
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-08-20,09:35,9,BoC,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-08-21,10:50,10,Directional,Sells,3.0,Y,B setup
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-09-09,13:40,13,Directional,Buys,4.0,Y,B setup
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-09-15,13:20,13,Directional,Buys,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-09-16,14:10,14,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-09-16,14:20,14,Directional,Buys,4.0,Y,Reentry 
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-09-29,14:05,14,Directional,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-10-06,07:10,7,Directional,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-10-16,13:45,13,Directional,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-10-29,13:35,13,Directional,Buys,-1.0,-,Hella resistance
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-11-03,09:45,9,Directional,Buys,-1.0,-,"was aiming 1:4, hit 1:3.9R"
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-11-04,13:15,13,Directional,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-11-12,11:30,11,Flip,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-11-17,13:05,13,Directional,Sells,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-11-27,09:20,9,Directional,Buys,4.0,Y,Took long to hit TP
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-12-01,14:05,14,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-12-04,09:00,9,Flip,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-12-05,09:15,9,Directional,Buys,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-12-05,14:35,14,BoC,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,GC1! Backtest,GC1!,2025-12-11,13:00,13,Flip,Sells,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-01-02,07:50,7,BoC,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-01-03,08:30,8,Flip,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-01-06,11:05,11,BoC,Buys,1.5,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-01-09,10:15,10,Directional,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-01-10,09:05,9,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-01-10,09:10,9,BoC,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-01-14,07:15,7,BoC,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-01-28,08:15,8,Directional,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-01-31,09:00,9,Flip,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-02-04,14:30,14,Flip,Buys,3.0,Y,Supply rejections aren't the nicest
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-02-05,08:30,8,Flip,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-02-10,11:00,11,Flip,Buys,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-02-10,14:30,14,Flip,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-02-11,08:30,8,Flip,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-02-11,09:10,9,Directional,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-02-11,13:00,13,Flip,Sells,2.0,Y,"Triple bottomed, entry unlikely"
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-02-17,09:20,9,BoC,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-02-19,12:55,12,BoC,Sells,5.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-02-25,08:15,8,Directional,Sells,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-02-28,13:35,13,Directional,Sells,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-03-10,07:05,7,Directional,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-03-13,08:00,8,Flip,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-03-13,14:25,14,BoC,Sells,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-03-14,10:35,10,Flip,Buys,3.0,Y,No 30m upper wick yet
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-03-14,14:15,14,Directional,Buys,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-03-19,08:35,8,Directional,Sells,3.0,N,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-03-26,13:00,13,Flip,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-03-26,13:05,13,BoC,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-04-01,12:40,12,Directional,Buys,2.5,N,Older Zone
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-04-11,09:35,9,Directional,Buys,-1.0,-,Older Zone
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-04-11,09:45,9,Directional,Buys,3.0,N,Reentry ^
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-04-14,07:05,7,Directional,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-04-14,13:00,13,Flip,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-04-17,10:00,10,Flip,Buys,3.0,N,TP to the PIP
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-04-21,12:05,12,Flip,Sells,5.0,Y,"DATA- Doji mitigated supply, ignore like on cl1! ?"
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-04-24,11:10,11,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-05-01,08:05,8,Flip,Buys,3.0,Y,"Flip valid, no 1hr top wick"
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-05-02,12:35,12,Directional,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-05-07,09:00,9,Flip,Sells,-1.0,-,"200EMA Rejections, was looking for 4.5"
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-05-12,12:35,12,Directional,Buys,-1.0,-,High asf in the market
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-05-16,07:20,7,Directional,Sells,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-05-25,12:30,12,Flip,Buys,2.0,Y,To the pip (reentry won again)
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-06-03,13:45,13,Directional,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-06-03,14:40,14,BoC,Buys,2.0,Y,"Weird top wick, 14:30 news probably"
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-06-12,12:00,12,Flip,Sells,2.5,Y,Unfortunate timing on entry
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-06-17,12:30,12,Flip,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-06-18,11:35,11,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-07-08,07:30,7,Late flip,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-07-08,13:05,13,Flip,Buys,2.0,N,"No 1hr top wick yet, difficult entry"
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-07-10,13:50,13,Directional,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-07-15,12:05,12,Flip,Buys,2.0,Y,"No 1hr top wick yet, high up"
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-07-16,09:45,9,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-07-23,14:30,14,Flip,Sells,2.5,Y,"NYSE Open, risky"
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-07-24,11:00,11,Flip,Sells,3.0,N,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-07-25,12:35,12,Late flip,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-07-30,08:20,8,Directional,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-08-01,12:45,12,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-08-07,08:00,8,Flip,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-08-14,09:35,9,BoC,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-08-15,09:00,9,Flip,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-08-26,09:15,9,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-08-26,12:35,12,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-08-27,11:30,11,Flip,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-09-01,08:45,8,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-09-05,08:05,8,Directional,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-09-26,11:45,11,Directional,Buys,3.0,Y,Risky market structure
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-09-29,12:15,12,BoC,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-10-08,12:10,12,BoC,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-10-09,10:35,10,Directional,Sells,3.0,N,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-10-09,13:00,13,Flip,Buys,3.0,N,"Risky flips eating w nas, reentry possible"
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-10-10,13:45,13,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-10-10,14:00,14,BoC,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-10-16,13:30,13,Flip,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-10-22,15:00,15,Flip,Sells,3.0,Y,End of session entry
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-11-05,14:35,14,Directional,Buys,2.0,Y,Unfortunate ass entry
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-11-12,12:00,12,Flip,Buys,3.0,N,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-11-13,08:15,8,Directional,Buys,-1.0,-,"Double topped, wanted to fill gaps at 1:3"
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-11-17,14:40,14,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-11-21,08:10,8,Flip,Sells,3.0,N,"Risky flip again, no htf lower wick yet"
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-11-26,15:00,15,Flip,Buys,3.0,Y,Another end of session entry
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-11-27,14:35,14,Flip,Sells,3.0,Y,No 30m lower wick yet
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-12-03,09:00,9,Flip,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-12-08,07:05,7,BoC,Buys,1.5,Y,
+Backtesting Spreadsheet (1).xlsx,NQ1! Backtest,NQ1!,2025-12-22,09:00,9,Flip,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-01-08,07:50,7,BoC,Buys,3.0,Y,Not a fan of mvmnt toward zone
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-01-21,12:35,12,Directional,Sells,2.5,N,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-01-24,07:30,7,Flip,Buys,2.5,N,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-02-26,14:10,14,Directional,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-03-07,14:00,14,Flip,Buys,3.0,Y,"B Setup, bearish towards zone"
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-03-11,14:40,14,Directional,Buys,3.0,N,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-03-13,14:40,14,Directional,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-03-21,14:35,14,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-03-25,11:10,11,Directional,Buys,3.0,Y,Edge of zone close
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-03-27,10:10,10,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-04-02,09:20,9,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-04-14,08:10,8,Directional,Buys,3.0,Y,Edge of zone close
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-04-17,08:15,8,Directional,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-04-22,07:00,7,Flip,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-04-22,09:35,9,Flip,Buys,3.0,Y,"Flip valid, no new 30m top wick"
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-04-30,10:20,10,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-05-19,14:10,14,Directional,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-05-30,07:05,7,Directional,Buys,3.0,Y,Low Structure Confirmation
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-06-04,07:10,7,BoC,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-06-05,12:10,12,Flip,Buys,-1.0,-,No 30m upper wick yet
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-06-09,14:10,14,Directional,Buys,-1.0,-,News event / NYSE?
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-06-11,07:50,7,Directional/BoC,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-06-24,14:10,14,Directional,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-06-27,07:30,7,Flip,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-07-15,14:30,14,Flip,Buys,3.0,N,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-07-17,14:10,14,BoC,Buys,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-07-24,14:40,14,Directional,Buys,3.0,Y,Edge of zone close
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-08-15,13:00,13,Flip,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-08-22,08:15,8,Directional,Buys,2.0,Y,Edge of zone close
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-08-26,07:05,7,Directional,Sells,3.0,Y,Fill retracement as confluence
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-08-26,14:30,14,Flip,Buys,2.0,Y,Lower Quality
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-09-03,08:00,8,Flip,Sells,2.0,Y,"Directional was ass, wait for new 1hr"
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-09-03,09:45,9,Directional,Sells,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-09-04,12:40,12,Directional,Sells,3.0,Y,Zone large asf
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-09-05,07:35,7,Flip,Sells,3.0,Y,No 30m lower wick yet
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-09-15,10:50,10,BoC,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-09-17,10:10,10,BoC,Sells,3.0,Y,Edge of Zone Tap
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-09-23,09:40,9,Directional,Buys,1.5,Y,Huge SL Lower RR
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-09-30,08:10,8,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-10-01,07:00,7,Flip,Buys,3.0,Y,Easy 1:10 potential
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-10-03,08:35,8,Directional,Buys,-1.0,-,NFP
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-10-09,13:05,13,Flip,Buys,3.0,Y,No 1hr top wick yet
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-10-10,09:20,9,Directional,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-10-21,08:05,8,Directional,Buys,3.0,Y,"Older Zone, flip valid. wouldnt take (DATA)"
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-10-27,13:30,13,Flip,Buys,1.5,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-10-28,07:10,7,BoC,Sells,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-11-05,08:10,8,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-11-05,08:30,8,BoC,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-11-11,08:30,8,Flip,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-11-13,08:30,8,Flip,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-12-04,08:30,8,Flip,Buys,3.0,N,
+Backtesting Spreadsheet (1).xlsx,CL1! Backtest,CL1!,2025-12-05,08:00,8,Flip,Buys,1.5,Y,"Directional was ass, wait for new 1hr"
+Backtesting Spreadsheet (1).xlsx,SIL1! Backtest,SIL1!,2025-01-07,14:15,14,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,SIL1! Backtest,SIL1!,2025-01-08,13:35,13,Directional,Buys,3.0,Y,"Accuracy, no 30m top wick"
+Backtesting Spreadsheet (1).xlsx,SIL1! Backtest,SIL1!,2025-01-27,12:15,12,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,SIL1! Backtest,SIL1!,2025-01-28,09:10,9,Directional,Sells,-1.0,-,Low volume to the downside
+Backtesting Spreadsheet (1).xlsx,SIL1! Backtest,SIL1!,2025-01-31,11:40,11,BoC,Sells,2.0,N,
+Backtesting Spreadsheet (1).xlsx,SIL1! Backtest,SIL1!,2025-02-04,11:35,11,Flip,Sells,3.0,Y,Made 30m upper wick
+Backtesting Spreadsheet (1).xlsx,SIL1! Backtest,SIL1!,2025-02-05,11:00,11,Flip,Buys,3.0,N,3RR to the pip
+Backtesting Spreadsheet (1).xlsx,SIL1! Backtest,SIL1!,2025-02-11,14:35,14,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-01-09,08:45,8,,,-1.0,-,Lwk invalidated (edge of zone close)
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-01-10,09:05,9,,,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-01-14,07:10,7,,,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-01-16,12:00,12,,,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-01-20,08:30,8,Flip,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-01-23,13:20,13,Directional,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-02-07,13:10,13,Directional,Buys,-1.0,-,Clear news - wouldn't have taken
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-02-10,11:00,11,Flip,Buys,1.5,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-02-11,09:10,9,Directional,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-02-12,11:10,11,Directional,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-02-14,08:10,8,Directional,Buys,-1.0,-,"Older zone but valid, clean"
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-02-19,08:45,8,BoC,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-02-21,12:05,12,Directional,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-02-24,07:40,7,BoC,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-02-26,12:00,12,Flip,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-03-10,07:05,7,Directional,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-03-11,12:15,12,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-03-14,10:35,10,Directional,Buys,2.0,Y,Bad quality = wait for good directional
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-03-14,13:30,13,Flip,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-03-19,08:35,8,Directional,Sells,3.0,N,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-03-31,09:00,9,Flip,Sells,-1.0,-,Matched SL pip
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-04-03,14:00,14,Directional,Sells,3.0,Y,Bad quality = wait for good directional
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-04-07,14:45,14,BoC,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-04-11,09:00,9,Flip,Buys,-1.0,-,Need more bull confirmation
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-04-16,14:40,14,Directional,Sells,1.5,Y,Retracement confluence
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-04-17,07:50,7,Directional,Buys,1.5,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-04-23,14:15,14,BoC,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-04-28,11:30,11,Flip,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-05-06,08:05,8,BoC,Sells,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-05-14,09:10,9,Directional,Buys,-1.0,-,Took liq & made LH = low quality
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-05-16,08:00,8,Flip,Buys,3.0,,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-05-26,07:00,7,Flip,Buys,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-05-30,08:10,8,Directional,Buys,3.0,N,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-06-13,14:00,14,Flip,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-06-20,08:05,8,Directional,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-06-30,08:10,8,Flip,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-07-04,07:00,7,Flip,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-07-07,14:10,14,Directional,Buys,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-07-08,07:30,7,Flip,Buys,-1.0,-,Retested and won but didn't reenter
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-07-08,14:10,14,BoC,Sells,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-07-16,08:30,8,Flip,Sells,-1.0,-,*If flip was given*
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-08-11,07:05,7,Flip,Sells,3.0,Y,No 1hr LW yet
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-08-14,08:30,8,Flip,Sells,-1.0,-,Consolidation at low
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-08-20,11:40,11,Directional,Buys,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-08-25,19:00,19,Flip,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-08-29,08:10,8,BoC,Sells,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-09-01,08:45,8,Directional,Sells,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-09-08,09:00,9,Flip,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-09-09,09:00,9,Flip,Buys,-1.0,-,Larger zone
+Backtesting Spreadsheet (1).xlsx,ES1! Backtest,ES1!,2025-09-18,07:30,7,Flip,Buys,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,SL1! Backtest,SL1!,2025-01-06,14:20,14,Directional,Buys,1.0,Y,EoD Close - Eventually hit 1:3
+Backtesting Spreadsheet (1).xlsx,HG1! Backtest,HG1!,2026-01-22,10:00,10,BoC,Sells,3.0,N,Break fine for new htf
+Backtesting Spreadsheet (1).xlsx,HG1! Backtest,HG1!,2026-01-26,13:35,13,BoC,Buys,2.5,Y,Weak liquidity
+Backtesting Spreadsheet (1).xlsx,HG1! Backtest,HG1!,2026-01-27,13:15,13,Directional,Sells,-1.0,-,"Matched key area, playing aggressive"
+Backtesting Spreadsheet (1).xlsx,HG1! Backtest,HG1!,2026-02-02,15:00,15,Flip,Buys,2.5,Y,Market close entry
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-06-02,14:30,14,,,1.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-06-04,08:35,8,,,1.5,✗,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-06-09,14:25,14,,,1.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-06-10,09:50,9,,,2.0,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-06-23,13:40,13,,,2.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-06-27,10:00,10,,,1.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-06-30,12:30,12,,,2.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-07-01,12:45,12,,,1.5,✗,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-07-09,14:40,14,,,1.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-07-11,08:00,8,,,2.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-07-15,09:25,9,,,2.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-07-16,12:05,12,,,-1.0,✗,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-07-23,08:20,8,,,2.0,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-07-30,12:45,12,,,1.5,✗,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-08-01,01:12,1,,,-1.0,✗,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-08-15,14:00,14,,,1.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-08-18,09:20,9,,,3.0,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-08-20,09:35,9,,,1.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-08-21,10:45,10,,,1.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-05-25,13:00,13,,,3.0,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-09-02,09:10,9,,,1.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-09-09,13:40,13,,,1.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-09-15,13:20,13,,,1.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-09-16,14:10,14,,,-1.0,✗,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-09-16,14:20,14,,,1.5,✓,
+Backtesting Spreadsheet (1).xlsx,XAUUSD,XAUUSD,2025-09-29,14:05,14,,,1.5,✓,
+Backtesting Spreadsheet (1).xlsx,ES,ES,2025-12-01,13:00,13,,,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,ES,ES,2025-12-02,07:30,7,,,10.0,,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-06-03,13:40,13,,,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-06-04,11:25,11,,,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-06-17,07:05,7,,,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-06-23,08:00,8,Flip,,2.5,N,"Flip Entry, TP at 200EMA. Risky Trade "
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-06-26,14:40,14,BoC,,3.0,,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-07-02,13:40,13,Directional,,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-07-07,08:55,8,Directional,,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-07-24,13:05,13,Flip Entry,,2.5,Y,TP at PoC (Highest Volume Node)
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-09-09,14:35,14,BoC,,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-09-09,15:00,15,Flip Entry,,3.0,Y,Out of Session but Showing Reentry
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-09-11,13:10,13,Directional,,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-09-11,13:20,13,BoC,,2.0,Y,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-09-12,13:35,13,Directional,,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-09-16,14:10,14,Directional,,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-09-23,08:05,8,Directional,,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-09-29,14:35,14,Directional,,2.5,N,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-10-01,09:05,9,Directional,,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-10-01,09:20,9,BoC,,4.5,Y,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-10-02,13:35,13,Directional,,1.5,N,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-10-03,12:30,12,Flip,,3.5,Y,"NFP, wouldn't take Live"
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-10-09,07:50,7,Directional,,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,XPTUSD,XPTUSD,2025-10-15,10:25,10,BoC,,2.0,N,
+Backtesting Spreadsheet (1).xlsx,Ger30,Ger30,2025-06-03,14:30,14,Flip,,4.0,Y,
+Backtesting Spreadsheet (1).xlsx,Ger30,Ger30,2025-06-16,14:20,14,Directional,,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,Ger30,Ger30,2025-06-20,09:50,9,BoC,,3.0,Y,
+Backtesting Spreadsheet (1).xlsx,Ger30,Ger30,2025-06-23,09:10,9,Directional,,3.5,Y,TP at PoC (Double Bottom not favourable for Liq TP)
+Backtesting Spreadsheet (1).xlsx,Ger30,Ger30,2025-07-15,08:30,8,Flip,,3.0,N,
+Backtesting Spreadsheet (1).xlsx,Ger30,Ger30,2025-07-21,08:55,8,BoC,,3.0,N,TP at Highest Volume Node
+Backtesting Spreadsheet (1).xlsx,Ger30,Ger30,2025-07-23,09:50,9,BoC,,3.5,Y,TP at 2nd Highest Volume Node
+Backtesting Spreadsheet (1).xlsx,Ger30,Ger30,2025-07-25,10:35,10,Directional,,3.0,N,TP at PoC
+Backtesting Spreadsheet (1).xlsx,Ger30,Ger30,2025-08-06,10:05,10,Directional,,-1.0,-,
+Backtesting Spreadsheet (1).xlsx,Ger30,Ger30,2025-08-15,08:20,8,Directional,,-1.0,-,Arguable to say it tapped
+Backtesting Spreadsheet (1).xlsx,Ger30,Ger30,2025-08-21,07:15,7,Directional,,2.5,Y,
+Backtesting Spreadsheet (1).xlsx,Ger30,Ger30,2025-08-25,07:00,7,Flip,,6.0,Y,I'm Convinced
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-06-02,13:50,13,,,2.5,✓,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-06-09,14:35,14,,,-1.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-06-12,14:45,14,,,3.0,✓,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-06-16,14:10,14,,,-1.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-07-02,12:50,12,,,2.5,✓,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-07-08,10:10,10,,,-1.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-07-09,08:55,8,,,-1.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-07-15,09:55,9,,,2.5,✓,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-07-21,08:20,8,,,2.0,✓,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-07-21,14:35,14,,,3.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-07-23,14:05,14,,,-1.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-07-29,08:20,8,,,-1.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-07-30,12:45,12,,,1.5,✗,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-07-31,13:40,13,,,1.5,✓,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-08-05,12:40,12,,,4.5,✓,
+Backtesting Spreadsheet (1).xlsx,GBPJPY,GBPJPY,2025-09-10,12:30,12,,,0.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-06-02,11:40,11,,,3.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-06-11,14:45,14,,,3.0,✓,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-06-17,12:15,12,,,4.5,✗,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-06-18,11:35,11,,,-1.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-06-23,10:30,10,,,3.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-06-23,13:15,13,,,3.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-06-24,08:35,8,,,2.0,✓,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-06-27,13:50,13,,,2.5,✓,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-07-01,08:00,8,,,4.5,✓,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-07-09,11:45,11,,,3.0,✓,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-07-10,11:05,11,,,3.0,✓,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-07-17,14:50,14,,,2.0,✓,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-07-18,13:55,13,,,2.5,✗,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-08-05,08:25,8,,,4.5,✓,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-08-06,14:15,14,,,4.5,✗,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-08-14,09:10,9,,,3.0,✓,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-09-05,08:15,8,,,3.0,✓,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-09-08,11:40,11,,,-1.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-09-09,13:15,13,,,3.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-09-12,08:20,8,,,3.0,✓,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-09-16,12:05,12,,,-1.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-09-17,13:40,13,,,3.0,✓,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-09-29,09:45,9,,,-1.0,✗,
+Backtesting Spreadsheet (1).xlsx,GBPCAD,GBPCAD,2025-09-30,14:30,14,,,3.0,✗,

@@ -1,0 +1,462 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-05T05:58:20.409473Z",
+  "thresholds": {
+    "min_discord_backtest_trades": 30,
+    "min_discord_backtest_pf": 1.2,
+    "min_discord_avg_r": 0.25,
+    "min_live_trades_for_confirmation": 30,
+    "max_execution_failure_rate": 5.0,
+    "max_staleness_rejection_rate": 10.0
+  },
+  "global_status": "NO_TRADE_EXECUTION_HEALTH_FAILED",
+  "execution_health": {
+    "execution_failures": 50,
+    "execution_failure_rate_pct": 12.787724,
+    "stale_rejected_unexecuted": 288,
+    "staleness_rejection_rate_pct": 73.657289,
+    "status": "failed"
+  },
+  "comparison_dimensions": [
+    "symbol/instrument",
+    "session/hour",
+    "entry model",
+    "side",
+    "grade",
+    "RR distribution",
+    "win rate",
+    "profit factor",
+    "average R",
+    "sample size",
+    "execution issues",
+    "stale/rejected/unexecuted signals"
+  ],
+  "candidates": {
+    "CL1!": {
+      "status": "NO_TRADE_EXECUTION_HEALTH_FAILED",
+      "recommendation": "NO_LIVE_TRADING",
+      "discord_backtest": {
+        "trades": 52,
+        "wins": 40,
+        "losses": 12,
+        "net_r": 97.0,
+        "avg_r": 1.865385,
+        "win_rate_pct": 76.923077,
+        "profit_factor_r": 9.083333,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": 3.0,
+          "median": 3.0,
+          "positive_count": 40,
+          "negative_count": 12
+        }
+      },
+      "bot_live": {},
+      "detected_gaps": [],
+      "possible_causes": [
+        "pine_manual_mismatch",
+        "execution_latency_slippage",
+        "wrong_session_timezone",
+        "wrong_entry_model_mapping",
+        "bot_taking_lower_grade_setups",
+        "missing_filters",
+        "wrong_symbol_broker_feed",
+        "trade_lifecycle_bug"
+      ]
+    },
+    "ES": {
+      "status": "WATCH_ONLY",
+      "recommendation": "WATCH_ONLY",
+      "discord_backtest": {
+        "trades": 2,
+        "wins": 2,
+        "losses": 0,
+        "net_r": 13.0,
+        "avg_r": 6.5,
+        "win_rate_pct": 100.0,
+        "profit_factor_r": "inf",
+        "rr_distribution": {
+          "min": 3.0,
+          "max": 10.0,
+          "median": 6.5,
+          "positive_count": 2,
+          "negative_count": 0
+        }
+      },
+      "bot_live": {},
+      "detected_gaps": [],
+      "possible_causes": []
+    },
+    "ES1!": {
+      "status": "NO_TRADE_EXECUTION_HEALTH_FAILED",
+      "recommendation": "NO_LIVE_TRADING",
+      "discord_backtest": {
+        "trades": 50,
+        "wins": 29,
+        "losses": 21,
+        "net_r": 54.5,
+        "avg_r": 1.09,
+        "win_rate_pct": 58.0,
+        "profit_factor_r": 3.595238,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": 3.0,
+          "median": 2.0,
+          "positive_count": 29,
+          "negative_count": 21
+        }
+      },
+      "bot_live": {},
+      "detected_gaps": [],
+      "possible_causes": [
+        "pine_manual_mismatch",
+        "execution_latency_slippage",
+        "wrong_session_timezone",
+        "wrong_entry_model_mapping",
+        "bot_taking_lower_grade_setups",
+        "missing_filters",
+        "wrong_symbol_broker_feed",
+        "trade_lifecycle_bug"
+      ]
+    },
+    "GBPCAD": {
+      "status": "WATCH_ONLY",
+      "recommendation": "WATCH_ONLY",
+      "discord_backtest": {
+        "trades": 24,
+        "wins": 20,
+        "losses": 4,
+        "net_r": 59.0,
+        "avg_r": 2.458333,
+        "win_rate_pct": 83.333333,
+        "profit_factor_r": 15.75,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": 4.5,
+          "median": 3.0,
+          "positive_count": 20,
+          "negative_count": 4
+        }
+      },
+      "bot_live": {
+        "signals": 34,
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "net_r": -1.0,
+        "avg_r": -1.0,
+        "win_rate_pct": 0.0,
+        "profit_factor_r": 0.0,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": -1.0,
+          "median": -1.0,
+          "positive_count": 0,
+          "negative_count": 1
+        }
+      },
+      "detected_gaps": [],
+      "possible_causes": []
+    },
+    "GBPJPY": {
+      "status": "WATCH_ONLY",
+      "recommendation": "WATCH_ONLY",
+      "discord_backtest": {
+        "trades": 16,
+        "wins": 9,
+        "losses": 6,
+        "net_r": 17.0,
+        "avg_r": 1.0625,
+        "win_rate_pct": 56.25,
+        "profit_factor_r": 3.833333,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": 4.5,
+          "median": 1.5,
+          "positive_count": 9,
+          "negative_count": 6
+        }
+      },
+      "bot_live": {
+        "signals": 35,
+        "trades": 2,
+        "wins": 0,
+        "losses": 2,
+        "net_r": -2.0,
+        "avg_r": -1.0,
+        "win_rate_pct": 0.0,
+        "profit_factor_r": 0.0,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": -1.0,
+          "median": -1.0,
+          "positive_count": 0,
+          "negative_count": 2
+        }
+      },
+      "detected_gaps": [],
+      "possible_causes": []
+    },
+    "GC1!": {
+      "status": "NO_TRADE_EXECUTION_HEALTH_FAILED",
+      "recommendation": "NO_LIVE_TRADING",
+      "discord_backtest": {
+        "trades": 73,
+        "wins": 49,
+        "losses": 24,
+        "net_r": 138.5,
+        "avg_r": 1.89726,
+        "win_rate_pct": 67.123288,
+        "profit_factor_r": 6.770833,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": 4.0,
+          "median": 2.5,
+          "positive_count": 49,
+          "negative_count": 24
+        }
+      },
+      "bot_live": {},
+      "detected_gaps": [],
+      "possible_causes": [
+        "pine_manual_mismatch",
+        "execution_latency_slippage",
+        "wrong_session_timezone",
+        "wrong_entry_model_mapping",
+        "bot_taking_lower_grade_setups",
+        "missing_filters",
+        "wrong_symbol_broker_feed",
+        "trade_lifecycle_bug"
+      ]
+    },
+    "GER30": {
+      "status": "WATCH_ONLY",
+      "recommendation": "WATCH_ONLY",
+      "discord_backtest": {
+        "trades": 12,
+        "wins": 9,
+        "losses": 3,
+        "net_r": 28.5,
+        "avg_r": 2.375,
+        "win_rate_pct": 75.0,
+        "profit_factor_r": 10.5,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": 6.0,
+          "median": 3.0,
+          "positive_count": 9,
+          "negative_count": 3
+        }
+      },
+      "bot_live": {},
+      "detected_gaps": [],
+      "possible_causes": []
+    },
+    "HG1!": {
+      "status": "WATCH_ONLY",
+      "recommendation": "WATCH_ONLY",
+      "discord_backtest": {
+        "trades": 4,
+        "wins": 3,
+        "losses": 1,
+        "net_r": 7.0,
+        "avg_r": 1.75,
+        "win_rate_pct": 75.0,
+        "profit_factor_r": 8.0,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": 3.0,
+          "median": 2.5,
+          "positive_count": 3,
+          "negative_count": 1
+        }
+      },
+      "bot_live": {},
+      "detected_gaps": [],
+      "possible_causes": []
+    },
+    "NQ1!": {
+      "status": "NO_TRADE_EXECUTION_HEALTH_FAILED",
+      "recommendation": "NO_LIVE_TRADING",
+      "discord_backtest": {
+        "trades": 84,
+        "wins": 60,
+        "losses": 24,
+        "net_r": 141.5,
+        "avg_r": 1.684524,
+        "win_rate_pct": 71.428571,
+        "profit_factor_r": 6.895833,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": 5.0,
+          "median": 2.5,
+          "positive_count": 60,
+          "negative_count": 24
+        }
+      },
+      "bot_live": {},
+      "detected_gaps": [],
+      "possible_causes": [
+        "pine_manual_mismatch",
+        "execution_latency_slippage",
+        "wrong_session_timezone",
+        "wrong_entry_model_mapping",
+        "bot_taking_lower_grade_setups",
+        "missing_filters",
+        "wrong_symbol_broker_feed",
+        "trade_lifecycle_bug"
+      ]
+    },
+    "SIL1!": {
+      "status": "WATCH_ONLY",
+      "recommendation": "WATCH_ONLY",
+      "discord_backtest": {
+        "trades": 8,
+        "wins": 4,
+        "losses": 4,
+        "net_r": 7.0,
+        "avg_r": 0.875,
+        "win_rate_pct": 50.0,
+        "profit_factor_r": 2.75,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": 3.0,
+          "median": 0.5,
+          "positive_count": 4,
+          "negative_count": 4
+        }
+      },
+      "bot_live": {},
+      "detected_gaps": [],
+      "possible_causes": []
+    },
+    "SL1!": {
+      "status": "WATCH_ONLY",
+      "recommendation": "WATCH_ONLY",
+      "discord_backtest": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "net_r": 1.0,
+        "avg_r": 1.0,
+        "win_rate_pct": 100.0,
+        "profit_factor_r": "inf",
+        "rr_distribution": {
+          "min": 1.0,
+          "max": 1.0,
+          "median": 1.0,
+          "positive_count": 1,
+          "negative_count": 0
+        }
+      },
+      "bot_live": {},
+      "detected_gaps": [],
+      "possible_causes": []
+    },
+    "XAUUSD": {
+      "status": "WATCH_ONLY",
+      "recommendation": "WATCH_ONLY",
+      "discord_backtest": {
+        "trades": 26,
+        "wins": 23,
+        "losses": 3,
+        "net_r": 39.5,
+        "avg_r": 1.519231,
+        "win_rate_pct": 88.461538,
+        "profit_factor_r": 14.166667,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": 3.0,
+          "median": 1.5,
+          "positive_count": 23,
+          "negative_count": 3
+        }
+      },
+      "bot_live": {
+        "signals": 46,
+        "trades": 3,
+        "wins": 0,
+        "losses": 3,
+        "net_r": -3.0,
+        "avg_r": -1.0,
+        "win_rate_pct": 0.0,
+        "profit_factor_r": 0.0,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": -1.0,
+          "median": -1.0,
+          "positive_count": 0,
+          "negative_count": 3
+        }
+      },
+      "detected_gaps": [],
+      "possible_causes": []
+    },
+    "XPTUSD": {
+      "status": "WATCH_ONLY",
+      "recommendation": "WATCH_ONLY",
+      "discord_backtest": {
+        "trades": 22,
+        "wins": 17,
+        "losses": 5,
+        "net_r": 40.0,
+        "avg_r": 1.818182,
+        "win_rate_pct": 77.272727,
+        "profit_factor_r": 9.0,
+        "rr_distribution": {
+          "min": -1.0,
+          "max": 4.5,
+          "median": 2.5,
+          "positive_count": 17,
+          "negative_count": 5
+        }
+      },
+      "bot_live": {},
+      "detected_gaps": [],
+      "possible_causes": []
+    }
+  },
+  "top_backtest_segments": {
+    "instruments": [
+      "CL1!",
+      "ES1!",
+      "GC1!",
+      "NQ1!"
+    ],
+    "hours": [
+      "12",
+      "13",
+      "14",
+      "7",
+      "8",
+      "9"
+    ],
+    "entry_models": [
+      "DIRECTIONAL",
+      "FLIP",
+      "UNKNOWN"
+    ]
+  },
+  "strong_backtest_segments": {
+    "instruments": [
+      "CL1!",
+      "ES1!",
+      "GC1!",
+      "NQ1!"
+    ],
+    "hours": [
+      "12",
+      "13",
+      "14",
+      "7",
+      "8",
+      "9"
+    ],
+    "entry_models": [
+      "BOC",
+      "DIRECTIONAL",
+      "FLIP",
+      "UNKNOWN"
+    ]
+  }
+}

@@ -1,0 +1,1570 @@
+00:00 As a newer trader, you have likely
+00:02 
+
+00:02 experienced getting stopped out of a
+00:03 
+
+00:03 trade soon after entering. And you
+00:05 
+
+00:05 likely instantly just chalk it up to
+00:07 
+
+00:07 your strategy. But it is more commonly
+00:09 
+
+00:09 how you enter your trades that matters.
+00:11 
+
+00:11 Correct entry technique is crucial for
+00:14 
+
+00:14 trading success. And for success on the
+00:16 
+
+00:16 LSD model, I believe there are three
+00:18 
+
+00:18 main entry models that every trader
+00:19 
+
+00:19 should know. And today, I'm going to
+00:21 
+
+00:21 break all of these down and show live
+00:23 
+
+00:23 trading examples of trades that I
+00:25 
+
+00:25 personally sent over in my Discord. Now,
+00:27 
+
+00:27 just so you guys understand what it is
+00:28 
+
+00:28 that I'm actually looking to enter, I'm
+00:30 
+
+00:30 going to do a really quick rundown of my
+00:32 
+
+00:32 strategy for everyone new around here.
+00:33 
+
+00:33 Now, I'm sure all of you guys are
+00:35 
+
+00:35 familiar with normal supply and demand,
+00:36 
+
+00:36 but the LSD model essentially expands on
+00:39 
+
+00:39 this using liquidity, which is one of
+00:41 
+
+00:41 the biggest market movers. Initially,
+00:43 
+
+00:43 for an area of demand, we want to see a
+00:45 
+
+00:45 strong push to the upside as we can see
+00:47 
+
+00:47 just here. Now, this strong push is
+00:48 
+
+00:48 going to leave behind a demand zone,
+00:50 
+
+00:50 which is essentially an area that we
+00:52 
+
+00:52 think price is going to react strongly
+00:54 
+
+00:54 from when we re-enter it. Now, normal
+00:56 
+
+00:56 supply and demand is essentially just
+00:57 
+
+00:57 going to leave it there. But like I
+00:58 
+
+00:58 said, we like to add another one of the
+01:00 
+
+01:00 biggest confluences that we can. After
+01:02 
+
+01:02 this zone is formed, we like to see a
+01:04 
+
+01:04 swing of liquidity, which should be two
+01:06 
+
+01:06 or more candles. As you can see here,
+01:08 
+
+01:08 it's kind of a swing of consolidation.
+01:10 
+
+01:10 And if you didn't know, liquidity likes
+01:11 
+
+01:11 to sit above highs and below lows. After
+01:14 
+
+01:14 this, we want a break of structure to
+01:15 
+
+01:15 the upside. As you can see, we see so
+01:17 
+
+01:17 much bullish intent from this area. So,
+01:19 
+
+01:19 at this point, price is free to come
+01:20 
+
+01:20 back down to our zone. And after it
+01:22 
+
+01:22 does, we need to figure out a way to
+01:24 
+
+01:24 capitalize on each of these trades as
+01:26 
+
+01:26 much as possible. Therefore, I'm going
+01:27 
+
+01:27 to be teaching you the entry models for
+01:29 
+
+01:29 every single scenario so you can
+01:31 
+
+01:31 commonly hit insane risktorewards in
+01:33 
+
+01:33 every single trade. We have three
+01:35 
+
+01:35 different types of entry models. The
+01:37 
+
+01:37 break of candle entry, directional close
+01:39 
+
+01:39 entry, which is going to be our most
+01:41 
+
+01:41 conservative, and the flip entry entry
+01:44 
+
+01:44 model. Each of these entry models are
+01:45 
+
+01:45 going to vary in terms of how
+01:47 
+
+01:47 conservative they are. And on top of
+01:48 
+
+01:48 this, they're all going to be used in
+01:50 
+
+01:50 different scenarios in the market. You
+01:52 
+
+01:52 can just stick to one of these, but
+01:53 
+
+01:53 understanding what the market likes to
+01:55 
+
+01:55 do on a consistent basis is just going
+01:57 
+
+01:57 to allow you to hit higher
+01:58 
+
+01:58 riskto-rewards way more consistently, as
+02:00 
+
+02:00 well as just getting an insane long-term
+02:03 
+
+02:03 return. So, let's just start with the
+02:04 
+
+02:04 break of candle. The break of candle
+02:06 
+
+02:06 entry model is going to be triggered
+02:07 
+
+02:07 when the candle breaks the high of the
+02:09 
+
+02:09 previous candle. It's important to
+02:11 
+
+02:11 mention that we do not close inside for
+02:12 
+
+02:12 any of our entry models since if we do,
+02:15 
+
+02:15 we would not be seeing enough rejections
+02:16 
+
+02:16 to determine that there are active
+02:18 
+
+02:18 investors at that area. Now, why do we
+02:20 
+
+02:20 wait for this trigger? Well, it's just
+02:21 
+
+02:21 going to show insane volume in our
+02:23 
+
+02:23 favor. Volume of which is likely to
+02:26 
+
+02:26 continue after we get our entry. Now,
+02:28 
+
+02:28 how we enter these trades and I'll hop
+02:29 
+
+02:29 on to a visual example in just a second.
+02:31 
+
+02:31 We are going to enter once the previous
+02:33 
+
+02:33 wicks high is broken. So, that's just
+02:35 
+
+02:35 going to be the highest point of the
+02:36 
+
+02:36 previous candle altogether. And the way
+02:38 
+
+02:38 that we are going to see the
+02:39 
+
+02:39 institutional footprint, aka
+02:41 
+
+02:41 confirmation that there are active
+02:43 
+
+02:43 investors, is just going to be clear
+02:44 
+
+02:44 direction after we get our convincing
+02:46 
+
+02:46 rejections once again in the form of
+02:48 
+
+02:48 wicks into our zone without closing
+02:50 
+
+02:50 inside. This is important for every
+02:52 
+
+02:52 entry model. As you can see in this
+02:54 
+
+02:54 screenshot, we are in a volatile market,
+02:56 
+
+02:56 meaning once we wick our zone, a good
+02:58 
+
+02:58 entry is unlikely to get, which is just
+03:00 
+
+03:00 going to mean that most retail traders
+03:02 
+
+03:02 are going to miss their entry once we
+03:03 
+
+03:03 start getting all of these rejections to
+03:05 
+
+03:05 the upside. Now, how do we prevent
+03:07 
+
+03:07 ourselves from missing our entry
+03:08 
+
+03:08 altogether? Well, like I've just
+03:10 
+
+03:10 explained, once price breaks the high of
+03:12 
+
+03:12 the previous candle, that is going to
+03:13 
+
+03:13 determine our entry price. So, we enter
+03:15 
+
+03:15 as soon as price breaks that high with
+03:17 
+
+03:17 our stop losses just below the deepest
+03:19 
+
+03:19 wick into our zone. As far as take
+03:21 
+
+03:21 profits go, a good rule of thumb for any
+03:23 
+
+03:23 of our entry models is going to be
+03:24 
+
+03:24 sitting on liquidity. Like I've
+03:26 
+
+03:26 mentioned, liquidity likes to sit on
+03:28 
+
+03:28 highs and lows. Therefore, there's going
+03:29 
+
+03:29 to be a great amount of liquidity
+03:31 
+
+03:31 sitting all the way up here, which as
+03:33 
+
+03:33 you saw before, the market likes to run
+03:35 
+
+03:35 directly towards. Now, coming into the
+03:37 
+
+03:37 pros and cons of the break of candle
+03:38 
+
+03:38 entry model, we can see our win rate is
+03:40 
+
+03:40 sitting around a 40 to 50%, which for
+03:43 
+
+03:43 any strategy is actually insane,
+03:45 
+
+03:45 especially once you consider the
+03:46 
+
+03:46 riskto-rewards that we are going to be
+03:48 
+
+03:48 getting per trade, as well as how
+03:50 
+
+03:50 consistently you're going to be getting
+03:51 
+
+03:51 into trades, which takes us onto our
+03:53 
+
+03:53 first pro, which is that it is always
+03:55 
+
+03:55 going to get you into high volume
+03:57 
+
+03:57 trades. There is almost never going to
+03:58 
+
+03:58 be a time where price runs off without
+04:00 
+
+04:00 triggering the break of candle entry
+04:02 
+
+04:02 since that is exactly what is in place
+04:04 
+
+04:04 to prevent. Now, if you remember in
+04:06 
+
+04:06 terms of how conservative it actually
+04:08 
+
+04:08 is, it is still going to be less risky
+04:10 
+
+04:10 than the flip entry. Now, the flip entry
+04:12 
+
+04:12 does provide better riskto-rewards per
+04:14 
+
+04:14 trade, but I'll get on to that a little
+04:16 
+
+04:16 later. And then, like I just said, it is
+04:18 
+
+04:18 relatively conservative. Now, in terms
+04:20 
+
+04:20 of cons, flip entry is literally just
+04:22 
+
+04:22 going to be predicting the directional
+04:24 
+
+04:24 close, which is the entry model that I'm
+04:25 
+
+04:25 going to mention just after this.
+04:27 
+
+04:27 Directional close is going to be our
+04:29 
+
+04:29 most conservative entry model, and it's
+04:30 
+
+04:30 essentially the entry model that
+04:32 
+
+04:32 everything else is based off of. The
+04:33 
+
+04:33 break of candle entry and the flip entry
+04:36 
+
+04:36 are just going to be trying to predict
+04:37 
+
+04:37 this from an earlier point. Therefore,
+04:39 
+
+04:39 it is just going to have a lower win
+04:40 
+
+04:40 rate than the directional close. On top
+04:42 
+
+04:42 of this, there are going to be times
+04:43 
+
+04:43 where other entry models offer better
+04:45 
+
+04:45 entries, including the directional
+04:47 
+
+04:47 close. Once again, we're just predicting
+04:49 
+
+04:49 that price is going to close in our
+04:50 
+
+04:50 favor. There are going to be times where
+04:52 
+
+04:52 break of candle is triggered and then
+04:53 
+
+04:53 price comes back down and we do get a
+04:55 
+
+04:55 better directional close and it's all
+04:57 
+
+04:57 just going to come back down to the
+04:58 
+
+04:58 point that this is just in place to not
+05:00 
+
+05:00 miss any trades. Now, for a live market
+05:03 
+
+05:03 example, I'm just going to use the setup
+05:04 
+
+05:04 that I used in the intro. We see that we
+05:06 
+
+05:06 are getting really, really great
+05:07 
+
+05:07 rejections since we wicked deep inside
+05:09 
+
+05:09 of our zone and just continued upwards
+05:11 
+
+05:11 from there. Now, if we look at the
+05:13 
+
+05:13 candle before, what a lot of retail
+05:14 
+
+05:14 supply and demand traders is going to do
+05:16 
+
+05:16 is enter as soon as we wick inside of
+05:18 
+
+05:18 our zone. This is not going to be viable
+05:20 
+
+05:20 long-term since there are going to be
+05:22 
+
+05:22 times where price wants to come deeper
+05:23 
+
+05:23 inside of our zone or just invalidate
+05:25 
+
+05:25 the setup altogether. And that is how
+05:27 
+
+05:27 our entry models preserve such a high
+05:29 
+
+05:29 win rate. We wait for price to break the
+05:31 
+
+05:31 previous candle's high, which confirms
+05:33 
+
+05:33 intent to the upside and shows that
+05:35 
+
+05:35 there are a lot of active investors at
+05:37 
+
+05:37 this area of demand. As I mentioned
+05:39 
+
+05:39 before, our stop loss is going to be on
+05:41 
+
+05:41 the deepest wick inside of our zone and
+05:43 
+
+05:43 our TPS can be all the way up here at
+05:45 
+
+05:45 our liquidity. And just like that, the 1
+05:48 
+
+05:48 to6 riskto-reward is hit. This really is
+05:50 
+
+05:50 the highest reward and most consistent
+05:52 
+
+05:52 entry model that we could have used. But
+05:54 
+
+05:54 if you are instead looking for something
+05:56 
+
+05:56 a little bit more conservative and
+05:57 
+
+05:57 systematic, I'll now move on to our
+05:59 
+
+05:59 directional close entry model. Now, for
+06:01 
+
+06:01 our second entry model, the directional
+06:03 
+
+06:03 close is literally going to be as simple
+06:04 
+
+06:04 as the title suggests. It's going to be
+06:06 
+
+06:06 triggered by the candle closing in our
+06:08 
+
+06:08 direction after we wick inside of our
+06:10 
+
+06:10 zone. Now, I am repeating myself, but we
+06:12 
+
+06:12 cannot close inside with this entry
+06:14 
+
+06:14 model. If we close inside, then there is
+06:16 
+
+06:16 just not enough confirmation of
+06:17 
+
+06:17 investors. Why do we wait for the
+06:19 
+
+06:19 directional close? Well, this is just
+06:20 
+
+06:20 going to be the most statistically safe
+06:22 
+
+06:22 way of entering our trades. Like I said,
+06:25 
+
+06:25 this is as systematic as you can get,
+06:26 
+
+06:26 and it may not be the best
+06:28 
+
+06:28 risk-to-rewards per trade, but it is
+06:30 
+
+06:30 going to yield the highest reward in the
+06:31 
+
+06:31 long term. And this is tested against
+06:33 
+
+06:33 over a decade of my personal back
+06:35 
+
+06:35 testing data. Now, how do we enter this
+06:37 
+
+06:37 trade? Well, we simply wait for a
+06:38 
+
+06:38 convincing close after showing intent.
+06:41 
+
+06:41 And that intent is once again just going
+06:42 
+
+06:42 to be clear direction after rejections.
+06:45 
+
+06:45 You are going to sense a bit of a
+06:46 
+
+06:46 pattern with this one. There simply is
+06:48 
+
+06:48 no better way of seeing active
+06:49 
+
+06:49 investors. Now, moving straight onto the
+06:51 
+
+06:51 live markets since it is the easiest one
+06:53 
+
+06:53 to explain. And as the title suggests,
+06:56 
+
+06:56 we wick into our zone and we wait for
+06:58 
+
+06:58 the directional close, which is just
+06:59 
+
+06:59 going to be a close in our direction. We
+07:01 
+
+07:01 want to keep going to the upside for a
+07:03 
+
+07:03 demand example. Therefore, we wait for a
+07:05 
+
+07:05 bullish close and that is going to
+07:06 
+
+07:06 determine our entry. As always, stop
+07:09 
+
+07:09 loss is going to be on the deepest wick
+07:10 
+
+07:10 inside of our zone with our TPS sitting
+07:13 
+
+07:13 on the sell side liquidity. Now, as we
+07:15 
+
+07:15 can see off the bat, the risk-to-reward
+07:16 
+
+07:16 is not as high as the break of candle.
+07:18 
+
+07:18 Nor is it as high as the flip entry,
+07:20 
+
+07:20 which statistically yields the highest
+07:22 
+
+07:22 returns per trade. However, like I'm
+07:24 
+
+07:24 going to mention in just a second, the
+07:26 
+
+07:26 win rate with this entry model is just
+07:28 
+
+07:28 insane. And if you were to only choose
+07:30 
+
+07:30 one entry model to take away from this
+07:31 
+
+07:31 video, then I would 100% praise this
+07:34 
+
+07:34 one. I'm using this setup as an example
+07:36 
+
+07:36 since it is actually one that I sent to
+07:37 
+
+07:37 the VIP Discord. Everybody used the
+07:39 
+
+07:39 directional close entry model. Once
+07:41 
+
+07:41 again, it is just so versatile and this
+07:43 
+
+07:43 was just an easy one to two wrist reward
+07:45 
+
+07:45 using the optional TP rules. I don't
+07:47 
+
+07:47 mean to plug it too much, but that is
+07:49 
+
+07:49 also another VIP resource. If making
+07:51 
+
+07:51 your trading systematic is something
+07:52 
+
+07:52 that appeals to you, then that is going
+07:54 
+
+07:54 to be free to join just down below. Now
+07:56 
+
+07:56 starting off with the directional close
+07:57 
+
+07:57 entry model, we can see that a 50 to 60%
+08:00 
+
+08:00 win rate is expected, which is going to
+08:02 
+
+08:02 be nothing to laugh at. Even using oneto
+08:04 
+
+08:04 ones is going to be profitable using
+08:06 
+
+08:06 this entry model. And trust me, with the
+08:08 
+
+08:08 LSD model, we are never just going to
+08:09 
+
+08:09 take a one:1. As I've mentioned before,
+08:12 
+
+08:12 this entry model is going to yield the
+08:13 
+
+08:13 highest returns longer term, as well as
+08:15 
+
+08:15 having the highest win rate over every
+08:17 
+
+08:17 single one of our setups. And on top of
+08:19 
+
+08:19 all of this, it is simply just the most
+08:21 
+
+08:21 intuitive and versatile. It really does
+08:23 
+
+08:23 just make sense for a demand. we want to
+08:26 
+
+08:26 keep going upwards. So, we just wait for
+08:27 
+
+08:27 us to show that we want to go upwards.
+08:29 
+
+08:29 Now, moving on to the cons, if you can
+08:31 
+
+08:31 really even call them cons. This isn't
+08:33 
+
+08:33 always going to yield the highest
+08:34 
+
+08:34 risk-to-reward. That is going to be the
+08:36 
+
+08:36 flip entry, which I'll move on to in
+08:38 
+
+08:38 just a second. And there is still going
+08:39 
+
+08:39 to be a chance that price runs off
+08:41 
+
+08:41 before we get our entry, which if you
+08:43 
+
+08:43 remember, break off candle is going to
+08:45 
+
+08:45 completely eliminate. After balancing
+08:47 
+
+08:47 these pros and cons, you can see why I
+08:49 
+
+08:49 praise this entry model the most. If you
+08:51 
+
+08:51 pair this with the optional TP rules in
+08:53 
+
+08:53 my Discord, there is really nowhere
+08:54 
+
+08:54 where you can go wrong. Emotions won't
+08:56 
+
+08:56 get in the way because your TPS are
+08:57 
+
+08:57 predetermined and you won't get FOMO
+08:60 
+
+08:60 because you know that the directional
+09:01 
+
+09:01 close is proven to have such a good win
+09:03 
+
+09:03 rate. Now, you're probably eager for me
+09:05 
+
+09:05 to talk about the flip entry since
+09:06 
+
+09:06 you've likely heard me talking about the
+09:08 
+
+09:08 high risk of rewards that it gives you
+09:10 
+
+09:10 consistently, but there is going to be
+09:11 
+
+09:11 less chances that we can use this. So,
+09:13 
+
+09:13 what is the flip entry? Well, it's going
+09:15 
+
+09:15 to be our most aggressive entry model,
+09:17 
+
+09:17 and this is going to be using historical
+09:19 
+
+09:19 price movement. I'm about to introduce
+09:21 
+
+09:21 you to a new concept that you likely
+09:22 
+
+09:22 have no clue existed. Now, how does this
+09:24 
+
+09:24 entry model actually work? Well, it's
+09:26 
+
+09:26 only going to happen on a new higher
+09:28 
+
+09:28 time frame candle. Since all higher time
+09:30 
+
+09:30 frame candles have an upper and a lower
+09:33 
+
+09:33 wick, this is definitely going to call
+09:34 
+
+09:34 for a couple of visual examples. So,
+09:36 
+
+09:36 just bear with me cuz it is not as
+09:38 
+
+09:38 complicated as I'm leading it on to be.
+09:40 
+
+09:40 Now, why do we wait for this? Well, it's
+09:41 
+
+09:41 going to be an advanced model that can
+09:43 
+
+09:43 bring huge returns when applied, right?
+09:46 
+
+09:46 And the institutional footprint is once
+09:47 
+
+09:47 again just going to be rejections from
+09:49 
+
+09:49 the zone. And like I said, you are going
+09:51 
+
+09:51 to be seeing a pattern with me saying
+09:52 
+
+09:52 this. The same with all of the other
+09:54 
+
+09:54 ones. This cannot close inside of our
+09:55 
+
+09:55 zone. I haven't actually mentioned it
+09:57 
+
+09:57 anywhere on this screen, but I'm just
+09:58 
+
+09:58 trying to drill that into your mind.
+09:60 
+
+09:60 Now, as we can see just here, it seems
+10:01 
+
+10:01 like relatively normal market
+10:03 
+
+10:03 conditions. However, the break of candle
+10:05 
+
+10:05 entry would have been up here, and the
+10:06 
+
+10:06 directional close would have been up
+10:08 
+
+10:08 here, which aren't really going to be
+10:09 
+
+10:09 fantastic entries. Now, what if I told
+10:11 
+
+10:11 you that this entry candle was actually
+10:13 
+
+10:13 at 9:00 a.m.? And this is going to be
+10:14 
+
+10:14 important because every higher time
+10:16 
+
+10:16 frame candle has significant higher and
+10:18 
+
+10:18 lower wicks. If you were to look at the
+10:20 
+
+10:20 1 hour time frame, we can see that there
+10:22 
+
+10:22 are significant lower wicks as well as
+10:24 
+
+10:24 significant higher wicks on a very
+10:26 
+
+10:26 consistent basis, almost to the point
+10:28 
+
+10:28 where I can say every single candle.
+10:30 
+
+10:30 Now, this is really important to know
+10:31 
+
+10:31 because once we create the lower wick of
+10:33 
+
+10:33 that new higher time frame candle, price
+10:35 
+
+10:35 is just going to want to make that upper
+10:36 
+
+10:36 wick as well as hopefully closing
+10:38 
+
+10:38 bullish. Therefore, that lower wick is
+10:40 
+
+10:40 made. And once the candle flips from
+10:42 
+
+10:42 bearish to bullish, that is going to
+10:44 
+
+10:44 determine our entry price. Now, this is
+10:47 
+
+10:47 the same example that I was just showing
+10:48 
+
+10:48 you. As we can see, this candle is being
+10:50 
+
+10:50 formed at 9:00 a.m., which means that it
+10:52 
+
+10:52 is the start of a new higher time frame
+10:54 
+
+10:54 candle. Price is more times than not
+10:56 
+
+10:56 going to want to make that lower wick
+10:58 
+
+10:58 before bullish intent is shown and then
+10:60 
+
+10:60 it flips from red to green. Now, we have
+11:02 
+
+11:02 made that higher time frame lower wick
+11:04 
+
+11:04 and there is nothing else stopping the
+11:06 
+
+11:06 market from just going upwards.
+11:07 
+
+11:07 Therefore, this will determine our entry
+11:09 
+
+11:09 price with our stop loss in the same
+11:11 
+
+11:11 place as every other entry model. And if
+11:13 
+
+11:13 we take a quick look at those optional
+11:15 
+
+11:15 TP rules that I've been talking about,
+11:17 
+
+11:17 we can see that with a 5.3 pip stop
+11:19 
+
+11:19 loss, we can easily just target a 1 to
+11:21 
+
+11:21 three risk-to-reward, which is literally
+11:23 
+
+11:23 smashed in just one candle's time. On
+11:26 
+
+11:26 the 5minut time frame, it's going to be
+11:28 
+
+11:28 5 minutes for a 1 to three
+11:29 
+
+11:29 risk-to-reward. Now with flip entries,
+11:32 
+
+11:32 it is not all just going to be good
+11:33 
+
+11:33 notes since if we already go and look at
+11:35 
+
+11:35 our win rate, this is the lowest that we
+11:37 
+
+11:37 have seen and it is the lowest win rate
+11:39 
+
+11:39 on any of our entry models. Now let's
+11:41 
+
+11:41 start with the pros and that is as you
+11:43 
+
+11:43 probably know it has the highest average
+11:45 
+
+11:45 risk-to-reward per trade as well as
+11:47 
+
+11:47 capitalizing on new concepts. I say new
+11:50 
+
+11:50 concepts as new concepts to you. These
+11:52 
+
+11:52 are proven concepts once again over
+11:55 
+
+11:55 decades of my personal back testing data
+11:57 
+
+11:57 as well as everything else on the
+11:58 
+
+11:58 liquidity supply and demand model. So,
+12:00 
+
+12:00 it is safe to say that none of these
+12:02 
+
+12:02 concepts are going anywhere. Now, let's
+12:04 
+
+12:04 move straight onto the cons. And
+12:05 
+
+12:05 starting out, it is going to have the
+12:07 
+
+12:07 lowest statistical win rate. Now, I say
+12:09 
+
+12:09 statistical because it is literally just
+12:11 
+
+12:11 predicting the directional close.
+12:13 
+
+12:13 Similarly to the flip entry, as I've
+12:15 
+
+12:15 said, the directional close is the entry
+12:16 
+
+12:16 model that everything else is based off
+12:18 
+
+12:18 of. It has the highest returns. It is
+12:20 
+
+12:20 the easiest to use. But if on the rare
+12:22 
+
+12:22 chance a new higher time frame candle is
+12:24 
+
+12:24 being formed, then we can use the flip
+12:26 
+
+12:26 entry to our advantage and just get more
+12:28 
+
+12:28 risk-to-reward for that setup. And
+12:30 
+
+12:30 that's why I keep saying that it is
+12:32 
+
+12:32 important to know all of these so you
+12:34 
+
+12:34 have all of them in your arsenal for
+12:35 
+
+12:35 different scenarios. Now let's move on
+12:37 
+
+12:37 to a visual comparison of the three. Now
+12:39 
+
+12:39 for the highest win rate, we're going to
+12:41 
+
+12:41 be looking at the directional close with
+12:43 
+
+12:43 break of candle coming in second and the
+12:45 
+
+12:45 flip entry coming in with the lowest win
+12:47 
+
+12:47 rate. Now, if we were to instead look at
+12:49 
+
+12:49 risk rewards, we can see that the flip
+12:51 
+
+12:51 entry is actually the highest with the
+12:53 
+
+12:53 break of candle once again coming in
+12:54 
+
+12:54 second and the directional close coming
+12:56 
+
+12:56 in last place. Now, with me saying that
+12:59 
+
+12:59 the directional close has medium risk to
+13:01 
+
+13:01 rewards, you may expect that to mean
+13:03 
+
+13:03 1:1's or 1 to 1.5s, but that is simply
+13:05 
+
+13:05 not the case. Any of these entry models
+13:07 
+
+13:07 hit 1:2 to 1:5 risk-to-rewards on a very
+13:11 
+
+13:11 consistent basis with some being more
+13:13 
+
+13:13 consistent than others. Now, for a quick
+13:15 
+
+13:15 refresher of the pros, the break of
+13:17 
+
+13:17 candle has the quickest entry, meaning
+13:19 
+
+13:19 that you never miss high volume setups.
+13:21 
+
+13:21 Now, the directional close, as we know,
+13:23 
+
+13:23 is statistically the safest and is
+13:25 
+
+13:25 versatile for all of you who are trying
+13:27 
+
+13:27 to trade more systematically or if you
+13:29 
+
+13:29 have a common problem with psychology,
+13:31 
+
+13:31 aka greed or FOMO. And lastly, the flip
+13:34 
+
+13:34 entry simply just has insane
+13:36 
+
+13:36 risk-to-reward possibilities. Now, when
+13:38 
+
+13:38 we come to cons, and it's something that
+13:40 
+
+13:40 I've not really mentioned before, but
+13:41 
+
+13:41 the break of candle is easy to mix up
+13:43 
+
+13:43 with just FOMO. Since it is going to be
+13:45 
+
+13:45 extremely discretionary to what you
+13:47 
+
+13:47 consider a high volume market, and since
+13:49 
+
+13:49 it is always triggered, you really do
+13:52 
+
+13:52 need to hold out. You cannot be using
+13:53 
+
+13:53 this 100% of the time. It simply just
+13:56 
+
+13:56 leaves way too much up to intuition. So,
+13:58 
+
+13:58 I'd only really recommend it to those of
+13:60 
+
+13:60 you who are sound with your psychology.
+14:02 
+
+14:02 Now, as we know, the directional close
+14:04 
+
+14:04 has the lowest risk-to-reward per trade.
+14:06 
+
+14:06 And I'd say that this is the only con
+14:07 
+
+14:07 that we really need to concern ourselves
+14:09 
+
+14:09 with since everything else about this
+14:10 
+
+14:10 entry model is relatively flawless. And
+14:13 
+
+14:13 lastly, with the flip entry, it is going
+14:15 
+
+14:15 to be our riskiest entry model. And I
+14:16 
+
+14:16 say riskiest in quotation marks since it
+14:19 
+
+14:19 really doesn't have to be risky. You
+14:20 
+
+14:20 just need to use it correctly. To use it
+14:22 
+
+14:22 correctly, you need to wait for a new 30
+14:24 
+
+14:24 minute or a new 1 hour candle. And
+14:26 
+
+14:26 that's where the low frequency is going
+14:28 
+
+14:28 to come from. There is only going to be
+14:29 
+
+14:29 one out of every six candles that has
+14:32 
+
+14:32 this confluence. Therefore, it's going
+14:33 
+
+14:33 to be so much more important to stay
+14:35 
+
+14:35 patient. And that is going to bring me
+14:36 
+
+14:36 on to the final point, which is just
+14:38 
+
+14:38 going to be a breakdown of when we
+14:40 
+
+14:40 actually use these. And I'll start with
+14:41 
+
+14:41 flip entry since we were just talking
+14:42 
+
+14:42 about it. That's going to be a new
+14:44 
+
+14:44 higher time frame candle as well as
+14:45 
+
+14:45 times where we are looking to maximize
+14:47 
+
+14:47 the risk-to-reward of a setup.
+14:49 
+
+14:49 Therefore, I recommend using it with
+14:51 
+
+14:51 only A+ setups. It is going to be the
+14:53 
+
+14:53 riskiest. Therefore, we want to stack
+14:54 
+
+14:54 the most confluences just to know that
+14:56 
+
+14:56 we are correct. Now for the break of
+14:58 
+
+14:58 candle, this is used in volatile markets
+15:00 
+
+15:00 with the directional close not showing
+15:02 
+
+15:02 good TPS and this is also going to
+15:05 
+
+15:05 include not showing good riskto-rewards
+15:07 
+
+15:07 which leads us to my favorite entry
+15:09 
+
+15:09 model which is the directional close and
+15:11 
+
+15:11 it is used when we have the long-term in
+15:13 
+
+15:13 mind and with trading the long-term
+15:15 
+
+15:15 should always be in mind. You don't want
+15:17 
+
+15:17 to start playing this game riskier just
+15:18 
+
+15:18 because you want those end results to
+15:20 
+
+15:20 come sooner. I'm personally doing this
+15:22 
+
+15:22 so I never have to work a 9-to-f5 again.
+15:24 
+
+15:24 And the most likely way to do this is
+15:26 
+
+15:26 using the directional close
+15:27 
+
+15:27 consistently. And on less of a deep
+15:29 
+
+15:29 note, this is also going to be used when
+15:31 
+
+15:31 price action is looking average, aka the
+15:34 
+
+15:34 market is not super super volatile. Now
+15:36 
+
+15:36 that I've done a deep dive into every
+15:38 
+
+15:38 single one of my entry models, it is now
+15:40 
+
+15:40 time to go and back test these entry
+15:41 
+
+15:41 models with the strategy that I trade,
+15:43 
+
+15:43 which is the LSD model, aka liquidity,
+15:46 
+
+15:46 supply, and demand. If you want to learn
+15:47 
+
+15:47 more on my strategy, then I have more
+15:49 
+
+15:49 than enough videos over on my channel.
+15:51 
+
+15:51 But if you have any more specific
+15:52 
+
+15:52 questions or you just really want to
+15:53 
+
+15:53 level up in general, then I really would
+15:55 
+
+15:55 recommend going to join that VIP Discord
+15:57 
+
+15:57 below, which is entirely free for you to
+15:59 
+
+15:59 join. Or if you want to talk to me
+16:01 
+
+16:01 specifically, oneto ones are now open
+16:04 
+
+16:04 and there are still spaces available. So
+16:06 
+
+16:06 go and grab one for yourself. If not,
+16:08 
+
+16:08 then subscribe and like if this helped
+16:10 
+
+16:10 you in any way. I'll see you in the next
+16:11 
+
+16:11 one. Peace.

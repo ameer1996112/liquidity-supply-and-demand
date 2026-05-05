@@ -52,6 +52,7 @@ from scripts.optimizer.config import (
     PROP_FIRM_MAX_DD_PCT,
     OPTUNA_SEARCH_SPACE,
     LIQ_DISTANCE_RANGES,
+    parse_fixed_overrides,
 )
 
 
@@ -218,24 +219,9 @@ Examples:
             print("Or: source .venv/bin/activate && pip install optuna")
             sys.exit(1)
 
-    # Parse --fix into a dict
-    fixed_overrides: dict = {}
-    if args.fix:
-        for pair in args.fix.split(","):
-            pair = pair.strip()
-            if "=" in pair:
-                k, v = pair.split("=", 1)
-                # Auto-convert booleans
-                if v.lower() == "true":  v = True
-                elif v.lower() == "false": v = False
-                else:
-                    try: v = int(v)
-                    except ValueError:
-                        try: v = float(v)
-                        except ValueError: pass
-                fixed_overrides[k.strip()] = v
-        if fixed_overrides:
-            print(f"[main] Fixed params: {fixed_overrides}")
+    fixed_overrides = parse_fixed_overrides(args.fix)
+    if fixed_overrides:
+        print(f"[main] Fixed params: {fixed_overrides}")
 
     from scripts.optimizer.optimizer import TradingViewOptimizer
     optimizer = TradingViewOptimizer(

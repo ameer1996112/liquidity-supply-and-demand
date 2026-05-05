@@ -893,6 +893,10 @@ class TabWorker:
                 val = trial.suggest_float(name, space["low"], space["high"])
                 params[name] = round(val, 1)
 
+        for name, value in overrides.items():
+            if name not in OPTUNA_SEARCH_SPACE and name != "liq_distance":
+                params[name] = value
+
         # ── Session constraint: start must be < end ───────────────────────────
         # If Optuna picks an invalid combination, clamp end to start+3 minimum.
         start = params.get("trading_start_hour")

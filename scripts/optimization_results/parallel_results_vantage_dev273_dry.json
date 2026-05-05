@@ -1,0 +1,40 @@
+{
+  "XAUUSD": {
+    "status": "completed",
+    "params": {
+      "rr_mode": "fixed_4.0",
+      "max_trades_per_day": 1,
+      "require_major_liquidity": true,
+      "filter_trading_hours": true,
+      "enable_ai_quality_filter": false
+    },
+    "source_run_id": null,
+    "score": 1.5,
+    "net_profit": 999.0,
+    "win_rate": 55.0,
+    "profit_factor": 1.5,
+    "max_drawdown_pct": 5.0,
+    "total_trades": 50,
+    "worker_id": 0,
+    "timestamp": "2026-05-05T09:04:52.478842"
+  },
+  "NAS100": {
+    "status": "completed",
+    "params": {
+      "rr_mode": "fixed_4.0",
+      "max_trades_per_day": 1,
+      "require_major_liquidity": true,
+      "filter_trading_hours": true,
+      "enable_ai_quality_filter": false
+    },
+    "source_run_id": null,
+    "score": 1.5,
+    "net_profit": 999.0,
+    "win_rate": 55.0,
+    "profit_factor": 1.5,
+    "max_drawdown_pct": 5.0,
+    "total_trades": 50,
+    "worker_id": 0,
+    "timestamp": "2026-05-05T09:04:54.482566"
+  }
+}

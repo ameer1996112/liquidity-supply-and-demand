@@ -1,0 +1,9 @@
+{
+  "USOIL": {
+    "status": "failed",
+    "params": {},
+    "source_run_id": null,
+    "timestamp": "2026-05-05T09:07:35.113726",
+    "error_message": "Could not confirm custom backtest range 2025-01-01 to 2025-12-31"
+  }
+}

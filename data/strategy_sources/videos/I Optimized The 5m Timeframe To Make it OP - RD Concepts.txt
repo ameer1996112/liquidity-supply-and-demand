@@ -1,0 +1,421 @@
+00:00 okay so I'm officially returning to the
+00:03 5 minute time frame there's
+00:06 optimizations to the strategy there's
+00:07 different things that have been
+00:08 implemented to improve it new liquidity
+00:11 distances since when I last traded it
+00:13 now I'm still trading 30 minute time
+00:15 frame as my main trading style the 5
+00:18 minute time frame is going to be for a
+00:19 fixed 2 hours every day 700 a.m. UTC
+00:23 till 9:00 a.m. UTC this time for me
+00:26 works very well if it'sit in great in my
+00:28 schedule and I'm obviously going to be
+00:30 live streaming as well so I'm looking
+00:32 forward to that I've done a couple live
+00:33 streams already we saw this goal
+00:35 position run for a 1 to 10 on the second
+00:38 live stream using the optimization that
+00:40 I've added so that was nice to see it
+00:43 play out live as well instead of just
+00:44 back testing already and it's only been
+00:46 2 days so for now I'm going to get into
+00:49 those optimizations the 30 minute time
+00:51 frame I'm trading it in a slightly
+00:53 different style as well so I've removed
+00:54 the excess pairs for now these are the
+00:56 only ones I trade in the tested list GN
+00:60 is currently under testing we want to
+01:01 see a couple live trades first as well
+01:04 and if it's good then I'll potentially
+01:06 add it to the main pairs for now that's
+01:08 how many I'm going to be trading so it's
+01:10 a slow approach recently we've had too
+01:12 big of a losing streak and so only going
+01:15 for A+ trades as well as cutting down
+01:17 the pairs list this is how I used to
+01:19 trade when I first scaled up very
+01:21 quickly had great results I was only
+01:23 trading three to four pairs and I got
+01:26 blinded by greed into adding so much
+01:29 trying to add so much more and it just
+01:30 hasn't been as peaceful it's been way
+01:32 more stressful you need peace of mind
+01:33 for trading to be in tune with the
+01:36 markets as well it's way more helpful to
+01:39 have good intuition when you have a
+01:40 small pairs L cuz you actually know
+01:42 what's going on in all the pairs all the
+01:43 time as opposed to when I had 10 plus
+01:46 pairs I don't really remember what each
+01:47 one's doing you have to keep checking
+01:48 them constantly to actually see and it
+01:50 just adds so much more stress so much
+01:52 more mental burden and psychology as
+01:54 well as the fact that during bad market
+01:57 conditions some of the pairs on there
+01:59 don't perform as well as the ones that
+02:01 I've left behind right here so scaled it
+02:04 back to how I used to trade it and with
+02:06 that I'm going to be implementing the 5
+02:08 minute time frame which is something
+02:09 I've been wanting to do for a long time
+02:11 this was just a catalyst for me to now
+02:12 do that gold is one of the best 5 minute
+02:15 pairs we've ever seen on the 30 minute
+02:18 it really doesn't work that well on the
+02:20 5 minute is incredible through a lot of
+02:21 back testing through a lot of live
+02:23 trades people I've seen in my Discord
+02:25 have traded gold for a while on the 5
+02:27 minute constant wins so I backed it
+02:29 myself we even got this live trade uh
+02:32 that we saw play out and so based off
+02:36 the back test results I'm going to take
+02:37 you through some of the optimizations
+02:39 you can see one here we've implemented
+02:41 this one massive massive boost to the
+02:44 profits without really taking away
+02:45 anything so this is a one minute trading
+02:48 stop TP rules for gold are as follows
+02:51 these have been decided based off what
+02:54 hits most consistently and what you can
+02:56 get even if the trend is not in your
+02:58 direction still hitting TP most of the
+03:00 time so this allows for a very good win
+03:02 rate following these rules that I have
+03:04 set out here very simply this is how it
+03:07 works so you have a standard trade
+03:09 liquidity supply and demand obviously
+03:11 this is a clean up no need to explain
+03:13 this flip entry over here simply because
+03:17 it was a very large rejection even
+03:18 though it's not a high time frame candle
+03:20 I can now still take them secondly I
+03:23 don't just enter on any random tap in
+03:26 respect to the Zone it still has to be
+03:28 now a candle that actually closes in
+03:29 your ction or flip entry so if it's
+03:32 going to be something aggressive the
+03:34 rejection has to be very big to the
+03:36 point where if I was to wait for this
+03:38 and it possibly closes up here let's say
+03:40 the risk reward is not really good
+03:41 enough anymore so in that situation you
+03:43 can ENT to flip now one minute training
+03:46 stop how does this work it's basically a
+03:48 way to get extra profits Without Really
+03:49 risking anything more on winning
+03:53 positions it's as simple as it sounds
+03:55 it's a very aggressive stop so sometimes
+03:57 it doesn't really make any difference
+03:59 sometimes you might make 0.2 to 0.4%
+04:02 Less on a position TP hits here you
+04:05 Trail each one minute candle to close
+04:07 bullish because this is a demand setup
+04:09 so I wouldn't be trading this one when
+04:11 you get a very large candle that would
+04:13 make a big difference to a risk reward
+04:15 for example trading all the way down
+04:16 here is for
+04:18 2% you can Trail halfway up the candle
+04:21 instead of underneath it this candle
+04:23 closes bullish this one was very big as
+04:25 well so trade it halfway this one closed
+04:28 bullish relatively Norm normal size at
+04:31 this point you've already got a lot of
+04:32 extra profit anyway so you can just
+04:33 Trail underneath the candle so fairish
+04:37 candles don't Trail bullish candles move
+04:40 up to this one and you end up being out
+04:42 for around
+04:44 4.5% if you tra this one halfway depends
+04:47 on what you can view as large it's not
+04:48 really important like I said 4.8% so
+04:52 more or less the same no extra risk on
+04:55 this trade it was just a standard 5
+04:56 minute trade one minute trading brings
+04:59 the profit up to 4.5% all the way from
+05:03 2.5 so you gain an extra 2% simply from
+05:06 the trading now there are some examples
+05:08 where this takes you all the way to a
+05:10 10% win such as this one this trade was
+05:13 the one that played out live on my
+05:15 second live stream I was back testing
+05:18 gold at the time and we have this trade
+05:21 beautiful liquidity Supply demand trade
+05:23 the lowest untab Zone whenever you get a
+05:25 bottom Zone like this and you're clearly
+05:26 in Trend these ones are very powerful
+05:29 simply because it's the lowest point
+05:31 it's the best price to buy from in the
+05:33 whole of this structure here there's no
+05:35 other untab zones lower than it that are
+05:37 part of this same structure this one is
+05:39 but it's a completely separate structure
+05:42 this one is part of this push to the
+05:43 outside main this SP so following
+05:45 standard structure of course that's a
+05:47 great trade entry was very simple it was
+05:49 a high time frame flip entry so in the
+05:51 live markets a new 50-minute candle
+05:53 opens up bottom Wick into the zone and
+05:56 it flipped around here so very simple
+05:59 entry
+06:00 now in terms of stop loss I now don't
+06:03 use one pip under the candle I simply
+06:05 put it directly underneath because from
+06:07 all winning trades I've tested so far
+06:09 not a single one of them even came back
+06:11 to retest and used the extra distance if
+06:13 it was to come back down here it was
+06:14 just simply a losing trade so no reason
+06:17 now to use one paper stop underneath the
+06:19 candle it can go directly under entry
+06:21 candle for supplies you might still want
+06:23 to use it just so you don't get stopped
+06:24 out by spreads but for demands no reason
+06:27 to use it whatsoever this trade right
+06:29 here was 101 Pips which I believe is
+06:33 exactly on the edge so you can decide
+06:36 whether it's one to two one to three
+06:37 it's
+06:38 1001 I'll just go from 1 to three most
+06:40 of the time cuz it's
+06:42 higher and that was that now the one
+06:44 minute training on
+06:46 this here we can
+06:48 see this is where it hit now on gold it
+06:51 can be a little bit different to GJ so
+06:53 on gold because of its volatility
+06:55 especially seeing a situation like this
+06:57 play out trading two candles back if
+07:00 it's a small one minute candle always
+07:03 the best option A lot of the times in
+07:05 the positions it would break below one
+07:07 candle and not the rest so as you can
+07:09 see here this is where the ones through
+07:11 hit and you can Trail the stop loss
+07:13 underneath the bullish candle only
+07:16 risking from the 1 to three 0.4% of your
+07:19 profits to Trail this one minute stop so
+07:22 you can see for how much extra risk
+07:24 there's not really any it's just a
+07:26 profits there's nothing else being
+07:27 risked and you have so much more
+07:29 potential so this optimization very
+07:32 powerful after that very simply you
+07:35 would Trail this next candle to close
+07:38 bullish on gold
+07:41 however two candles back so keeping it
+07:44 on this
+07:45 one then this one closes you can move to
+07:48 that one move to that one
+07:49 Etc you can see how how well it worked
+07:52 out in this case very large candle here
+07:54 so you want to Trail halfway through
+07:57 just so you don't lose too much profit
+07:58 if it does come all the way down onto
+07:60 this one 5.7% already locked in at this
+08:04 point another bullish close now up here
+08:06 at
+08:07 6.5% and so this for me is where it sort
+08:10 of changes there's the first bearish
+08:11 candle that you can see so you can be
+08:13 smart with this you don't know how to
+08:14 follow this exactly CU even if you don't
+08:16 and you end up out for 6.5% that's not a
+08:18 bad thing so it doesn't really matter
+08:21 but this is where you can just sort of
+08:22 decide what you want to do completely
+08:24 based off intuition if you really want
+08:26 doesn't have to be strictly rules for it
+08:28 you're up 6.5% like I said you can
+08:31 decide to keep it under this bearish
+08:32 candle cuz it's sort of for the point of
+08:33 structure or just keep it at 6.5% see
+08:36 what else happens you know we get a big
+08:39 push to the upside up here when we come
+08:41 down and form these lows maybe now you
+08:43 Trail the lows for
+08:45 7% at this point even if you went back
+08:47 to bullish candles it just carried on
+08:48 moving upwards now for me I'm probably
+08:51 going to fix everything at 10% so when I
+08:52 hit at 1 to 10 same as a 30 minute time
+08:54 frame but here there's no TV1 so it's
+08:56 just a straight 10% win which is
+08:59 ridiculous
+09:01 when it gets to 1 to 10 I'm just going
+09:02 to be closing for we time so that for me
+09:05 was the way to Trail this this is how we
+09:07 we watched it when it played out live
+09:09 and this is how I was doing it
+09:11 so that's how it works very simple
+09:14 optimization loads more profit from 0.4%
+09:17 risk 7% extra
+09:20 profit insane risk reward on that if you
+09:23 want to do the calculation that's the
+09:25 optimization this plays out multiple
+09:28 times now when actually use the trading
+09:30 stop mostly it's just when it's taking
+09:32 off with momentum like this so this is
+09:34 up for you to decide there's no fixed
+09:36 rule about it on this position you can
+09:38 clearly see take it off with a lot of
+09:40 momentum so two candles very bullish
+09:43 directly to CP even if that's not the
+09:46 case you could just use it every time
+09:48 because with the profit gained and if
+09:50 you don't want to be thinking about it
+09:52 you know when should I use it when
+09:53 should I not for the profit gain it's
+09:54 worth it to choose it every time looking
+09:57 at this one played out exactly the same
+09:60 don't need to explain it that much more
+10:01 but very simple this CLE hit TP it was
+10:04 very large you can Trail halfway if you
+10:05 want for 1.5% otherwise you're all the
+10:08 way down here and if it loses you only
+10:10 make 25% so halfway through the candle
+10:13 1.5 trading each bullish candle very
+10:16 simple you end up here for close to 4%
+10:20 in terms of entries things are slightly
+10:21 different and they have been optimized
+10:23 as well so if you look at this position
+10:26 basically any situation where you have
+10:28 two candles tapping this zone so the
+10:30 first one Taps The Zone closes
+10:32 respecting when that's not even your
+10:33 entry candle when the second one is your
+10:35 entry candle this one you can see is
+10:37 where we got the beage close but that
+10:39 one also Taps The Zone if it's Wick is
+10:41 lower down you don't have to use this
+10:43 one up here and of course we're also not
+10:45 using the one extra pip above so you can
+10:48 use the lower Candle In the Zone that
+10:49 tapped and you now to be one pip above a
+10:53 lot of situations like this where you're
+10:54 simply catching a tiny tiny retracement
+10:56 even against Trend using the TP rules
+10:60 situations like this it makes a big
+11:01 difference we've seen it many times over
+11:03 the current back test results over here
+11:05 we have a re-entry and not using the L
+11:07 one in the zone using these two that
+11:09 rejected beforehand same principle this
+11:12 one didn't make a difference cuz it
+11:13 would have hit the two anyways but you
+11:15 can see sort of how it works and the
+11:17 ideas behind it all the winning trades
+11:20 we've been through none of have got
+11:22 affected by having one pip extra stop
+11:24 didn't make any difference in this case
+11:26 just because it was two Cel back I'll
+11:28 still use this one but if you really
+11:30 want no problem to use the initial
+11:32 candle the tap the Zone tight stop loss
+11:35 and probably highest reward so there we
+11:38 go that's how it's going to work GJ of
+11:41 course I'm going to be trading one the
+11:43 OG pairs one of the best pairs hasn't
+11:46 performed as well as gold in test so far
+11:47 but it's been more than good enough it's
+11:49 just cuz gold has ridiculous performance
+11:51 on the five minute for some reason so GJ
+11:55 the TP rules have been updated the
+11:56 volatility changed at a much different
+11:58 price point compared to one year ago
+11:60 when they were made these are GJ's new
+12:02 TP rules based off the stop loss size
+12:04 this is what now works best and the risk
+12:07 reward un targeting when I do this for
+12:08 this one I don't use it anymore this is
+12:11 just something old from
+12:13 beforehand uh which I won't be using so
+12:17 that's that in situations like this one
+12:18 for example when it's just very far into
+12:21 the zone and it would make a big
+12:22 difference to risk reward you can simply
+12:25 just cover the Zone by one or two Pips
+12:27 so again that's VI to the side but for
+12:30 me when it's very far away like this
+12:32 cover Z about one or two Pips is safe
+12:34 enough okay trailing stop on this one
+12:36 brought us to a 1 to 10 again so even
+12:40 based off this this has only happened
+12:41 twice so far in testing it's gone
+12:43 straight from 1 to 10 they've boken
+12:45 recent as well it's kind of ridiculous
+12:47 to look at but it's just following
+12:48 Simple Rules trading stop is activated
+12:51 here trading only bullish candles this
+12:53 one halfway up cuz it's massive only
+12:56 bullish candles this one halfway up and
+12:59 hit 10% already before anything
+13:02 happened always closing out of
+13:05 10% changed this normal trade which was
+13:09 originally a 1 to three added 7% extra
+13:12 profit you can never go wrong with that
+13:14 type of benefit from a rule that's not
+13:17 really risking anything extra so a huge
+13:19 optimization here is going to make a big
+13:21 difference this trading itself just
+13:24 about close outside the Zone in case
+13:25 you're wondering it's quite hard to see
+13:27 from far away cuz it looks look looks
+13:29 almost like it didn't yeah those are the
+13:31 optimizations and the new TP rules to
+13:33 the 5 minute strategy I'm returning to
+13:36 trade it two times a week I'm going to
+13:38 be live streaming on YouTube and three
+13:41 times a week in the Discord that's my
+13:43 current schedule the days I'm not 100%
+13:45 started on so most likely for now it's
+13:48 going to be Tuesday and either Thursday
+13:52 or Friday when I live stream on YouTube
+13:54 in Discord of course all the other days
+13:56 so that for now is my schedule if you
+13:60 want to join the Discord I have a
+14:01 current offer for $20 off the first two
+14:04 months of the subscription with the code
+14:07 5 minute return 5m return not the word
+14:10 minute it'll be in the description
+14:12 anyways if you want to take advantage of
+14:14 that and it'll be going on for one week
+14:15 only after that back to normal prices
+14:18 I'm looking forward to trading this I've
+14:19 been really wanting to trade active
+14:21 trading 5 minute for a long time like I
+14:24 said this the a losing treak has been
+14:26 brutal for me it is over now but I just
+14:28 happen to have missed the four or five
+14:30 winners that have taking place so for me
+14:32 it's not over for most people it is it
+14:35 kind of sucks but hey that's the
+14:38 situation is what it is and there we go
+14:42 5 minute return is underway looking
+14:43 forward to the live streams results are
+14:45 fine backing have been amazing GJ's been
+14:47 great gold has been great the trade
+14:49 frequency between these two has in
+14:51 perfect amount of trades on separate
+14:54 days couple days between trades
+14:57 sometimes back to back all the time
+14:59 times where there were two trades in the
+15:00 same session as well they were
+15:02 comfortably on different times so maybe
+15:04 half an hour after 15 minutes after and
+15:07 so there was no stress or complications
+15:09 between that for now those two are going
+15:11 to be the pairs I trade so great
+15:13 performance easy to trade that's what we
+15:16 want to see so be sure to go and test
+15:17 the optimizations for yourself they work
+15:19 very well and like I said see you guys
+15:21 in the live stream that is everything
+15:23 for today's video
+15:26 [Music]
+15:31 pap
+15:35 [Music]

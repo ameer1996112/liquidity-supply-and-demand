@@ -1,0 +1,928 @@
+00:00 What's good, YouTube? So, today we're
+00:02 
+
+00:02 talking about 10 lessons that we can
+00:04 
+
+00:04 take from 2025 to make 2026 our most
+00:07 
+
+00:07 profitable year yet. Now, most of you
+00:08 
+
+00:08 probably think that 2025 just gave us
+00:10 
+
+00:10 one year's data cuz I mean, it's one
+00:12 
+
+00:12 year, but if you think about it, we
+00:14 
+
+00:14 trade four instruments. Therefore, we've
+00:16 
+
+00:16 just got four years of data which can be
+00:18 
+
+00:18 used to optimize TPS. There's a lot of
+00:21 
+
+00:21 [ __ ] that four years of data can do. And
+00:23 
+
+00:23 I mean, let's just go on to lesson
+00:24 
+
+00:24 number one. Now, number one is going to
+00:26 
+
+00:26 be using your data and not just other
+00:28 
+
+00:28 traders. Having other people to kind of
+00:30 
+
+00:30 rely on is great when it comes to
+00:32 
+
+00:32 streamlining data, but only if these
+00:34 
+
+00:34 traders are actually trustworthy. And
+00:36 
+
+00:36 that's not many people in this space.
+00:38 
+
+00:38 I've seen people come, I've seen people
+00:40 
+
+00:40 go. So don't keep switching up your
+00:41 
+
+00:41 strategy, even if it's small
+00:43 
+
+00:43 optimizations, just because one person
+00:45 
+
+00:45 said so. By going and back testing and
+00:47 
+
+00:47 using your data to come up with your
+00:49 
+
+00:49 optimizations, you can really see this
+00:51 
+
+00:51 through longer term because you know why
+00:53 
+
+00:53 you're doing stuff. If your TP logic, if
+00:55 
+
+00:55 your stop-loss logic just doesn't seem
+00:57 
+
+00:57 to be working in live markets and you're
+00:59 
+
+00:59 not even the person that tested it, then
+01:01 
+
+01:01 you can kind of just see where that can
+01:03 
+
+01:03 start to go wrong. You're not going to
+01:04 
+
+01:04 trust it. You're going to start to take
+01:05 
+
+01:05 [ __ ] at take profits. And I mean, like I
+01:07 
+
+01:07 just said, I've just done four years of
+01:09 
+
+01:09 back testing, which is really optimized
+01:11 
+
+01:11 take profits and new risk-to-reward
+01:13 
+
+01:13 optimizations just being completely
+01:15 
+
+01:15 invalid longer term. And that's not to
+01:17 
+
+01:17 say that other traders are devils. like
+01:19 
+
+01:19 they've done the research, but maybe
+01:20 
+
+01:20 they're just concluding it in a way that
+01:22 
+
+01:22 isn't going to be profitable longer
+01:23 
+
+01:23 term. All right, straight on to number
+01:24 
+
+01:24 two. There is no quot for each day.
+01:27 
+
+01:27 People think there's a quot for every
+01:29 
+
+01:29 trading day, like I need to make 3% or
+01:31 
+
+01:31 at least just take a trade, which makes
+01:34 
+
+01:34 no sense. If you've ever seen profits in
+01:36 
+
+01:36 the markets, then you just understand
+01:37 
+
+01:37 how dumb this sounds. And this all just
+01:39 
+
+01:39 usually comes from one thing, which is
+01:41 
+
+01:41 having a deadline on your success. If
+01:44 
+
+01:44 you have a specific date in mind or a
+01:46 
+
+01:46 time frame where you want to see profits
+01:47 
+
+01:47 before, then you're going to feel like
+01:49 
+
+01:49 every single day you need to get closer
+01:51 
+
+01:51 to that goal. Therefore, you're going to
+01:52 
+
+01:52 take a loss on a trading day and not be
+01:54 
+
+01:54 all right with this just being the end
+01:56 
+
+01:56 of it. You're going to take another
+01:57 
+
+01:57 loss, try and take another trade, take
+01:59 
+
+01:59 another loss, then you're 3% down rather
+02:01 
+
+02:01 than being 3% up like you wanted to be.
+02:03 
+
+02:03 Trading is one of the only skills where
+02:05 
+
+02:05 more work in the live markets isn't
+02:07 
+
+02:07 going to directly equal more success. As
+02:10 
+
+02:10 you can see right here, technically
+02:11 
+
+02:11 you're doing more work because you're
+02:13 
+
+02:13 taking more trades, but it's not good
+02:15 
+
+02:15 work. This isn't high leverage. High
+02:17 
+
+02:17 leverage would be going back, back
+02:18 
+
+02:18 testing, collecting data to then go to
+02:21 
+
+02:21 the next day in the markets and make
+02:23 
+
+02:23 that a success. And this is why you see
+02:25 
+
+02:25 so many traders getting sucked into
+02:26 
+
+02:26 those clickbaity 20 trades in a day kind
+02:29 
+
+02:29 of strategies cuz they think that 20
+02:31 
+
+02:31 trades is 20 times more work than
+02:33 
+
+02:33 someone taking one trade a day. even
+02:35 
+
+02:35 though the turnout is going to be likely
+02:37 
+
+02:37 the same, if not the one trade being
+02:39 
+
+02:39 more profitable, just because it's going
+02:41 
+
+02:41 to be higher quality. And this next one
+02:43 
+
+02:43 is going to come right off the back of
+02:44 
+
+02:44 that last one where I was talking about
+02:46 
+
+02:46 having a deadline. Be present in your
+02:48 
+
+02:48 plan, not in your goals. Having a
+02:50 
+
+02:50 deadline is going to be these goals. And
+02:52 
+
+02:52 if you're constantly kind of just
+02:54 
+
+02:54 thinking about what car am I going to
+02:55 
+
+02:55 get or what house am I going to get,
+02:57 
+
+02:57 then this is constantly going to be
+02:58 
+
+02:58 what's on your mind. And once again,
+02:60 
+
+03:00 you're aiming for this and not sticking
+03:02 
+
+03:02 to your trading plan in live markets.
+03:04 
+
+03:04 This is what's going to get the money
+03:06 
+
+03:06 and the wins in live markets which
+03:08 
+
+03:08 translate into this later on. So being
+03:10 
+
+03:10 present in your plan is really all you
+03:12 
+
+03:12 need to do. Mastering your trading plan
+03:14 
+
+03:14 and just mastering your craft in trading
+03:16 
+
+03:16 is going to bring these end goals so
+03:18 
+
+03:18 much quicker. And I talked about it in
+03:20 
+
+03:20 my last video. There's that stray cat
+03:22 
+
+03:22 analogy. Pretend there's a stray cat and
+03:23 
+
+03:23 you really want to stroke it because
+03:24 
+
+03:24 it's like cute as [ __ ] And you keep
+03:26 
+
+03:26 running towards it thinking that it's
+03:28 
+
+03:28 going to let you stroke it. Now see this
+03:30 
+
+03:30 cat is trading profits. the more you run
+03:32 
+
+03:32 towards it, the more it's going to run
+03:34 
+
+03:34 away. You're not taking calculated
+03:35 
+
+03:35 steps, so it's not going to trust you
+03:37 
+
+03:37 and you're never actually going to get
+03:38 
+
+03:38 to those trading profits. Now, on the
+03:40 
+
+03:40 other hand, if you are taking every
+03:42 
+
+03:42 single step cautiously, knowing your
+03:44 
+
+03:44 exact footsteps and road map that you're
+03:46 
+
+03:46 going to take to get around to it, it's
+03:48 
+
+03:48 going to start to open up to you and
+03:49 
+
+03:49 you're going to be able to stroke it and
+03:51 
+
+03:51 you're going to be able to make that
+03:52 
+
+03:52 money that you want to make. Sounds like
+03:54 
+
+03:54 a dumb analogy when I say out loud, I
+03:56 
+
+03:56 can't lie. But when you actually think
+03:57 
+
+03:57 about it, this makes so much sense. And
+03:59 
+
+03:59 I'm going to stick to this [ __ ] till the
+04:00 
+
+04:00 day I die. this whole analogy. So, big
+04:03 
+
+04:03 up RD for saying this when I was
+04:04 
+
+04:04 learning. Just having one idea that
+04:06 
+
+04:06 humbles you every time you start to get
+04:08 
+
+04:08 greedy is going to take you so far. Now,
+04:10 
+
+04:10 number four is going to be technical
+04:12 
+
+04:12 analysis is not nothing. Now, I say a
+04:15 
+
+04:15 lot that 90% of trading is going to be
+04:17 
+
+04:17 psychology. That's meant to be a brain,
+04:19 
+
+04:19 but no, I really do mean this. And
+04:21 
+
+04:21 people just think that, oh yeah, if I'm
+04:23 
+
+04:23 completely focused on psychology, then I
+04:25 
+
+04:25 can kind of be more lenient with my
+04:27 
+
+04:27 trading plan. And this is where people
+04:28 
+
+04:28 start to try and make optimizations when
+04:30 
+
+04:30 there just doesn't need to be. Pretend
+04:32 
+
+04:32 you're like stranded at sea and you want
+04:34 
+
+04:34 to make a new civilization and you get
+04:36 
+
+04:36 washed up onto an island. This is the
+04:38 
+
+04:38 live markets without technical analysis.
+04:40 
+
+04:40 And this is the markets with technical
+04:41 
+
+04:41 analysis. Now on top of your technical
+04:43 
+
+04:43 analysis, you're going to start building
+04:45 
+
+04:45 like [ __ ] houses, which is your
+04:46 
+
+04:46 psychology. You're really starting to
+04:48 
+
+04:48 settle into the markets. but then all of
+04:50 
+
+04:50 a sudden you think you're too good for
+04:52 
+
+04:52 the, you know, literal foundation and
+04:54 
+
+04:54 you start building off onto the water
+04:56 
+
+04:56 and everything is just going to come
+04:57 
+
+04:57 crumbling down back into the river. What
+04:59 
+
+04:59 I'm saying is don't just look at your
+05:01 
+
+05:01 losses like yes, I can overcome this
+05:03 
+
+05:03 with a good mindset. If you are making
+05:05 
+
+05:05 mistakes in the live markets, then work
+05:08 
+
+05:08 on them. Trading is so good because
+05:10 
+
+05:10 every single loss is going to be more
+05:11 
+
+05:11 data for you directly and there's not
+05:14 
+
+05:14 always a reason for a loss. But when
+05:15 
+
+05:15 there is a consistent reason from loss
+05:17 
+
+05:17 to loss that the wins don't have, then
+05:19 
+
+05:19 it's just so clear to see. So never
+05:21 
+
+05:21 forget about technical analysis. Always
+05:22 
+
+05:22 stay true to your roots and never think
+05:24 
+
+05:24 you're better than that or that you're
+05:25 
+
+05:25 one with the markets or some [ __ ] All
+05:27 
+
+05:27 right, so next, no data is going to
+05:30 
+
+05:30 equal loads of trades. And loads of data
+05:32 
+
+05:32 is going to equal fewer trades. And this
+05:34 
+
+05:34 is similar to just forgetting technical
+05:36 
+
+05:36 analysis like I was just talking about.
+05:38 
+
+05:38 When you have no data to go over and
+05:40 
+
+05:40 you're not really just tightening your
+05:41 
+
+05:41 rules, then you're going to be a lot
+05:43 
+
+05:43 more lenient as to what you see as a
+05:44 
+
+05:44 good trade, your win rate is going to go
+05:46 
+
+05:46 down, your risk-to-reward percent gain
+05:48 
+
+05:48 is going to go down, and so are your
+05:50 
+
+05:50 chances of profitability. On the other
+05:52 
+
+05:52 hand, having loads of data is going to
+05:55 
+
+05:55 mean that you see a lot less trades in
+05:57 
+
+05:57 the live markets. And why is this trade
+05:60 
+
+05:60 quality? You know what's good, you know
+06:02 
+
+06:02 what's bad, and you know what to wait
+06:03 
+
+06:03 for. If you don't find yourself forcing
+06:05 
+
+06:05 [ __ ] in the markets, then you're doing
+06:06 
+
+06:06 so much more than the people that look
+06:08 
+
+06:08 like they're doing more because they're
+06:10 
+
+06:10 taking more trades. I don't think people
+06:12 
+
+06:12 understand how much that discipline
+06:14 
+
+06:14 actually takes out of you. Discipline to
+06:16 
+
+06:16 get the data firsthand, but also the
+06:18 
+
+06:18 discipline to not take trades which
+06:19 
+
+06:19 don't align with your data. It's a lot
+06:21 
+
+06:21 of waiting and that's why people don't
+06:23 
+
+06:23 make it. They're impatient. They get
+06:25 
+
+06:25 shiny object syndrome and then they're
+06:26 
+
+06:26 off to the next strategy. So, if you're
+06:28 
+
+06:28 like that, just go to the next strategy.
+06:30 
+
+06:30 This video is not for you. If you're not
+06:31 
+
+06:31 like that and you are just like locking
+06:33 
+
+06:33 in on one strategy now, then I do have a
+06:35 
+
+06:35 VIP Discord where I teach this strategy
+06:37 
+
+06:37 all of the psychology alongside it so
+06:39 
+
+06:39 you don't have any gaps in your road map
+06:41 
+
+06:41 like I'm trying to stop with this video.
+06:42 
+
+06:42 There's only so much I can do in like 10
+06:44 
+
+06:44 or 20 minutes. But in that VIP Discord,
+06:46 
+
+06:46 I send every single trade that I take so
+06:48 
+
+06:48 you can literally build a road map
+06:50 
+
+06:50 around exactly what I do. There's also
+06:52 
+
+06:52 constant accountability from other
+06:53 
+
+06:53 experienced traders so you never find
+06:55 
+
+06:55 yourself taking nonquality setups cuz
+06:58 
+
+06:58 you're better than that. The link to
+06:59 
+
+06:59 that is just down below. So for the next
+07:01 
+
+07:01 point, I literally can't remember what
+07:03 
+
+07:03 point I'm on now, but obsess over
+07:05 
+
+07:05 results. Results is going to equal data,
+07:07 
+
+07:07 and data is literally what everything is
+07:09 
+
+07:09 built around. No data equals no plan.
+07:12 
+
+07:12 And these days, I see so many new
+07:14 
+
+07:14 traders on this model just changing
+07:16 
+
+07:16 everything because they're going off
+07:17 
+
+07:17 feelings. Literally, rule one in trading
+07:20 
+
+07:20 is [ __ ] your feelings. The market don't
+07:22 
+
+07:22 care about your feelings. I don't care
+07:24 
+
+07:24 about your feelings. Okay, that's a lie.
+07:25 
+
+07:25 I care about your feelings, but yeah,
+07:27 
+
+07:27 the market doesn't. So, you need to
+07:29 
+
+07:29 obsess over every single trade that you
+07:31 
+
+07:31 take to the point where other people
+07:32 
+
+07:32 think you're a weirdo. Going over years
+07:34 
+
+07:34 of back testing in a week is not normal
+07:37 
+
+07:37 on my time frame at least. Like, you
+07:38 
+
+07:38 really don't see people doing that these
+07:40 
+
+07:40 days. Everybody thinks it's easy money.
+07:42 
+
+07:42 Everybody thinks it's quick money. But
+07:44 
+
+07:44 if they want that, then they're just
+07:45 
+
+07:45 straight up looking in the wrong place.
+07:46 
+
+07:46 I'm never going to sell trading to you
+07:48 
+
+07:48 like it's easy. I can say that I have an
+07:50 
+
+07:50 easier route than most people take. But,
+07:52 
+
+07:52 I don't know if you're some [ __ ] that
+07:53 
+
+07:53 doesn't know how to stick to a plan. So,
+07:55 
+
+07:55 I'm never going to promise any like
+07:57 
+
+07:57 actual fabrication of results. I can
+07:60 
+
+07:60 only talk about what got me to
+08:01 
+
+08:01 profitability or what would have gotten
+08:03 
+
+08:03 me there sooner. And that is literally
+08:05 
+
+08:05 all this channel is just data from a
+08:07 
+
+08:07 profitable trader and not just
+08:08 
+
+08:08 regurgitated info like every other demo
+08:10 
+
+08:10 guru. And for the next point, once
+08:12 
+
+08:12 again, I can't remember what number I'm
+08:13 
+
+08:13 on. So, this is question mark number
+08:15 
+
+08:15 two. Strategy is your foundation. And
+08:18 
+
+08:18 this kind of contradicts a couple of my
+08:19 
+
+08:19 previous points, but you need to test
+08:21 
+
+08:21 your assumptions when you're learning
+08:23 
+
+08:23 trading. you get regurgitated
+08:25 
+
+08:25 information just pouring into your brain
+08:27 
+
+08:27 from people that haven't even made it
+08:29 
+
+08:29 yet. So something that you heard earlier
+08:31 
+
+08:31 in your journey may not even be viable
+08:33 
+
+08:33 in like the live markets. You need to go
+08:35 
+
+08:35 back and test every single thing that
+08:37 
+
+08:37 you think is right with the markets to
+08:38 
+
+08:38 once again just understand why you do
+08:40 
+
+08:40 things. If you don't know the why, then
+08:42 
+
+08:42 you're not going to be able to stick it
+08:43 
+
+08:43 through longer term. Once again, longer
+08:46 
+
+08:46 term is why we do everything. We want
+08:48 
+
+08:48 freedom. That's why we trade. We want
+08:49 
+
+08:49 location independence. And if you're not
+08:51 
+
+08:51 trading for the long term and you are
+08:52 
+
+08:52 just trading for quick money, then
+08:54 
+
+08:54 you're going to be straight up going
+08:55 
+
+08:55 back to that job before you even knew
+08:56 
+
+08:56 what hit you. Everybody watching this
+08:58 
+
+08:58 video wants more than that. So work
+08:60 
+
+09:00 harder than the people that haven't even
+09:02 
+
+09:02 thought about it yet. Do everything that
+09:03 
+
+09:03 I've talked about in this video and
+09:05 
+
+09:05 you're going to be seeing profits before
+09:06 
+
+09:06 you know it. And this can finally be
+09:08 
+
+09:08 what turns the page for 2026 for you.
+09:10 
+
+09:10 Once again, I'd recommend going to join
+09:11 
+
+09:11 that VIP Discord. I send my live trade
+09:14 
+
+09:14 ideas after every single morning
+09:16 
+
+09:16 analysis that I do. I review your
+09:17 
+
+09:17 trades, break them down with you. I have
+09:20 
+
+09:20 hours and hours of back tested videos on
+09:22 
+
+09:22 top of years of years of data. All of
+09:24 
+
+09:24 that data is waiting for you to come and
+09:26 
+
+09:26 check out. I hope to see you in there,
+09:27 
+
+09:27 but if not, just like and subscribe
+09:29 
+
+09:29 because you really can get profitable
+09:30 
+
+09:30 off these videos. I'm just trying to get
+09:32 
+
+09:32 you there quicker. All right, see you in
+09:34 
+
+09:34 the next

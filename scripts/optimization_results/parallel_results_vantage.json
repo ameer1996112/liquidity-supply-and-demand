@@ -1,0 +1,234 @@
+{
+  "XAUUSD": {
+    "status": "completed",
+    "params": {
+      "risk_pct": 0.4,
+      "daily_kill_pct": 3.5,
+      "total_kill_pct": 6.5,
+      "consec_loss_kill": 2,
+      "min_hold_minutes": 2,
+      "news_blackout_enabled": false,
+      "config_profile": "Custom",
+      "trade_direction": "Both",
+      "account_size_usd": 50000,
+      "risk_per_trade_pct": 0.5,
+      "max_daily_loss_pct": 3.0,
+      "enable_date_filter": false,
+      "invalidate_on_wick": true,
+      "structure_mode": "Relaxed (Wicks)",
+      "require_major_liquidity": true,
+      "use_fvg_confirmation": false,
+      "enable_accuracy_zones": true,
+      "take_profit_pips": 0.0,
+      "use_custom_rr": true,
+      "risk_reward_ratio": 4.0,
+      "max_position_size_lots": 100.0,
+      "max_lots_per_10k": 10.0,
+      "max_usd_risk_cap": 0.0,
+      "use_half_risk_second_trade": true,
+      "enable_trade_limit": true,
+      "max_trades_per_day": 1,
+      "filter_trading_hours": true,
+      "require_htf_flip": true,
+      "enable_ai_lite_mode": false,
+      "enable_grade_filter": false,
+      "min_entry_grade": "C",
+      "rr_mode": "fixed_4.0",
+      "enable_ai_quality_filter": false,
+      "ai_quality_threshold": 50,
+      "min_tp_distance_pips": 9.3,
+      "liq_max_distance_pips_gold": 86.3,
+      "liq_entry_max_dist": 14.1,
+      "max_bars_held": 60,
+      "stop_loss_buffer_pips": 0.6,
+      "use_break_even": false,
+      "enable_double_tp": false,
+      "liq_pivot_len": 4,
+      "pvtMax": 14,
+      "max_sweep_to_touch_bars": 12,
+      "max_peak_to_touch_bars": 25,
+      "min_body_perc": 49,
+      "max_zones": 30,
+      "max_daily_profit_pct": 4.2,
+      "trading_start_hour": 7,
+      "trading_end_hour": 15
+    },
+    "source_run_id": null,
+    "score": 11.536982865066378,
+    "net_profit": 8488.21,
+    "win_rate": 19.64,
+    "profit_factor": 1.718,
+    "max_drawdown_pct": 5.27,
+    "total_trades": 56,
+    "worker_id": 0,
+    "verified_symbol": "XAUUSD",
+    "validation_metrics": {
+      "final_replay": {
+        "matched_original": true,
+        "original": {
+          "net_profit": 8488.21,
+          "win_rate": 19.64,
+          "profit_factor": 1.718,
+          "max_drawdown_pct": 5.27,
+          "total_trades": 56,
+          "score": 11.536982865066378
+        },
+        "replay": {
+          "net_profit": 8488.21,
+          "win_rate": 19.64,
+          "profit_factor": 1.718,
+          "max_drawdown_pct": 5.27,
+          "total_trades": 56,
+          "score": 11.536982865066378
+        },
+        "apply_reason": "fresh_result",
+        "results_hash_before": "355526ff",
+        "results_hash_after": "c7de8b23"
+      }
+    },
+    "result_truth": {
+      "schema_version": 1,
+      "evidence_required": true,
+      "stage": "final_replay",
+      "trust_status": "trusted",
+      "params_digest": "725ca9c82845e50f",
+      "source_params_digest": "",
+      "requested_symbol": "XAUUSD",
+      "requested_broker": "VANTAGE",
+      "requested_range": "365d",
+      "custom_start_date": "",
+      "custom_end_date": "",
+      "evidence": {
+        "symbol_loaded": {
+          "status": "ok",
+          "required": true,
+          "reason": "",
+          "details": {
+            "expected": "XAUUSD",
+            "observed": "XAUUSD"
+          }
+        },
+        "broker_loaded": {
+          "status": "ok",
+          "required": true,
+          "reason": "",
+          "details": {
+            "expected": "VANTAGE",
+            "observed": "VANTAGE"
+          }
+        },
+        "metrics_tab_selected": {
+          "status": "ok",
+          "required": true,
+          "reason": "",
+          "details": {}
+        },
+        "strategy_tester_range_selected": {
+          "status": "ok",
+          "required": true,
+          "reason": "",
+          "details": {
+            "button_text": "Jan 1, 2025 \u2014 Dec 31, 2025Jan 1, 2025 \u2014 Dec 31, 2025",
+            "preset_label": "Last 365 days"
+          }
+        },
+        "custom_dates_selected": {
+          "status": "not_applicable",
+          "required": false,
+          "reason": "preset range",
+          "details": {}
+        },
+        "chart_history_covered": {
+          "status": "not_applicable",
+          "required": false,
+          "reason": "preset Strategy Tester range",
+          "details": {}
+        },
+        "trade_coverage_verified": {
+          "status": "not_applicable",
+          "required": false,
+          "reason": "trade coverage is only inspectable for custom validation ranges",
+          "details": {}
+        },
+        "source_params_digest_preserved": {
+          "status": "not_applicable",
+          "required": false,
+          "reason": "not a source-param validation result",
+          "details": {}
+        },
+        "final_replay_matched_or_replaced": {
+          "status": "ok",
+          "required": true,
+          "reason": "",
+          "details": {
+            "matched_original": true,
+            "original": {
+              "net_profit": 8488.21,
+              "win_rate": 19.64,
+              "profit_factor": 1.718,
+              "max_drawdown_pct": 5.27,
+              "total_trades": 56,
+              "score": 11.536982865066378
+            },
+            "replay": {
+              "net_profit": 8488.21,
+              "win_rate": 19.64,
+              "profit_factor": 1.718,
+              "max_drawdown_pct": 5.27,
+              "total_trades": 56,
+              "score": 11.536982865066378
+            }
+          }
+        },
+        "trade_count_anomaly_explained": {
+          "status": "not_applicable",
+          "required": false,
+          "reason": "single-window result",
+          "details": {}
+        },
+        "params_applied": {
+          "status": "ok",
+          "required": true,
+          "reason": "fresh_result",
+          "details": {
+            "attempt": 1
+          }
+        },
+        "frozen_params_applied": {
+          "status": "ok",
+          "required": true,
+          "reason": "",
+          "details": {}
+        },
+        "dialog_params_matched": {
+          "status": "ok",
+          "required": true,
+          "reason": "",
+          "details": {}
+        },
+        "tv_recalculated": {
+          "status": "ok",
+          "required": true,
+          "reason": "",
+          "details": {}
+        },
+        "result_hash_captured": {
+          "status": "ok",
+          "required": true,
+          "reason": "",
+          "details": {
+            "before": "355526ff",
+            "after": "c7de8b23",
+            "changed": true,
+            "allow_unchanged": false
+          }
+        }
+      },
+      "missing_evidence": [],
+      "warnings": [],
+      "rejection_reasons": []
+    },
+    "trust_status": "trusted",
+    "timestamp": "2026-05-05T10:17:19.059468"
+  }
+}

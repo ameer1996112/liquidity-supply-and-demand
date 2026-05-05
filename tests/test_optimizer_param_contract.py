@@ -4,6 +4,18 @@ from scripts.optimizer.param_contract import (
     optimizer_search_param_names,
     validate_optimizer_pine_contract,
 )
+from scripts.optimizer.tab_worker import TabWorker
+
+
+class _FakeTrial:
+    def suggest_categorical(self, _name, choices):
+        return choices[0]
+
+    def suggest_int(self, _name, low, _high):
+        return low
+
+    def suggest_float(self, _name, low, _high):
+        return low
 
 
 def test_optimizer_params_are_backed_by_canonical_pine_input_titles() -> None:
@@ -84,3 +96,29 @@ def test_optimizer_has_separate_asset_class_param_spaces() -> None:
     assert "liq_max_distance_pips_gold" in spaces["gold"]
     assert "liq_max_distance_pips_index" in spaces["index"]
     assert "max_contracts" in spaces["futures"]
+
+
+def test_fixed_overrides_can_lock_context_strategy_rules() -> None:
+    worker = TabWorker(page=None, optimizer=object())
+
+    params = worker.sample_params(
+        _FakeTrial(),
+        "XAUUSD",
+        {
+            "rr_mode": "fixed_4.0",
+            "require_major_liquidity": True,
+            "filter_trading_hours": True,
+            "enable_ai_quality_filter": False,
+            "trading_start_hour": 7,
+            "trading_end_hour": 15,
+            "max_trades_per_day": 1,
+        },
+    )
+
+    assert params["rr_mode"] == "fixed_4.0"
+    assert params["require_major_liquidity"] is True
+    assert params["filter_trading_hours"] is True
+    assert params["enable_ai_quality_filter"] is False
+    assert params["trading_start_hour"] == 7
+    assert params["trading_end_hour"] == 15
+    assert params["max_trades_per_day"] == 1

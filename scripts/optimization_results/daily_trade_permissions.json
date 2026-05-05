@@ -1,9 +1,16 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-05-04T18:17:51.362416Z",
+  "generated_at": "2026-05-04T21:15:03.690241Z",
   "account_profile": "alpha_50k_safe",
   "global_decision": "NO_TRADE",
   "permissions": {},
   "blocked": {},
-  "watch_only": {}
+  "watch_only": {},
+  "reasons": [
+    "no_research_approved_candidates",
+    "strategy_fidelity_not_proven",
+    "result_truth_not_available",
+    "trade_level_stress_not_available",
+    "prop_survival_not_available"
+  ]
 }

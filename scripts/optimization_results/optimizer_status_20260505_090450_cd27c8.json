@@ -1,0 +1,47 @@
+{
+  "run_id": "20260505_090450_cd27c8",
+  "state": "completed",
+  "started_at": "2026-05-05T09:04:50.474451+03:00",
+  "last_progress_at": "2026-05-05T09:05:05.486926+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 52043,
+  "desktop_cdp_pid": 83536,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
+  "mode": "bayesian",
+  "workers": 2,
+  "args": [
+    "--parallel",
+    "--workers",
+    "2",
+    "--mode",
+    "bayesian",
+    "--dry-run",
+    "--pairs",
+    "XAUUSD,NAS100",
+    "--trials",
+    "2",
+    "--broker",
+    "vantage",
+    "--results-label",
+    "dev273_dry",
+    "--reset",
+    "--fix",
+    "rr_mode=fixed_4.0,max_trades_per_day=1,require_major_liquidity=True,filter_trading_hours=True,enable_ai_quality_filter=False"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "NAS100",
+      "trial": 0,
+      "last_event_at": "2026-05-05T09:04:54.481703+03:00",
+      "status": "completed"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    }
+  }
+}

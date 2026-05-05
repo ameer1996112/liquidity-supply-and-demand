@@ -6,6 +6,13 @@
   "research_approved_candidates": [],
   "expiring_candidates": [],
   "recent_rejects": [],
+  "no_trade_reasons": [
+    "no_research_approved_candidates",
+    "strategy_fidelity_not_proven",
+    "result_truth_not_available",
+    "trade_level_stress_not_available",
+    "prop_survival_not_available"
+  ],
   "issue_detector": {
     "status": "not_run"
   },

@@ -1,0 +1,3 @@
+{"ts": "2026-05-05T11:53:30.433655+03:00", "run_id": "20260505_114644_ad9e9a", "worker_id": 1, "symbol": "US500", "trial": 1, "outcome": "timed_out", "params_hash": "76d24d4f", "results_hash_before": "", "results_hash_after": "", "metrics": {}}
+{"ts": "2026-05-05T11:59:30.439424+03:00", "run_id": "20260505_114644_ad9e9a", "worker_id": 1, "symbol": "US500", "trial": 2, "outcome": "timed_out", "params_hash": "62e5eb9b", "results_hash_before": "", "results_hash_after": "", "metrics": {}}
+{"ts": "2026-05-05T12:05:27.635578+03:00", "run_id": "20260505_114644_ad9e9a", "worker_id": 1, "symbol": "US500", "trial": 3, "outcome": "recalc_not_confirmed", "params_hash": "5611b3b6", "results_hash_before": "d41d8cd9", "results_hash_after": "d41d8cd9", "metrics": {}}

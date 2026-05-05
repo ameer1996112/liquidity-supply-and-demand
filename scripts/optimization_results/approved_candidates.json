@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-04T21:15:03.690241Z",
+  "human_review_required": true,
+  "global_status": "NO_RESEARCH_APPROVED_CANDIDATES",
+  "candidates": {},
+  "rejected": {},
+  "warnings": [
+    "No candidates approved because this was a dry run or required proof artifacts were missing."
+  ]
+}

@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-05T05:58:20.456151Z",
+  "source_gap_status": "NO_TRADE_EXECUTION_HEALTH_FAILED",
+  "approved_candidates": {
+    "CL1!": {
+      "candidate_status": "WATCH_ONLY",
+      "gap_status": "NO_TRADE_EXECUTION_HEALTH_FAILED",
+      "live_trading_permission": "NO_TRADE",
+      "shadow_forward_test_permission": "NO_TRADE",
+      "reasons": [
+        "no_trade_execution_health_failed"
+      ]
+    },
+    "ES": {
+      "candidate_status": "WATCH_ONLY",
+      "gap_status": "WATCH_ONLY",
+      "live_trading_permission": "NO_TRADE",
+      "shadow_forward_test_permission": "WATCH_ONLY",
+      "reasons": [
+        "watch_only"
+      ]
+    },
+    "ES1!": {
+      "candidate_status": "WATCH_ONLY",
+      "gap_status": "NO_TRADE_EXECUTION_HEALTH_FAILED",
+      "live_trading_permission": "NO_TRADE",
+      "shadow_forward_test_permission": "NO_TRADE",
+      "reasons": [
+        "no_trade_execution_health_failed"
+      ]
+    },
+    "GBPCAD": {
+      "candidate_status": "WATCH_ONLY",
+      "gap_status": "WATCH_ONLY",
+      "live_trading_permission": "NO_TRADE",
+      "shadow_forward_test_permission": "WATCH_ONLY",
+      "reasons": [
+        "watch_only"
+      ]
+    },
+    "GBPJPY": {
+      "candidate_status": "WATCH_ONLY",
+      "gap_status": "WATCH_ONLY",
+      "live_trading_permission": "NO_TRADE",
+      "shadow_forward_test_permission": "WATCH_ONLY",
+      "reasons": [
+        "watch_only"
+      ]
+    },
+    "GC1!": {
+      "candidate_status": "WATCH_ONLY",
+      "gap_status": "NO_TRADE_EXECUTION_HEALTH_FAILED",
+      "live_trading_permission": "NO_TRADE",
+      "shadow_forward_test_permission": "NO_TRADE",
+      "reasons": [
+        "no_trade_execution_health_failed"
+      ]
+    },
+    "GER30": {
+      "candidate_status": "WATCH_ONLY",
+      "gap_status": "WATCH_ONLY",
+      "live_trading_permission": "NO_TRADE",
+      "shadow_forward_test_permission": "WATCH_ONLY",
+      "reasons": [
+        "watch_only"
+      ]
+    },
+    "HG1!": {
+      "candidate_status": "WATCH_ONLY",
+      "gap_status": "WATCH_ONLY",
+      "live_trading_permission": "NO_TRADE",
+      "shadow_forward_test_permission": "WATCH_ONLY",
+      "reasons": [
+        "watch_only"
+      ]
+    },
+    "NQ1!": {
+      "candidate_status": "WATCH_ONLY",
+      "gap_status": "NO_TRADE_EXECUTION_HEALTH_FAILED",
+      "live_trading_permission": "NO_TRADE",
+      "shadow_forward_test_permission": "NO_TRADE",
+      "reasons": [
+        "no_trade_execution_health_failed"
+      ]
+    },
+    "SIL1!": {
+      "candidate_status": "WATCH_ONLY",
+      "gap_status": "WATCH_ONLY",
+      "live_trading_permission": "NO_TRADE",
+      "shadow_forward_test_permission": "WATCH_ONLY",
+      "reasons": [
+        "watch_only"
+      ]
+    },
+    "SL1!": {
+      "candidate_status": "WATCH_ONLY",
+      "gap_status": "WATCH_ONLY",
+      "live_trading_permission": "NO_TRADE",
+      "shadow_forward_test_permission": "WATCH_ONLY",
+      "reasons": [
+        "watch_only"
+      ]
+    },
+    "XAUUSD": {
+      "candidate_status": "WATCH_ONLY",
+      "gap_status": "WATCH_ONLY",
+      "live_trading_permission": "NO_TRADE",
+      "shadow_forward_test_permission": "WATCH_ONLY",
+      "reasons": [
+        "watch_only"
+      ]
+    },
+    "XPTUSD": {
+      "candidate_status": "WATCH_ONLY",
+      "gap_status": "WATCH_ONLY",
+      "live_trading_permission": "NO_TRADE",
+      "shadow_forward_test_permission": "WATCH_ONLY",
+      "reasons": [
+        "watch_only"
+      ]
+    }
+  },
+  "daily_trade_permissions": {
+    "schema_version": 1,
+    "generated_at": "2026-05-05T05:58:20.456151Z",
+    "account_profile": "gap_analyzer_fail_closed",
+    "global_decision": "NO_TRADE",
+    "permissions": {},
+    "blocked": {
+      "CL1!": [
+        "no_trade_execution_health_failed"
+      ],
+      "ES1!": [
+        "no_trade_execution_health_failed"
+      ],
+      "GC1!": [
+        "no_trade_execution_health_failed"
+      ],
+      "NQ1!": [
+        "no_trade_execution_health_failed"
+      ]
+    },
+    "watch_only": {
+      "ES": [
+        "watch_only"
+      ],
+      "GBPCAD": [
+        "watch_only"
+      ],
+      "GBPJPY": [
+        "watch_only"
+      ],
+      "GER30": [
+        "watch_only"
+      ],
+      "HG1!": [
+        "watch_only"
+      ],
+      "SIL1!": [
+        "watch_only"
+      ],
+      "SL1!": [
+        "watch_only"
+      ],
+      "XAUUSD": [
+        "watch_only"
+      ],
+      "XPTUSD": [
+        "watch_only"
+      ]
+    },
+    "reasons": [
+      "backtest_live_gap_not_resolved",
+      "live_bot_confirmation_required",
+      "daily_trade_permissions_remain_no_trade_until_gap_fixed"
+    ]
+  }
+}

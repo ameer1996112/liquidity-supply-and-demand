@@ -41,6 +41,7 @@ from .config import (
     DEFAULT_PAIRS,
     N_BAYESIAN_TRIALS,
     PROP_FIRM_MAX_DD_PCT,
+    parse_fixed_overrides,
 )
 from .desktop_page import TradingViewDesktopPage
 from .models import BacktestResult, NoDataForRangeError
@@ -522,6 +523,7 @@ async def optimize_pair_on_page(
     source_params_digest: str | None = None,
     custom_start_date: str | None = None,
     custom_end_date: str | None = None,
+    fixed_overrides: dict[str, Any] | None = None,
 ) -> Optional[BacktestResult]:
     """
     Run optimization for one pair on a given page.
@@ -533,7 +535,7 @@ async def optimize_pair_on_page(
             raise RuntimeError(f"No source params supplied for {symbol}")
         return BacktestResult(
             symbol=symbol,
-            params=dict(source_params or {"dry_run": True}),
+            params=dict(source_params or fixed_overrides or {"dry_run": True}),
             net_profit=999.0,
             total_trades=50,
             win_rate=55.0,
@@ -556,6 +558,7 @@ async def optimize_pair_on_page(
         n_trials=n_trials,
         dd_limit=dd_limit,
         backtest_range=backtest_range,
+        fixed_overrides=fixed_overrides,
     )
     opt_shell.page = page
     opt_shell.runtime_state = runtime_state
@@ -609,6 +612,7 @@ async def worker_task(
     custom_start_date: str | None = None,
     custom_end_date: str | None = None,
     run_context: dict[str, Any] | None = None,
+    fixed_overrides: dict[str, Any] | None = None,
 ) -> None:
     """Worker coroutine: pulls pairs from queue, optimizes, saves results."""
     tab_id = getattr(page, "tab_id", "none")
@@ -685,6 +689,8 @@ async def worker_task(
                     )
                     if "source_params_digest" in inspect.signature(optimize_pair_on_page).parameters:
                         optimize_kwargs["source_params_digest"] = (run_context or {}).get("source_params_digest", "")
+                if fixed_overrides:
+                    optimize_kwargs["fixed_overrides"] = fixed_overrides
                 result = await optimize_pair_on_page(
                     page,
                     symbol,
@@ -859,6 +865,7 @@ async def run_parallel(
     brokers: list[str] | None = None,
     custom_start_date: str | None = None,
     custom_end_date: str | None = None,
+    fixed_overrides: dict[str, Any] | None = None,
 ) -> dict:
     """
     Main coordinator: prepares TradingView Desktop tabs, distributes pairs to workers, collects results.
@@ -904,6 +911,9 @@ async def run_parallel(
     )
     if results_label:
         log.info(f"  Results label: {results_label}")
+    if fixed_overrides:
+        locked = ", ".join(f"{key}={value}" for key, value in fixed_overrides.items())
+        log.info("  Fixed params: %s", locked)
     if dry_run:
         log.info("  DRY RUN MODE — no real TradingView interaction")
 
@@ -1025,6 +1035,7 @@ async def run_parallel(
                     custom_start_date=custom_start_date,
                     custom_end_date=custom_end_date,
                     run_context=run_context,
+                    fixed_overrides=fixed_overrides,
                 ),
                 name=f"worker-{i}",
             )
@@ -1153,6 +1164,12 @@ def main() -> None:
     parser.add_argument("--results-label", type=str, help="Optional run-specific suffix for the results filename")
     parser.add_argument("--dry-run", action="store_true", help="Test with fake results (2 pairs, 2 trials)")
     parser.add_argument("--reset", action="store_true", help="Clear existing results and start fresh")
+    parser.add_argument(
+        "--fix",
+        type=str,
+        default="",
+        help="Comma-separated key=value pairs to pin for every optimization trial.",
+    )
     args = parser.parse_args()
 
     results_file = results_file_for_broker(args.broker, args.results_label)
@@ -1191,6 +1208,7 @@ def main() -> None:
         brokers=[item.strip() for item in args.brokers.split(",")] if args.brokers else None,
         custom_start_date=args.custom_start_date,
         custom_end_date=args.custom_end_date,
+        fixed_overrides=parse_fixed_overrides(args.fix),
     ))
 
 

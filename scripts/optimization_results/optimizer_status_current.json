@@ -1,0 +1,81 @@
+{
+  "run_id": "20260505_114644_ad9e9a",
+  "state": "running",
+  "started_at": "2026-05-05T11:46:44.207886+03:00",
+  "last_progress_at": "2026-05-05T12:10:00.139325+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 18037,
+  "desktop_cdp_pid": 83536,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/run_20260505_114644.log",
+  "mode": "bayesian",
+  "workers": 4,
+  "args": [
+    "--parallel",
+    "--workers",
+    "4",
+    "--mode",
+    "bayesian",
+    "--pairs",
+    "NAS100,US500,GBPJPY,GBPCAD",
+    "--trials",
+    "20",
+    "--broker",
+    "vantage",
+    "--results-label",
+    "dev274_liquidity_rules_3r_365d",
+    "--reset",
+    "--backtest-range",
+    "365d",
+    "--fix",
+    "rr_mode=fixed_3.0,filter_trading_hours=False,enable_trade_limit=False,require_major_liquidity=True,invalidate_on_wick=False,enable_ai_quality_filter=False,enable_grade_filter=False,require_htf_flip=False,use_break_even=False,enable_double_tp=False"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "NAS100",
+      "trial": 14,
+      "last_event_at": "2026-05-05T12:09:17.041978+03:00",
+      "status": "running"
+    },
+    "worker-1": {
+      "symbol": "US500",
+      "trial": 3,
+      "last_event_at": "2026-05-05T12:05:27.635578+03:00",
+      "status": "running"
+    },
+    "worker-2": {
+      "symbol": "GBPJPY",
+      "trial": 12,
+      "last_event_at": "2026-05-05T12:10:00.139325+03:00",
+      "status": "running"
+    },
+    "worker-3": {
+      "symbol": "GBPCAD",
+      "trial": 10,
+      "last_event_at": "2026-05-05T12:09:01.536107+03:00",
+      "status": "running"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "92493cce"
+    },
+    "worker-1": {
+      "status": "warning",
+      "stale_reads": 3,
+      "last_results_hash": "d41d8cd9"
+    },
+    "worker-2": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "b6d60292"
+    },
+    "worker-3": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "c8387cfa"
+    }
+  }
+}

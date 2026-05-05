@@ -2,8 +2,8 @@
   "schema_version": 1,
   "status": "completed",
   "dry_run": true,
-  "started_at": "2026-05-04T18:17:51.362416Z",
-  "finished_at": "2026-05-04T18:17:51.362619Z",
+  "started_at": "2026-05-04T21:15:03.690241Z",
+  "finished_at": "2026-05-04T21:15:03.690422Z",
   "pairs": [
     "GBPJPY",
     "USDJPY",
@@ -21,14 +21,6 @@
   "prop_profile": "alpha_50k_safe",
   "timeframe": "5m",
   "executed_steps": [
-    "rulebook",
-    "fidelity",
-    "session_discovery",
-    "walk_forward",
-    "frozen_validation",
-    "stability",
-    "stress",
-    "prop_sim",
     "approved_candidates",
     "daily_permissions"
   ]

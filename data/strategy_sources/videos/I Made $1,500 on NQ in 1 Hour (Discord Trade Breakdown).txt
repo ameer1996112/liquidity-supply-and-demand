@@ -1,0 +1,817 @@
+00:00 All right. Yo, what's good, YouTube? So,
+00:02 
+
+00:02 I just closed this 1 to 3.5 risk-reward
+00:05 
+
+00:05 trade in the first hour of trading in
+00:07 
+
+00:07 the entire week. And this is the second
+00:09 
+
+00:09 week in a row, we've caught a winning
+00:11 
+
+00:11 trade in this exact same window. And
+00:12 
+
+00:12 today, I'm going to show you exactly how
+00:14 
+
+00:14 we did it. So, over the past couple
+00:16 
+
+00:16 weeks, my Discord and I have kind of
+00:18 
+
+00:18 noticed something. The first hour of the
+00:20 
+
+00:20 first day of the trading week keeps
+00:21 
+
+00:21 giving us high probability setups. Now
+00:24 
+
+00:24 it is too early to consider this a
+00:25 
+
+00:25 consistent edge on the market but
+00:27 
+
+00:27 already it has given us 6% across only
+00:30 
+
+00:30 two trades and again this week was no
+00:32 
+
+00:32 different. Let's get into that
+00:33 
+
+00:33 breakdown. At the start of our session I
+00:35 
+
+00:35 do what me and the mentees always do and
+00:37 
+
+00:37 that is determine market structure. We
+00:39 
+
+00:39 had clear bullish structure on the
+00:40 
+
+00:40 5minut time frame which is the only time
+00:42 
+
+00:42 frame that I really concern myself
+00:44 
+
+00:44 about. We can see this clearly from the
+00:45 
+
+00:45 higher highs and higher lows form
+00:47 
+
+00:47 consistently breaking any bearish market
+00:49 
+
+00:49 structure that we had back at that time.
+00:50 
+
+00:50 If we look at any potential key levels
+00:52 
+
+00:52 over to the left, which is going to be a
+00:54 
+
+00:54 level where we may change bias from, we
+00:56 
+
+00:56 can see that the only one that we really
+00:57 
+
+00:57 would have concerned ourselves with is
+00:59 
+
+00:59 sitting just here. And we break past
+01:00 
+
+01:00 that so clearly. Clear candle closes
+01:03 
+
+01:03 above that area, which makes it so much
+01:05 
+
+01:05 more likely that we're going to continue
+01:06 
+
+01:06 going to the upside. If we go back to
+01:08 
+
+01:08 the fundamentals, the market wants to
+01:10 
+
+01:10 see market structure, which we've
+01:11 
+
+01:11 already ticked off, a demand zone where
+01:13 
+
+01:13 it can actually get all of those orders
+01:14 
+
+01:14 and volume from, which we have just
+01:16 
+
+01:16 here, as well as a valid level of
+01:18 
+
+01:18 liquidity. Liquidity is always going to
+01:20 
+
+01:20 sit on lows and highs. Therefore, we can
+01:22 
+
+01:22 be confident that there is some draws to
+01:24 
+
+01:24 the downside just down here before the
+01:26 
+
+01:26 market ticks off everything that it
+01:28 
+
+01:28 wants to see and shoots off in our
+01:30 
+
+01:30 direction. This means that any potential
+01:31 
+
+01:31 demand zones above us aren't going to be
+01:33 
+
+01:33 valid since they're not in favor of
+01:34 
+
+01:34 liquidity. Now, before we get to our
+01:36 
+
+01:36 entry, let me talk about what I saw
+01:38 
+
+01:38 before our session even started. This
+01:40 
+
+01:40 zone itself was formed in Asian session.
+01:42 
+
+01:42 So, this was at 3:20 a.m. And the fact
+01:45 
+
+01:45 that it's formed on the same day as us
+01:46 
+
+01:46 just shows that there are still going to
+01:48 
+
+01:48 be active investors looking at this
+01:49 
+
+01:49 zone. It's not completely invalid. It's
+01:51 
+
+01:51 not like a week old on the 5minut time
+01:53 
+
+01:53 frame. This is a price that is actively
+01:55 
+
+01:55 traded. And whilst we're on the topic of
+01:57 
+
+01:57 this zone, it is actually a great size
+01:59 
+
+01:59 when in proportion to the entire setup.
+02:01 
+
+02:01 It's not too large when we compare it to
+02:02 
+
+02:02 the entire move. It's around a fifth of
+02:04 
+
+02:04 the pips. And making sure our zone isn't
+02:06 
+
+02:06 too big is going to minimize fake outs
+02:08 
+
+02:08 drastically since it maximizes the
+02:11 
+
+02:11 chance that we get that price that
+02:12 
+
+02:12 investors want on that initial tap into
+02:14 
+
+02:14 our zone. Once again, everything in this
+02:16 
+
+02:16 model is so easy to explain. I'm never
+02:18 
+
+02:18 going to be stumped or not have a reason
+02:19 
+
+02:19 behind something I say. My mentees
+02:21 
+
+02:21 constantly have questions that they
+02:23 
+
+02:23 don't understand and there is always
+02:24 
+
+02:24 like you can ask them. There is always a
+02:26 
+
+02:26 fundamental reason behind it. So, by
+02:28 
+
+02:28 this point, our session's about to open,
+02:30 
+
+02:30 which is 700 a.m. UK time. And I told
+02:32 
+
+02:32 the mentorship to watch for price come
+02:34 
+
+02:34 back down to our zone and wait for our
+02:36 
+
+02:36 entry confirmations, which is just going
+02:37 
+
+02:37 to come after clear rejections. And when
+02:39 
+
+02:39 our session started, price did exactly
+02:41 
+
+02:41 what we wanted to see. It literally came
+02:43 
+
+02:43 straight back down to our zone in the
+02:45 
+
+02:45 first 45 minutes of our session. So,
+02:47 
+
+02:47 let's really get into that breakdown
+02:48 
+
+02:48 quickly. As you know, our zone is left
+02:50 
+
+02:50 behind after lots of volume to the
+02:52 
+
+02:52 upside, which we can see just here. And
+02:53 
+
+02:53 following all of this movement, we get
+02:55 
+
+02:55 that small swing of retracement where
+02:57 
+
+02:57 liquidity is going to sit under. Now,
+02:58 
+
+02:58 this is formed under two candles, which
+02:60 
+
+03:00 creates that visual swing that we want
+03:02 
+
+03:02 to see. If it was just one candle, then
+03:03 
+
+03:03 we can't be sure that there is a strong
+03:05 
+
+03:05 level of liquidity sitting below there.
+03:06 
+
+03:06 So, the fact that it is considered a
+03:08 
+
+03:08 swing low is great for us. And after
+03:10 
+
+03:10 creating this swing low, we want to
+03:12 
+
+03:12 continue market structure to the upside
+03:13 
+
+03:13 since it's now considered part of our
+03:15 
+
+03:15 market structure. If price was to come
+03:17 
+
+03:17 up after this retracement and match
+03:18 
+
+03:18 liquidity's high, coming back down to
+03:20 
+
+03:20 the zone wouldn't have created a valid
+03:22 
+
+03:22 setup since we wouldn't be continuing
+03:23 
+
+03:23 bullish market structure. We want to see
+03:25 
+
+03:25 this high broken. And I mean, as you
+03:27 
+
+03:27 guys probably saw, that's very clearly
+03:28 
+
+03:28 done. After making some more potential
+03:30 
+
+03:30 liquidity, I'm never going to say no to
+03:32 
+
+03:32 some more. Once again, this strategy
+03:34 
+
+03:34 just loves to stack confluences. Now,
+03:35 
+
+03:35 after we make some more liquidity, we
+03:37 
+
+03:37 really do get that clean break of
+03:38 
+
+03:38 structure to the upside since if you
+03:40 
+
+03:40 were to come back to zone from here,
+03:41 
+
+03:41 then we could have potentially been
+03:42 
+
+03:42 rejecting off of some of these key
+03:44 
+
+03:44 levels over to the left. So breaking
+03:46 
+
+03:46 these highs with such clear candle
+03:47 
+
+03:47 closes is just perfect. And what's left
+03:50 
+
+03:50 to do? Well, we already know that. Just
+03:51 
+
+03:51 come straight back down to our zone
+03:53 
+
+03:53 without creating too many swing lows and
+03:55 
+
+03:55 swing highs. Now, if some of you are
+03:56 
+
+03:56 kind of newer to this strategy, you
+03:58 
+
+03:58 would understand the directional close
+03:59 
+
+03:59 entry model. Meaning, you may have
+04:01 
+
+04:01 entered once price wicks into our zone
+04:03 
+
+04:03 and closes in our direction. Now, this
+04:05 
+
+04:05 is where a concept that me and the
+04:06 
+
+04:06 Discord talk about a lot comes in. And
+04:08 
+
+04:08 it is pretty advanced, but it becomes
+04:09 
+
+04:09 super super clear if you have a mentor
+04:11 
+
+04:11 or a friend that actually just knows
+04:13 
+
+04:13 about it. Now, if we look at timing, we
+04:15 
+
+04:15 can see that we are coming up to the new
+04:16 
+
+04:16 higher time frame candle. This
+04:17 
+
+04:17 directional close would have been at the
+04:19 
+
+04:19 750 candle close, meaning it would have
+04:21 
+
+04:21 been 755 at this point. And if you
+04:23 
+
+04:23 didn't know, every higher time frame
+04:25 
+
+04:25 candle is going to like to have a
+04:26 
+
+04:26 significant lower wick and a significant
+04:29 
+
+04:29 higher wick. Let me just hop on to a
+04:30 
+
+04:30 higher time frame. As you can see, when
+04:32 
+
+04:32 compared to the 5minut, there are so
+04:34 
+
+04:34 many lower wicks just here and similarly
+04:36 
+
+04:36 so many higher wicks. Now, like
+04:38 
+
+04:38 everything on this strategy, there are
+04:39 
+
+04:39 reasons behind this, and it all comes
+04:41 
+
+04:41 down to some institutional movement,
+04:43 
+
+04:43 institutions getting their orders and
+04:45 
+
+04:45 stuff. I don't want to bore you with all
+04:46 
+
+04:46 of that right now. That's what I talk
+04:47 
+
+04:47 about in the Discord for people that are
+04:48 
+
+04:48 really trying to learn this strategy
+04:49 
+
+04:49 through and through. But all you need to
+04:51 
+
+04:51 know is that this higher time frame
+04:52 
+
+04:52 candle is going to make that lower wick,
+04:54 
+
+04:54 even if it's not super significant. I
+04:56 
+
+04:56 mean, let's see what happens. This is
+04:58 
+
+04:58 enough of a lower wick for us to be
+04:59 
+
+04:59 convinced to take that flip entry entry
+05:01 
+
+05:01 model. Now, this is one of three entry
+05:03 
+
+05:03 models. I've got an entirely separate
+05:05 
+
+05:05 video on that if you really really
+05:06 
+
+05:06 wanted to learn. Once again, all talked
+05:07 
+
+05:07 about in the mentorship, but this is a
+05:09 
+
+05:09 entry confirmation that is specifically
+05:11 
+
+05:11 tailored towards this exact scenario.
+05:13 
+
+05:13 And what we're going to do is enter once
+05:15 
+
+05:15 price flips from bearish to bullish.
+05:17 
+
+05:17 We've made that higher time frame lower
+05:19 
+
+05:19 wick. So, all that price wants to do is
+05:21 
+
+05:21 continue to the upside. And now that
+05:22 
+
+05:22 we've got everything that the market
+05:23 
+
+05:23 wants to see, we've got valid market
+05:25 
+
+05:25 structure to the upside. We've got valid
+05:27 
+
+05:27 liquidity and we're using supply and
+05:29 
+
+05:29 demand zones, we can get that entry
+05:30 
+
+05:30 price with our stops just below the
+05:32 
+
+05:32 lowest wick inside of our zone and just
+05:34 
+
+05:34 wait for price to shoot to our takerit.
+05:36 
+
+05:36 It really is as simple as that. Now,
+05:38 
+
+05:38 again, I posted this to the Discord as a
+05:40 
+
+05:40 trade idea. Our stop-loss logic is
+05:42 
+
+05:42 always going to be the same, trade per
+05:43 
+
+05:43 trade, so the people that were active
+05:44 
+
+05:44 knew where to put their stop-loss. These
+05:46 
+
+05:46 three entry models are tried and true.
+05:48 
+
+05:48 All of my mentees know how to use them.
+05:50 
+
+05:50 And in terms of take profits, I've got
+05:51 
+
+05:51 reasons behind why I took it at this
+05:53 
+
+05:53 liquidity just here. Going off of the
+05:55 
+
+05:55 fundamental logic that we use for this
+05:57 
+
+05:57 strategy, there is liquidity sitting
+05:59 
+
+05:59 below swing lows and above swing highs,
+06:01 
+
+06:01 which makes it so clear that there is
+06:03 
+
+06:03 liquidity sitting just above here. And
+06:04 
+
+06:04 what does the market like to do? It
+06:06 
+
+06:06 likes to seek out liquidity. And if we
+06:08 
+
+06:08 look a bit closer, this matches up
+06:09 
+
+06:09 perfectly with the point of control for
+06:11 
+
+06:11 that day. Now, this is a newer concept.
+06:13 
+
+06:13 I'm not too sure if you guys know about
+06:14 
+
+06:14 this, but this is essentially going to
+06:16 
+
+06:16 serve as a magnet. It is the price that
+06:18 
+
+06:18 has the highest volume in that entire
+06:19 
+
+06:19 session. So, the fact that the point of
+06:21 
+
+06:21 control is in our favor is just a
+06:23 
+
+06:23 fantastic confluence. Once again, just
+06:25 
+
+06:25 stacking on top of all of the others,
+06:26 
+
+06:26 saying that price is going to be drawn
+06:28 
+
+06:28 to this area. I don't chuck this on my
+06:30 
+
+06:30 charts a lot. This is just visualizing
+06:31 
+
+06:31 it, don't worry. And after we take
+06:33 
+
+06:33 spreads into account, I set my
+06:35 
+
+06:35 takeprofit at a great 3.5
+06:37 
+
+06:37 risk-to-reward. That's 3.5% before most
+06:40 
+
+06:40 people are even at work on a Monday. Not
+06:42 
+
+06:42 trying to throw any shade, obviously,
+06:43 
+
+06:43 but that is insane. Several members in
+06:46 
+
+06:46 the Discord confirmed that they saw this
+06:47 
+
+06:47 same setup and took it with me. So, once
+06:49 
+
+06:49 again, well played toward you lot. It's
+06:51 
+
+06:51 just straight onto the next setup. We
+06:52 
+
+06:52 don't really get stuck on wins. Here's
+06:54 
+
+06:54 what most people don't realize. The
+06:56 
+
+06:56 average retail trader makes 30% in an
+06:58 
+
+06:58 entire year. Like genuinely, look up the
+07:00 
+
+07:00 metrics. This is considered excellent,
+07:02 
+
+07:02 meaning that's on the higher end of the
+07:04 
+
+07:04 spectrum. This single trade of the first
+07:06 
+
+07:06 hour on the first day of the week
+07:08 
+
+07:08 delivered gains that those people would
+07:10 
+
+07:10 be happy with making in an entire month
+07:12 
+
+07:12 of trading. And this really isn't
+07:14 
+
+07:14 surprising for me. Remember, we've done
+07:16 
+
+07:16 it two weeks in a row, and you can't
+07:18 
+
+07:18 consider that luck anymore. That is a
+07:20 
+
+07:20 proven edge that we've discovered and
+07:21 
+
+07:21 validated together over in the Discord.
+07:24 
+
+07:24 This first hour pattern didn't come from
+07:25 
+
+07:25 a course or a guru. This came from
+07:27 
+
+07:27 analyzing data together and holding each
+07:30 
+
+07:30 other accountable. When I post a trade
+07:31 
+
+07:31 idea, my mentees validate it. They don't
+07:33 
+
+07:33 just take it blindly. We review what
+07:35 
+
+07:35 worked and what didn't work and adapt it
+07:37 
+
+07:37 for next time. And that's how we keep
+07:38 
+
+07:38 finding edges like this while most
+07:40 
+
+07:40 traders are still just guessing. If you
+07:41 
+
+07:41 want to come and talk to the mentees
+07:43 
+
+07:43 that stay winning over in the Discord,
+07:44 
+
+07:44 then that's just down below. And it's
+07:46 
+
+07:46 kind of your last chance to lock in the
+07:47 
+
+07:47 LSD model before 2026. We do have
+07:49 
+
+07:49 limited spots since I'm trying to keep
+07:51 
+
+07:51 the group, you know, focused and
+07:52 
+
+07:52 collaborative. Most traders will spend
+07:54 
+
+07:54 all year to make 30% gains. We are
+07:56 
+
+07:56 already well on the way on the first
+07:58 
+
+07:58 hour of the week. Subscribe and I'll see
+08:00 
+
+08:00 you

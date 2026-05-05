@@ -1,0 +1,85 @@
+{
+  "run_id": "20260505_090603_6a0abf",
+  "state": "running",
+  "started_at": "2026-05-05T09:06:03.736271+03:00",
+  "last_progress_at": "2026-05-05T09:07:35.116008+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 53017,
+  "desktop_cdp_pid": 83536,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/run_20260505_090603.log",
+  "mode": "bayesian",
+  "workers": 4,
+  "args": [
+    "--parallel",
+    "--workers",
+    "4",
+    "--mode",
+    "bayesian",
+    "--pairs",
+    "NAS100,USOIL,US500,GBPJPY,GBPCAD",
+    "--trials",
+    "20",
+    "--broker",
+    "vantage",
+    "--results-label",
+    "dev273_lsd_mechanical_3r",
+    "--reset",
+    "--backtest-range",
+    "custom",
+    "--custom-start-date",
+    "2025-01-01",
+    "--custom-end-date",
+    "2025-12-31",
+    "--fix",
+    "rr_mode=fixed_3.0,max_trades_per_day=1,require_major_liquidity=True,filter_trading_hours=True,trading_start_hour=7,trading_end_hour=15,enable_ai_quality_filter=False,enable_grade_filter=False,use_break_even=False,enable_double_tp=False"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "NAS100",
+      "trial": 0,
+      "last_event_at": "2026-05-05T09:06:04.132169+03:00",
+      "status": "running"
+    },
+    "worker-1": {
+      "symbol": "GBPCAD",
+      "trial": 0,
+      "last_event_at": "2026-05-05T09:07:35.116008+03:00",
+      "status": "running"
+    },
+    "worker-2": {
+      "symbol": "US500",
+      "trial": 0,
+      "last_event_at": "2026-05-05T09:07:04.525947+03:00",
+      "status": "running"
+    },
+    "worker-3": {
+      "symbol": "GBPJPY",
+      "trial": 0,
+      "last_event_at": "2026-05-05T09:06:49.136644+03:00",
+      "status": "running"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    },
+    "worker-1": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    },
+    "worker-2": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    },
+    "worker-3": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    }
+  }
+}

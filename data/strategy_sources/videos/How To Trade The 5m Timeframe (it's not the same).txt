@@ -1,0 +1,367 @@
+00:00 all right in today's video i'm going to
+00:01 be going into how to trade the five
+00:02 minute time frame properly because
+00:04 there's a lot of things that go into it
+00:05 people don't think about like they're
+00:06 not actually making the profit they can
+00:08 be or the profit that their back
+00:09 practicing results show so in this video
+00:11 i'm going to teach you how to close the
+00:13 gap between practicing live markets when
+00:15 trading the lower time frame
+00:16 specifically all right the first thing
+00:18 is obviously dealing with spreads now
+00:19 the results you get practicing will be a
+00:20 lot different to live markets purely
+00:22 because of spreads as the most simple
+00:24 reason now so looking at this if you
+00:26 were to get in on where the candle's
+00:28 actually at you're actually going to be
+00:29 putting up here and it's the other way
+00:31 around for supplies so essentially
+00:33 there's a couple things you can do to
+00:34 get around this and it's going to take
+00:36 intuition in the moment and practice for
+00:37 what you actually decide to use the
+00:39 first one is let's say your entry is
+00:41 supposed to be on this bullish candle
+00:43 close so this one right here the closed
+00:45 what you would do to misgate spreads is
+00:47 wait for the next one to open make it
+00:49 bottom wick be very quick with this as
+00:51 soon as it makes the bottom wick you
+00:52 enter so obviously if the price is
+00:53 actually down here the spread's going to
+00:55 be at this where your entry is supposed
+00:57 to be and then you technically get the
+00:59 exact entry that your trading view would
+01:00 show now depending on how much momentum
+01:03 is actually in the markets you can
+01:04 decide whether to use this or not
+01:05 because there is a chance that the next
+01:07 candle opens and it just takes off with
+01:09 no bottom wick and you end up missing
+01:11 the entry completely of course it's very
+01:13 rare right if you're looking through all
+01:14 the candles here almost every single one
+01:16 of them will have a bottom wick and a
+01:18 top wick so it's unlikely that it's not
+01:20 going to create it if you look at a
+01:22 situation like this well this bearish
+01:24 candle was massive there's loads of
+01:26 momentum and so it's almost expected the
+01:28 next one is just going to continue down
+01:29 with lots of momentum and it didn't make
+01:31 a top wick so it's up to you to judge
+01:33 when you're going to use this most of
+01:35 the time i don't use this method but
+01:37 it's definitely one that's possible okay
+01:39 so the next one here is something again
+01:41 you have to use intuition in the moment
+01:42 to decide whether to do it or not i
+01:45 actually used this in my last live
+01:46 trading video so if you haven't watched
+01:47 that then you can go and check it out
+01:49 but essentially when you have your tp
+01:52 you can choose to extend it to where
+01:53 that one to two let's say in terms of
+01:56 profit would actually be because based
+01:58 on the trading view you want sure right
+02:00 here it might be a one to two but in
+02:02 your actual live markets on your mt5
+02:05 whatever terminal you're using that's
+02:07 not going to be a one to two so obly you
+02:09 can extend this you know to actually
+02:11 include the fact that that will be your
+02:14 correct profit point the risk with that
+02:16 is of course that it hits on trading
+02:18 view and you technically should have won
+02:19 the trade but you're waiting for it to
+02:21 hit your actual one to two and then it
+02:22 just reverses and you lose so you have
+02:24 to use this when you can see there's
+02:26 momentum when it's highly likely to
+02:27 continue past where your tp is that
+02:29 little bit extra distance to give you
+02:31 the correct risk-to-reward and in doing
+02:34 this again there's risk that it might
+02:36 just fully reverse so you have to be
+02:38 aware in the moment of when you can
+02:39 actually use this now all these things
+02:41 are important with the five minute
+02:42 because to maintain your edge you still
+02:44 need to have that higher riskreward
+02:46 because obviously every loss you take is
+02:49 going to be a full loss minus 1% however
+02:51 much you risk whereas if you're not
+02:52 doing any of these things every win you
+02:54 take will be slightly reduced and you
+02:56 don't actually see the correct results
+02:58 now if you're trading a pair like euro
+02:60 usd for example this is not going to be
+03:02 much of an issue because obviously euro
+03:04 usd doesn't really have any spreads same
+03:06 thing here on eurogbp it must just be
+03:08 the thing with euro pairs specifically
+03:10 but they really don't don't have spreads
+03:13 and obviously that's going to make it
+03:14 easy so you don't have to do this but a
+03:16 lot of the best performing pairs
+03:17 especially the m pairs they tend to be
+03:19 the best performing they do have fairly
+03:22 large spreads so we obviously have to be
+03:23 aware of that use to our advantage of
+03:25 course of course always use an account
+03:27 with raw spreads for lower time frame
+03:28 trading or it's just not going to work
+03:30 whatsoever all right second thing here
+03:32 is risk management now when you're entry
+03:34 on the 5minut or anything lower it has
+03:36 to be very quick a lot of times if you
+03:38 don't get in as soon as it closes or
+03:39 right away you're going to miss a trade
+03:41 or get a bad entry so you need to have a
+03:44 way to instantly calculate lot sizes
+03:46 without any sort of actual calculation
+03:48 without inputting random values for me
+03:51 for the last 2 years plus i've used
+03:53 magic keys essentially risk management
+03:55 there's a physical version which is
+03:56 really nice to have a bit more expensive
+03:58 and there's also an on-creen version now
+04:00 with this what it will do is basically
+04:02 instantly calculate lot size for you all
+04:05 you do very simple i'll give a quick
+04:06 demonstration
+04:08 here you're about to take a trade so you
+04:10 have everything on the screen ready to
+04:11 go and you very simply just going to
+04:14 drag your stop loss to where you want it
+04:15 to be no matter where it is no matter
+04:17 where you put it the risk will
+04:19 automatically and instantly calculate so
+04:21 this will be 0.5% because that's what i
+04:23 have it set to no matter where i put the
+04:25 stop loss and as soon as i want to enter
+04:26 i just press the button on the keyboard
+04:28 and i'm in with that much risk this
+04:30 makes it possible to instantly enter
+04:31 trades on the lower time frame without
+04:34 having the issue of you know trying to
+04:36 calculate lot sizes while it's happening
+04:38 and then missing the entries so yeah
+04:41 this is not a sponsor or anything i've
+04:42 used this for over two years like it's
+04:44 amazing to have and yeah if you're
+04:46 interested in buying this i'll leave a
+04:48 discount code in the description as well
+04:49 so you can go and check that out all
+04:51 right so this next part is intuition for
+04:54 the five minute time frame you need to
+04:55 have that intuition of when to take and
+04:57 not take trades even if it's not 100%
+04:60 concrete or 100% rules based now what i
+05:02 mean by this is there's a 100,000
+05:05 reasons that could happen in the moment
+05:07 where oh you didn't take this trade
+05:09 because of this or you got a late entry
+05:11 this thing got messed up this time this
+05:13 happened with spreads there can
+05:15 literally be a new reason every trade
+05:17 you take for why you didn't make the
+05:18 profit you should have so on the flip
+05:21 side of that of course you could also
+05:22 take losses that you technically
+05:23 shouldn't take so you have to develop
+05:25 the intuition to know cool this one is
+05:28 technically in the plan with all the
+05:29 rules but i can just really see this is
+05:31 not going to win now this is why it's so
+05:33 important to develop selfrust by
+05:36 actually doing everything in real life
+05:38 that you say you're going to do that you
+05:39 want to do cuz if you don't you won't
+05:42 develop the selfrust confidence that in
+05:44 yourself to follow and stick to that
+05:47 intuition when you can tell a trade is
+05:49 not going to win and you take it anyways
+05:51 well that wouldn't have happened if you
+05:52 could 100% trust yourself because you
+05:54 are 100% disciplined so it's about
+05:56 building that self trust and
+05:58 self-confidence so that your intuition
+05:60 can actually play out because there's
+06:02 probably so many times where you've been
+06:03 in a trade and you're like "yeah i kind
+06:05 of knew this wasn't going to win but i
+06:06 just took it anyway." on the flip side
+06:08 of trade you can clearly see was going
+06:09 to win or you know something like that
+06:11 and you didn't take it it goes both ways
+06:13 to develop your intuition practicing
+06:16 100% you can do years worth of data and
+06:18 then it trains your mind subconsciously
+06:21 to recognize the patterns of the charts
+06:23 you don't need to then even think about
+06:25 it you'll just have that feeling for the
+06:27 markets the only reason my technicals
+06:29 and intuition is so good after the live
+06:32 trading experience i've got is because
+06:34 of how much back testing i actually did
+06:36 most people think the purpose of back
+06:38 testing is something completely
+06:40 different but in reality you can get
+06:42 such good intuition from practicing that
+06:44 you don't even have to think about your
+06:45 own analysis so when people are you know
+06:49 in the markets they're seeing this trade
+06:51 lost for whatever reason and you know
+06:54 they they're trying to find reasons for
+06:55 it every time when you have the
+06:57 intuition you don't need the reasons for
+06:58 it the second part is using your stop
+07:01 loss and moving it around depending on
+07:03 what's happening so you can tell based
+07:05 off the momentum in the markets whether
+07:07 or not to move your stop loss whether or
+07:08 not to give it a little bit extra room
+07:10 because spreads you have to be extremely
+07:12 decisive in the moment and you have
+07:14 split-second decisions when you're doing
+07:16 any of these things it's not okay should
+07:18 i do this let's wait and find out by the
+07:20 time that's happened the trade's either
+07:21 moved far up or downwards you don't have
+07:23 the chance to do it anymore so you have
+07:25 to be very decisive in the moment in
+07:27 order to be decisive in the moment you
+07:28 have to know what works beforehand and
+07:31 that obviously comes from live
+07:32 experience also just seeing loads and
+07:35 loads of trades play out in practicing
+07:37 and how the market actually moved this
+07:39 will give you that experience you need
+07:41 to subconsciously just know what's
+07:42 happening instantly right that's the
+07:44 levels of intuition i have right now and
+07:45 it benefits me massively on the 5minute
+07:47 time frame when to take flip entries you
+07:50 know when to give stop loss a little bit
+07:51 extra room all of this stuff just comes
+07:53 from pure intuition it's very important
+07:55 on the fiveminute time frame a lot of
+07:57 these things i mentioned actually did in
+07:58 my last live trading video it's just
+08:00 simply one video and i already did a lot
+08:02 of these things so you can see how
+08:04 important it is to get these down to a
+08:07 high level for the for the lower time
+08:08 frames final part of this is you need
+08:10 some type of trade limit session limit
+08:14 or max risk limit so what i mean by this
+08:17 is unlimited trades can happen on the
+08:19 5minut time frame if you have too many
+08:21 pairs you're just going to be
+08:22 overwhelmed and it's not going to be
+08:23 possible you can take too many losses if
+08:25 you don't have a max loss for the day so
+08:27 maybe you set two losses as a max loss
+08:29 and three as your max trades so maybe if
+08:32 you take one win one loss you can still
+08:33 have another one setting these sort of
+08:35 limits obviously means you won't
+08:36 overtrade for the first part secondly
+08:39 you won't get to a stage where your
+08:40 psychology is too bad and you can't
+08:42 trade properly but you're still trading
+08:44 you have to know when to just leave the
+08:46 markets get off the markets this can be
+08:50 fixed with a couple different methods
+08:52 the first one is fixed trading session
+08:55 time so you only trade for this 1 hour
+08:57 this 2 hour window and any trades within
+08:60 there you can take that's one way to do
+09:02 it as soon as this is over you have to
+09:05 leave the markets though otherwise it's
+09:06 not going to work the good thing about
+09:08 this is that you can also then learn
+09:10 what the markets do during a specific
+09:12 time and become in tune with that
+09:14 specific time for me at the moment i
+09:16 prefer to just trade at any time because
+09:18 i've got to a stage where my psychology
+09:19 is completely fine to be able to handle
+09:21 that if i want to do something in the
+09:22 morning i'll go and do that thing and i
+09:24 won't trade if i don't want to do that
+09:26 thing sure maybe i'll be at the markets
+09:27 for a couple hours and see if there's
+09:29 any good positions if the markets aren't
+09:31 looking good then i'll just leave
+09:33 because i can already kind of tell if
+09:34 the session is going to be good or not
+09:36 before it happens again mostly because
+09:39 of how much practicing i've actually
+09:40 done and how much i've seen how much
+09:42 past market data i've seen so setting
+09:44 these limits is very important on the
+09:46 5minute time frame otherwise you can
+09:47 easily spiral easily blow accounts and
+09:49 just lose your edge from things that
+09:50 don't even need to be there and so yeah
+09:52 that more or less sums up the main
+09:54 factors for the 5minute time frame that
+09:56 you need to be aware of if you have all
+09:58 these things down just imagine how much
+09:59 easier it will be for you because one
+10:01 split-second decision is usually the
+10:03 difference between a couple percent
+10:05 worth of profit and the five minute time
+10:06 frame maybe it's between taking a loss
+10:09 and taking a win or just not taking a
+10:10 trade all down to intuition so if you
+10:13 can obviously for one build that daily
+10:15 life with the habits where you're doing
+10:17 everything you want to do and everything
+10:18 you say you'll do then you're going to
+10:20 have 100% trust in yourself and when
+10:21 you're in the markets and there's
+10:22 potential to make money from doing
+10:24 random things and there's no one
+10:26 stopping you from doing it either you
+10:28 have to be in complete control of that
+10:30 so being in that state being in that
+10:32 situation is 100% a must for the 5minute
+10:34 time frame all these other things i'm
+10:36 going to be obviously continuing to
+10:38 upload my five minute live trade videos
+10:40 so you can see me doing this in the
+10:41 moment and you know whether i do this
+10:44 weekly or not i'm not sure yet i
+10:45 probably won't do it every week because
+10:46 i do like to trade focused and by myself
+10:49 a lot of the time uh without having the
+10:51 recording or anything like that going on
+10:53 so maybe every other week i'll post one
+10:55 of those and you'll be able to see me
+10:57 doing these things in the moment getting
+10:58 those live entries using different
+11:01 intuition you can make up a thousand
+11:03 reasons or think of a thousand things
+11:05 that could happen on the 5m minute time
+11:06 frame no day is going to be the same no
+11:09 trade is going to look exactly the same
+11:11 so you obviously have to be aware of
+11:13 that and making these decisions
+11:15 split-second decisions in order to be
+11:17 profitable on the 5minute time frame
+11:19 otherwise chaos in shoes and you're just
+11:21 going to have no chance so that's it for
+11:24 today's video go and check out my live
+11:25 trading video there was maybe seven
+11:27 eight trades in a full week of trading
+11:29 it's like 40 minutes long everything is
+11:32 in there you can eat so go and check
+11:33 that out and that is all for today's
+11:36 video
+11:40 [Music]

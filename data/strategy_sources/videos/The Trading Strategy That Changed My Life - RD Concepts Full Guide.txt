@@ -1,0 +1,390 @@
+00:00 All right, then guys, here it is. The strategy that essentially changed my
+00:05 life. If it wasn't for 18-year-old me finding out this strategy all those years ago, none of the things that
+00:12 happened to me over the last few years would have happened. I wouldn't be living out here in Thailand right now. I wouldn't have gone to different
+00:18 countries. All of it came from this simple strategy. So, this is going to be a full guide teaching you every single part of
+00:25 this so that you can do the same. on screen right here on the first slide. We have a couple things, three examples
+00:31 right here of what the strategy is. It's fairly simple in terms of price action,
+00:36 the factors we actually look for. There's no complicated things that sound like a different language. There's no
+00:42 hundreds of indicators being used. In fact, we don't use any. The price action
+00:47 behind it is very simple. And you know, you can see clean trades right here. All one to fours in terms of TP and
+00:55 targeting. And these are all trades from fairly recently. This on the 5minut time frame. This can also be traded on more
+01:02 or less any time frame, but the ones I traded the 5m minute and the 30 minute. Now, this full guide is going to be
+01:08 based on the 5minut time frame cuz the 30 minute has not been performing very well recently. So, yeah, with that being
+01:13 said, the only other thing on screen here is a no ICT symbol. Now, the reason
+01:18 this is on here is because ICT has essentially been the worst thing to happen to the trading industry. It's
+01:24 probably formed the most unprofitable traders out of anything that's existed in the history of the trading scene.
+01:31 It's formed the worst habits, uh, the worst cognitive biases. A lot of it is
+01:37 all just made to make people feel good and to avoid the realities of trading. So, with that being said, this is a
+01:42 fresh take, something you don't see in the markets too often these days, just pure and simple trading, the way it
+01:48 should be. So, with that being said, let's jump right into it. So stage one, what is the strategy? Now I'll move
+01:55 myself out of the way here so you guys can see each bullet point. Essentially the strategy is taking advantage of
+02:02 market fundamentals. These are things that have always been true in the markets and have worked since the
+02:07 beginning of time. You could go back to the '9s on Trading View and you will see this type of thing playing out. So for
+02:14 the good moves and the big moves, the markets need liquidity. The largest moves happen after retracements and
+02:20 supply and demand works best after normal trades have lost. So this strategy is including kind of all those
+02:26 factors. Now I'll take you guys to that GC trade and I'll point out why each one
+02:32 of those is playing out. So the base form of strategy is supply and demand.
+02:38 Normal supply and demand though tends to be unprofitable. And so when we're looking at something like this, we're
+02:43 taking advantage of those things. Number one is retracement. Number two,
+02:49 normal supply and demand trade is losing. Demand zone forms here when we take our highs, comes back to the zone,
+02:55 starts giving some bullish candles and a lot of rejections and it always tends to end up in an instant fake out. Now
+03:02 liquidity is taken. We are waiting right underneath these lows which are in front of the zone. The lows being swept,
+03:11 the normal supply demand trade is losing. Liquidity has now been generated. So you've seen a couple
+03:16 things. Number one, instead of retracing to here, we've seen a larger retracement
+03:22 down to the zone. Number two, normal supply demand traders are losing at this area. Number three,
+03:29 lows are being taken out in front of the zone for liquidity. And so we're taking advantage of those three factors. The markets are now ready to take off. So as
+03:35 soon as we see the zone respecting, we enter on the bullish candle. So, that's a quick summary of why the
+03:41 strategy actually works and how we take advantage of market fundamentals. So, now I'm going to get into how to
+03:46 actually trade it and what to look for. Okay, we're going to start off with the basic conferences here before we get into some more advanced stuff. First of
+03:53 all, how to identify the trade. So, we're going to be looking for untapped supply zones and demand zones only. Now,
+03:59 untapped zones, what does that mean? Essentially, this is a zone that no other candles have come back to it. So,
+04:05 right here, it's just clear space in front of the zone. No wicks of other candles have tapped the zone, so it's an
+04:11 untapped zone. Same with this one. Clear space in front of the zone. No candles have come back to it and tapped it
+04:17 already. This essentially means we're trading off only new supply and demand zones that haven't had any candles come
+04:23 into them yet. Take liquidity away from the zone, take orders away from the zone, and it's actually going to be new
+04:29 price action. So, very simply, here's a good zone I had in the past,
+04:34 for example. It's untapped, no candles come back to it. Now the way of drawing supply and demand
+04:40 zones is fairly simple as well. You essentially find the opposite color candle before any type of move. So this
+04:48 move to the upside and you draw it on the bearish candle. You can draw it to the lowest point as well of the next
+04:53 candle. Uh over here for example, this move untapped demand over here. Same
+05:01 thing. Now there's a couple rules on drawing zones. Number one is accuracy zones. Now what this is is drawing the
+05:07 zone to where price action actually has an effect. And this can make big difference between taking winning
+05:12 trades, losing trades and missing positions. So right here, for example, this supply zone, this move to the
+05:19 downside, I've drawn it off of the bullish candle, right? The opposite color candle before the move. So very
+05:25 simple, but I haven't included the bottom wick of the candle. I've only used the body. Same thing gone to the
+05:32 top where the selling actually started from. This is what caused the move. So it's always going to be a part of the
+05:38 zone. So when we're looking at this accuracy zones essentially means if any
+05:44 part of this bullish candle goes lower than the bearish candle after it the start of the supply move, you're only
+05:50 going to use the body. So right here, that's an example of an accuracy zone to
+05:55 the downside. Now very easy example right here for demand would be this one.
+06:00 This is how you would not draw an accuracy zone. And the correct drawing is like this. Simply because this
+06:07 orange, this bearish candle, the opposite color one that you draw the zone on, a part of it went higher than
+06:12 the bullish candle after it, the start of the move. You can see the wick up here. The wick up here goes higher than the
+06:19 bullish candle that started the move after it. So, we're not drawing the zone up here. You draw it using the body.
+06:25 Now, very simple again. You draw it to the lowest point. So the demand and the movement started with the bottomless
+06:30 wick. So you always include it in the zone and that is how you draw accuracy zones. Now when that doesn't happen. So
+06:37 simple example right here. No part of this bearish candle goes
+06:43 higher than the bullish candle after it. So you just use the whole candle. Same thing for a supply. Let me find a zone
+06:50 quickly. So right here this supply zone identifying an untapped zone. Very
+06:55 simple. drawing it on the candle of the opposite color before the move started.
+07:01 And no part of this bullish candle that you draw the zone on went lower than the bearish candle that started the move
+07:06 after it. So we simply include the whole thing. So that is how you do accuracy zones and non-accuracy zones. And so you
+07:13 can see over here this made a big difference between actually taking this one to four and there just being no
+07:18 trade whatsoever. So I'll put this in replay mode. And so if you draw this incorrectly and you didn't use the
+07:24 accuracy zone, right, a part of this bearish, a part of this bullish candle came lower than the bearish candle for
+07:29 the supply after it, you would be drawing it like this if you're doing it incorrect. And this
+07:35 would obviously mean that the zone is already tapped. It's not an untapped zone because there's candles coming back
+07:41 into it over here, bullish candles, bearish candles, and so it just would not be a trade. Right? You can see
+07:46 there's no clean tap, nothing like that. When you draw it correctly though, big difference. It's clean space. It's an
+07:53 untapped zone. So, by the time of us coming back to it, this is the first
+07:58 time it's tapped. It's new price action, new liquidity at the zone. And right here, we have our liquidity in front of
+08:04 the zone. Just a simple one candle making this small high. So, small structure is also okay, but we'll get
+08:09 into that a bit later. Now, next factor is valid liquidity. So, I won't use this
+08:15 example because it's not as easy to see if you're just starting out. I'll use an example with very clear liquidity.
+08:22 So, take this zone for example. This was a NAS 100 demand uh that tapped just
+08:28 yesterday, I believe. Uh and right here we have our liquidity in front of the zone to a very strong and obvious low
+08:34 that can be taken out and then we can tap into the zone. This is in this as well is also a normal demand zone
+08:42 because this liquidity is too far away. This has no effect on the zone when it's this much clear space, right? Liquidity
+08:48 is taken all the way over here and then come all the way down to the zone and then we tap. So apart from just initial
+08:54 rejections and fake outs, uh there's nothing else happening, right? Ends up being a fake out zone and then we're
+08:60 here waiting for this one. The one the reason this one is valid is because the liquidity is actually close to the zone.
+09:05 Now you have to be aware of max distance on NAS 100. There's no number for how far liquidity can be from the zone
+09:12 because the pip distances and measurements are always changing based on the volume. So you kind of have to
+09:18 know visually what's okay for this zone. If I just make an example of price action
+09:25 something around here would be max distance. So we have these lows to the left. If this was our liquidity and
+09:31 price was playing out like this right here taking out liquidity tapping into the zone this would be a valid position.
+09:38 Of course, if that didn't exist,
+09:43 which over here, let's say all this doesn't exist and this is our liquidity.
+09:49 This is much too far. This is above max distance. It has no effect on the zone when it's over here. Simply coming down,
+09:55 tapping into the zone, right? We're pretending this doesn't exist. This would just be normal supply and demand and most likely it's going to be a fake
+10:01 out. So, not the type position you would look to take. Now, liquidity distances, there are numbers for some pairs, but in
+10:08 general, they still tend to change fairly often based on the volume. So, GJ, for example, the max distance is
+10:16 around 7 to 8 pips. Sometimes it can be up to 10, right?
+10:22 Visually, it changes sometimes, but this is just a rough guideline. So, if you're measuring about seven pips max distance,
+10:29 around here is okay. Visually you can see as well let's just imagine we had this zone liquidity forms here about
+10:35 seven pips away then it's going to be a valid trade. Okay so for the second part liquidity has to take out its own high.
+10:42 I've just added in this extra part here. This is a very important rule and it essentially massively affects the edge
+10:47 of the strategy. Without this again you're pretty much trading normal supply and demand and it's going to be very
+10:52 very difficult to have an edge. So I'm going to use a simple drawing to explain this part. So the strategy right here is
+10:59 this. This is the most basic drawing you can use to explain the strategy. So we have market structure, we have
+11:06 liquidity, we have our demand zone. Liquidity has to take out its own high. So this liquidity right here has to take
+11:13 out the high it formed before making the lower liquidity, which will be this one
+11:18 in order for the trade to be valid. So it has to come back up here, take out its own high, and then move back to the
+11:23 zone. Without doing that, it's not valid, and you're essentially going to be trading normal supply demand. So if
+11:29 we imagine that same type of structure have a demand zone price action formed
+11:35 and then we get this this liquidity doesn't take out its own high comes back to the zone not valid right this
+11:42 liquidity did not take out its own high not a valid trade. If you take setups like this where that doesn't happen
+11:48 you're not going to be profitable in the long term and you're not going to have an edge. So that's a very important rule. If we come back up here and you
+11:55 look at this example, you can see very clearly liquidity took out its own high right here. So this was the high
+12:02 liquidity on for making itself. That's why it's called its own high. Takes out
+12:07 it own high. Now it's a valid trade. At any point if it comes back after doing that is valid. So it could have came straight down here trade. Same thing
+12:15 right. And so a quick example for supplies just so you can see the reverse.
+12:22 Right here we have a supply zone. Liquidity has to take out its own low. So very simple. We have price dropping
+12:29 to form the supply zone and we have liquidity forming. It has to take out its own low to be valid. So this area
+12:37 right here then it comes back to the zone. Now you can see we're taking advantage of all those market fundamentals. We have a larger
+12:43 retracement. Normal supply and demand right here. A normal supply zone would be forming with no liquidity. traders
+12:49 will be getting faked out for us to be waiting right here to then win afterwards. So that's essentially what
+12:54 you're waiting for. And of course with a valid entry, you take this trade and you can see you have the high riskreward potential with the ones because you were
+13:01 just being more patient and waiting for this zone. So that is a supply example. Liquidity
+13:08 has to take out his own low for a demand. Liquidity has to take out its own high. So that's what you're looking for when you're trading the strategy.
+13:15 And with liquidity distances, like I said, GJ around seven pips max and EU is
+13:22 around four or five pips max. So those are some rough guidelines if you want to
+13:27 check what's valid visually. But once you know these numbers and you can see what you know what these always look
+13:33 like, stop using the numbers because gold for example, NAS 100, it's impossible to apply numbers to these
+13:39 because they're always changing. So next rule is check trend. Now, the five minute strategy is interesting because
+13:45 you technically don't have to trade with trend, but it's going to be a lot harder to be profitable if you don't do that,
+13:52 but it's going to be a lot harder to be profitable if you do that. So very simple factors are liquidity
+13:59 taken at its own high or low a lot of the time is going to allow you to be in relative trend anyways because if you
+14:05 think about it you know having liquidity forming for a zone like this if it takes
+14:10 out its own high you're kind of in that uptrend already but overall structure if you zoom out can make a big difference.
+14:19 So right here for example is actually a valid trade on UJ if this attacked. So we can take this example
+14:27 very simply right here we have liquidity form and before this liquidity formed
+14:32 right this made this low its own high was up here. So liquidity has to take out its own high to be valid simply
+14:38 means coming up and taking out this candle right that was the high point which it did right here and then retrace
+14:44 down to the zone. Now you can see even without zones, this structure is powerful. Right here you have, you know,
+14:49 bullish movement coming in after that's happened. Of course, this is not a trade, right? You don't want to trade outside of strategy. You're never going
+14:56 to have an edge or be profitable long term. But let's say this tapped. This will be a perfect trade. Untapped zone,
+15:02 liquidity at a good distance where it has an effect on the trade. UJ and GJ can be fairly similar. This is about two
+15:08 pips. So well within that seven pip range. Now, if I draw seven pips on this, that'll be much too far visually,
+15:16 right? So, you can kind of see the numbers aren't always accurate. Now,
+15:22 just so you guys can understand visually what's Okay, I'll do pretend drawing right here. So, price action forms. If
+15:29 liquidity forms around this area, takes out its own high, that will be valid. This is about max distance liquidity
+15:35 visually right here. And it's coming out to three pips. So, you can see how often those numbers do change. GJ though is
+15:41 more accurate with that scale because it was made for GJ. So yeah, on UJ you can see if we did get that price action and
+15:48 liquidity took out its own high, we'd be waiting very simply uh on this demand zone and price action comes back to take
+15:54 the trade. So the next thing is valid entries, right? Because not every trade that taps even with this perfect
+16:00 structure is a valid trade. Okay, so this is essentially the next biggest part of the strategy. It's a massive
+16:06 part to Shashi's edge and actually being profitable. Valid entry models, right? There's a few of these and here's a
+16:12 couple rules on the screen of what you should follow. Uh, and I'll explain these on the charts as well. So, you'll notice obviously for all the winning
+16:18 trades I've shown so far, every single one of course follows these rules. Uh, and as I point these out, things will
+16:24 become very clear. This was obviously not a zone. It had no liquidity. Close inside.
+16:31 Now, I'm going to pull up a couple random winning trades. So let's just scroll through past trades. Here we have
+16:36 a gold supply. So gold supply right here for a one to pull valid entry model is
+16:42 very simple. If it's a supply zone, you're waiting for a bearish close. If it's a demand zone, you're waiting for a
+16:47 bullish close. Now this is obviously showing momentum at the zone in your direction. You don't want to be entering
+16:54 on rejections or anything like that. You're going to see a lot of fake outs. Uh there's many times, you know, where
+16:59 we tap into the zone, wick in the zone, but we still close bullish and the next candle just goes and closes in the zone
+17:06 and you completely avoid your loss. So you always want to wait for a candle close in your direction, which on
+17:11 supplies is obviously a bearish candle. On demand, that's a bullish candle. Very simple. As soon as you get one of those,
+17:16 you can enter on the close of the candle. Now, because we have all those factors in place, liquidity is taken,
+17:22 there's a retracement, we're in a supply demand zone. The power of the strategy comes from the fact that you can enter
+17:28 on that candle and have your stop loss simply above or below that candle's wick depending on if it's a demand or supply.
+17:35 This obviously allows you to have very good risk-to-reward as for winning trades on the strategy. They essentially tend to always take off straight away.
+17:43 So now you can start see how we're building an edge here and all the confluences come together. And once you
+17:48 have these all down, they're extremely simple, simple entries on the close, bullish or
+17:54 bearish, right? That's a universal rule. It will always apply no matter what you're doing. If you want to take the most basic entries, enter on the close
+18:00 of the candle in your direction. Now, if it closes in the zone, the trade is instantly invalid. No exceptions. So, if
+18:07 a candle closed like this in the zone, not valid. It has to close respecting
+18:12 the zone outside of the zone. Uh only wicks inside of it. Now, of course,
+18:19 there's still only winning trades where sometimes it closes in the zone, and that doesn't matter. We're not trying to make excuses. There's not reasons for
+18:25 everything. This is a big trap with ICT. Whenever there's a winning trade off, what are the reasons for it? No. Bad
+18:31 trades win constantly. Trades that don't follow the plan win constantly. But that doesn't matter to us, right? We're only
+18:36 focusing on things within the strategy and following the set of rules. Otherwise, you're not going to have an edge. So again, if it goes in a zone,
+18:44 it's invalid. Don't take the trade. Now, there's a couple other ways to enter positions, and those are higher time
+18:51 frame flip entries. So these are a little bit more complicated but they are
+18:56 very very powerful in terms of helping the strategy and helping this edge. So I'm going to try and find some examples
+19:02 here of higher time frame flip pentries. Okay, this is not one but just what an
+19:10 amazing trade. Standard bullish close entry right here. Closing the zone after
+19:15 the entry but we've already taken the trade. That's fine. Uh the initial entries of course respected the zone.
+19:20 Second candle respected the zone didn't close inside. So beautiful liquidity just an amazing example. We got normal
+19:28 supply and demand around these areas. You know trade-off zones like this getting bullish candle fake outs just
+19:34 instant losses tapping into our zone and then the trade wins. This is the type of thing we consistently see with the
+19:40 strategy. Okay, this is not a great example. Um but I mean I did take this
+19:46 trade live exactly like this. So, I guess it kind of plays out. High time
+19:51 frame candles, new 15-minute candles, new 30 minute candles, new 1 hour candles. You can take flip entries on
+19:58 these. This is an extreme example because it flipped obviously all the way up here.
+20:04 So, it didn't really take advantage of much because it was so far away. I reduced the size of the stop loss to
+20:09 just simply cover the zone rather than have it underneath here cuz it's so far away and aim for a 1 to 1.5. Now, you
+20:16 can do stuff like this once you're more advanced with the strategy, but I would recommend in general, uh, if the trade
+20:22 is going to take off this far and just not really give an entry, just leave this one and wait for a clear trade show
+20:28 up. Okay, so I've gone into my back test chart to this one, which is why these are a different color. Uh, and luckily,
+20:35 there's loads of examples. In the moment in the Discord, we're hosting a massive 30-day event, every single day, live
+20:40 back test of every single pair, breaking down all the mistakes of other people's back test and comparing them to my own.
+20:47 So, yeah, those are all recorded as well if you want to check that out. Links in the description. But this is an amazing
+20:52 example because it showcases so many factors. Accuracy zone. If this wasn't an accuracy zone, it taps here, you get
+20:59 in, you get faked out, you lose the trade instantly. So drawing the accuracy zone because this bearish candle went
+21:05 higher than the bullish candle after it. So we only use the body very simple. This is a 1 hour flip
+21:11 example. So when a new higher time frame candle, whether it be a 15-minute candle, a 30 minute candle, or a 1 hour
+21:17 candle, makes it bottom or top wick into the zone and then flips, you can take advantage of the momentum that usually
+21:24 always comes with a higher time frame candle as long as it has a wick in the opposite direction. So, a quick way to
+21:32 explain the wicks is that if I go on the 1 hour time frame, you
+21:38 can see every single higher time frame candle has a wick to the downside and the upside, right? There's a wick in
+21:43 both directions. So, if a candle just opens up and it doesn't have a top wick, for example, it's highly likely next
+21:50 place it's going to go is to make a top wick. You can take advantage of that in the strategy. So, this 1 hour candle
+21:56 right here is 7:00 a.m. So, you can see it's a new 1 hour candle, opens up, there's no top wick, makes a bottom wick
+22:01 into the zone, comes up, and then flips. Because it's a new higher time frame candle, you can expect a lot of momentum
+22:06 to come with that. So, pairing the fact that we're at a valid zone with liquidity, we've even had fake outs
+22:14 here, and there's a new 1 hour time frame candle opening wicks into the zone. this
+22:20 bottom wick comes up and you can take advantage of that momentum and enter into flip right
+22:25 here when it flips to bullish. If you don't do that very often you'll see the case that you don't actually get
+22:31 an entry because the 1 hour can bring so much momentum. The close entry is up here and it's impossible to even now
+22:37 take a winning trade and what is the one to four just becomes nothing. So it's important that you take note of this
+22:44 when these candles open because the flip entries are very powerful. Now, this one was very simple and easy
+22:49 to take because we already had a candle tap right here. Of course, it didn't give a bullish close, but gave a very
+22:55 large and clear rejection. So, that made it easy for us. I'll quickly find an example where that didn't happen
+23:01 and we still took a flip entry. Okay, so here is a very good example. Now,
+23:07 right here, we have two candles forming liquidity. Three candles if you count
+23:13 this bullish one that formed a low. But of course, liquidity has to be formed by low or opposite color candles. So, two
+23:20 bearish candles here making a small area in the markets, potential for normal demand zones, etc. And you know, we wick
+23:28 underneath that low right here and these two candles into the zone. So, we have liquidity, we have a demand zone, and
+23:35 this is 12 a.m. So, it's a new 1hour candle. Now, this one had no previous
+23:42 candles in the zone before it, but the exact same principle applies. Makes his bottom wick into the zone, comes back up
+23:47 and flips. Because it's a new 1 hour candle, you can enter on the flip. Same thing if it's 30 past, 15 past or 45
+23:54 past. 15 and 45, of course, new 15-minute candles, and 30 past is a new
+24:00 30-inut candle. So, you can take advantage of these high time frame candles and use the momentum of the flip
+24:06 in your direction. Exact same thing. Uh goes for supplies. If it makes a top
+24:11 wick into the zone and flips, this one wasn't a new higher time frame candle, so it's a standard close entry. But
+24:16 let's say this was a new higher time frame candle. Then makes it stop wick into the zone right here. You can enter
+24:21 flip uh and get a better entry. So you can use that once you become a little
+24:27 bit more advanced. You can use it straight away. But just know, don't be too aggressive on these. If you're unsure on something, simply wait for the
+24:33 close. It's still a valid entry model. Okay. Next up, bonus rules for profitability. So, these are just some
+24:40 tips and tricks over the years that know we have developed because of the experience we have trading it and things
+24:46 that we see in a lot of cases that can avoid losses or give you more winning trades. So, number one, drink apple
+24:52 juice to be more profitable. Of course, right here I've got my glass of apple juice and you'll notice that it's
+24:58 actually empty and that's because I've already drank it. So, take notes on
+25:04 that.
+25:11 All right. So, in all seriousness, here we are. The camera started glitching. Not even joking. As soon as I said that,
+25:17 my mic and camera stopped working. So, I guess it was just too much sauce. I couldn't drop that. Uh, the recording
+25:24 software couldn't even handle the heat I was just saying. So, onto this next point. Hopefully, this one's not as good
+25:30 as the first one and the camera can handle it. minimum two candle liquidity in most cases. Now, what this means is
+25:38 if I go back to the charts, at least two candles out to liquidity.
+25:43 So, right here, of course, this one's very simple. I'll rewind it so I can show you the earliest point
+25:50 that this would become valid. So, we're looking at this supply zone. Right now, there's no liquidity. It would just be
+25:55 normal supply and demand. Uh, however, structure comes back to this and it's almost always going to be a fake out.
+26:02 So with that in mind, when at least two candle liquidity forms, it's now valid.
+26:08 So this is valid liquidity because it's two candles, two bullish candles, right? Opposite direction candles, this is
+26:14 obviously moving downwards form that liquidity. When it's only one candle,
+26:19 right? So if in this straight line, let's say this bearish candle right here became bullish, it's always going to be
+26:26 a lower quality of trade in most cases. Now, I'm going to break down the cases
+26:31 where sometimes it is acceptable to take one candle liquidity positions because I do take them and they do win. This right
+26:38 here, this is an example of a one candle liquidity being valid. So, you can see all we have right here is just one
+26:44 bearish candle as a part of this move to the upside. A couple factors have to be in place. Number one, the retracement
+26:50 has to be of a fairly good size. If this was to form the exact same way and then
+26:56 price just retraced from here, didn't take out this high to the left, bad structure. I'm never going to take it.
+27:02 If price just about took out this high to the left, retraced, still probably
+27:08 not going to take it. It has to be a large retracement, which this one was, and that allows us to actually have
+27:14 enough movement, enough orders, and liquidity built up to now move to the upside. So one kind of liquidity number
+27:21 one has to have a large retracement. Number two, this is probably the most
+27:26 Okay, so I was just putting this video together the next day and I realized from this point onwards the sound
+27:32 stopped recording. So continuing from where I was yesterday, I was essentially saying for one candle liquidity, one of
+27:39 the most important parts is that we get a fake out at the normal demand zone because without that the one candle is
+27:45 not actually giving us any liquidity. doesn't form a low in structure or an area to be taken out. So if there's no
+27:52 fake out on normal demand which here there was a nice fake out instantly loss goes in our direction then you can see
+27:57 there wouldn't really be any liquidity. So very simple if this is our zone at the bottom and there's a one candle
+28:04 liquidity here forming a nice normal demand zone. If we give that fake out people getting in we can generate
+28:09 liquidity as soon as we take those traders out and it loses. On top of that, you have another nice retracement
+28:15 to the zone. As long as there's clear direction, then we still have the trade. So, you can see how one count liquidity
+28:21 works. Those are the most important factors behind it. Difference being with two candle liquidity, we don't need a
+28:26 fake out. So, if I use this example right here and I put it in replay mode. If we look at this, two candles is
+28:33 enough to form valid liquidity. Right? This right here makes a high. If we then drop and take out the lows and only have
+28:39 two bullish candles, it makes a clear high, an area of structure to be taken out. Of course, if we don't have that
+28:45 and this is just one bullish candle, this is too far away of course to be valid. But if this was close enough, all
+28:52 we formed is one bullish candle and the rest will bearish and continue dropping. Then we come back up to the zone with no
+28:57 fake out. There's no liquidity here. One candle by itself does not form an area in structure. So it's two candle
+29:03 liquidity minimum for normal trades. one kind of liquidity is valid when it follows those factors. This if it forms
+29:09 a very nice supply zone continues dropping here and obviously you get the nice supply zone. If this is close
+29:16 enough, of course, this is not close enough. But let's say this was right here. If that causes a fake out the one
+29:22 count liquidity, the nice normal zone instantly loses tapped into ours. We then have liquidity and you can look the
+29:28 trade. So those are the main differences. That is how one count liquidity works. two candles and
+29:33 anything above is of course valid. This position right here nicely formed two candles even formed a nice double top
+29:39 for us. So we had two highs, took out a zone low, retrace back to the zone, beautiful position, risk-to-reward is
+29:45 great. Top untap zone takes off for 1 to four. So those are the things you're looking for, right? Clear trend, nice
+29:52 liquidity, untap zone, and you're good to go. That is essentially all the strategy includes. It's very simple. the
+29:58 price action consistently plays out across almost all pairs. Like I said, these are the ones that I trade and that
+30:05 I pick personally. So the next part here is trade limits. If
+30:10 you're trading the 5m minute time frame throughout the day, there can be a lot of trades a shot. Now the human mind
+30:16 psychology wise is only really capable of two to three big or impactful decisions each day, especially in the
+30:23 markets of trading. So if you don't have any trade limits, you can easily overtrade trade. On top of that, you
+30:29 need some sort of time limit because the longer you're sitting there just looking at the markets, the more likely you are
+30:34 to start getting some sort of bad psychology, getting boredom, creating trades that don't exist, right? Looking
+30:41 at trades that are bad and kind of telling yourself they're good just cuz you want dopamine from taking that
+30:46 position and your brain wants to do something. It's also why it's very important to have baseline reset
+30:52 dopamine as a trader. Uh but of course that's not for today's video. So trade limits in terms of trade frequency per
+30:57 day for me two to three trades is the most I'll take in one day. On many days I also don't even have any trades. So
+31:03 there's a balance there. Um and a time limit. Don't be sitting there staring at the markets too long cuz this
+31:10 is when problems start to arise. So you can limit yourself around 2 hours. You know pick a good two hours that you see
+31:16 tends to have good trades from your back testing. For me I like Asia session pre-London works very well for me. And
+31:22 then if you have about five pairs, you can see, you know, every two days or so at least, there's usually a trade setup.
+31:28 And it works out very well. With around five pairs and two hours, you more than enough potential to be profitable in a
+31:35 month. There's no need to add loads of pairs. Have way too much going on that you just can't focus on easily. So
+31:40 master, I recommend three pairs or so at first, then potentially you can start to add in a couple more. So the next one
+31:47 here, be cautious at XX55 and XX25.
+31:52 So what this one means is very simply when there is a 55minut candle closing
+31:57 for your entry and a 25mm minute candle closing for your entry. If it's not very
+32:02 clear or the close wasn't very far away, be cautious on that position simply because the next candle is about to be a
+32:09 new higher time frame candle. So, of course, with that new high time frame candle comes risk and potential
+32:16 momentum. Now, what you can do is very simple. So, I'll give an example. So, right here, I'm going to use these ones
+32:22 as an example. This was an amazing trade that happened yesterday on UJ A+ straight on to four of the lows. Very
+32:28 nice price action. Now, it's not actually this zone. There was a second trade right here that happened
+32:34 immediately afterwards. So on this supply zone, I'll delete this
+32:39 one for now so we can see it clearer. Very simple structure wise, right? We had a top zone, so it's always going to
+32:45 have power. There's no untapped zones above this. Just random clear space. So this is essentially the best zone to get in at. We have our liquidity right here,
+32:53 which of course took out its own lows, became valid, retraced up to the zone.
+32:58 Now take caution when a 25minut candle gives an entry or a 55minut candle gives an
+33:05 entry because the next one is going to be a new high time frame candle. This is really only something that I
+33:11 apply when the entry is potentially still close the stop loss. So right here you can see the first bearish close was
+33:17 a 25minut candle and that would put stop loss right here. So we were fairly close to the stop
+33:24 loss. Now in this situation there was enough distance in my opinion. So I likely
+33:30 would have just taken on the close but theoretically let's say this bearish candle closed bearish and this was a
+33:36 close entry. This is very close to stop loss and the next candle is about to be a new 30inut candle which can bring
+33:42 momentum can easily spike and stop us out very quickly. So on those I take patient entries. I'm cautious with them.
+33:50 All I will simply do is wait for the new candle to open up. So right here this is the new 30-minute candle. I'll wait for
+33:56 it to make its top wick just in case with that momentum it's going to make its top wick and instantly stop us out
+34:01 which happens and then you can easily just avoid a loss or if it would have went here and just retested the zone
+34:07 then you can simply get in on the entry and avoid a loss again. So what I would
+34:12 do is wait for it to make its top wick and when it comes back down I'll enter flip. So I'm getting in at the exact
+34:18 same place as what the previous close would have been. But if that doesn't happen and that what's going to shoot up
+34:24 with the new higher time frame candle momentum or avoid a loss and if not you're getting in the exact same place.
+34:29 So it's a win-win situation. No extra risk and potentially avoiding losses to
+34:35 get in at the same place and be safe from that high time frame candles top wick especially on a new 1 hour or a new
+34:40 4hour. These will apply even more than a 30-minut candle here though. Like I said this close on 25 for me was far enough
+34:47 away. So I would have taken it close anyways. Uh it's just if the entry is a bit close to stop loss and especially if
+34:53 we only tapped right on the edge of the zone like this because we can very easily see that new 30 minute open up go
+34:58 a little bit further into the zone and then we're ready to drop. Now this next one is very important. You will
+35:04 essentially see lock trades that form this type of structure and you can easily avoid them when you look for it.
+35:09 So if liquidity is taken first and then price retraces, it's usually bad structure. So I'm going to show the
+35:14 cases where this is bad structure and I'll show the cases where it's okay.
+35:21 So we'll use a drawing for this one. Have a demand zone and we have liquidity
+35:26 forms takes out own high. This trade is now valid. So what this point means if if liquidity is taken out first and then
+35:35 we don't tap the zone um we retrace don't take out its own high again which means this low itself
+35:41 would not be valid liquidity and then we come and tap the zone that is now poor structure that is not a trade I look to
+35:48 take right if you think about it and you look at this this was our liquidity for the position it's been taken out already
+35:55 didn't tap the zone we hung around for ages this new liquidity did not become
+36:00 valid cuz we didn't take out its own high and then we tap zone. So now this is essentially normal supply and demand
+36:06 without liquidity. The scenario where this is okay is if liquidity is taken out right here and it just kind of hangs
+36:13 around a little bit. It doesn't consolidate too much, stays here a bit and then taps a zone. That is okay,
+36:18 right? Sometimes that's going to happen. You can't expect it to be direct every single time. But if it takes it out and
+36:26 has a retracement and then taps a zone, this is not good. And you can sort of see this is now starting to form downtrend structure. So a lot more
+36:33 chance it's going to be a fake out. Now nothing in trading is 100%. It's going to be times where this still ends up
+36:38 winning. That's not the point. Bad setups win all the time. Good setups lose all the time. Right? We're simply trading an edge. And if you just start
+36:45 looking at the fact that trade wins and that's what makes it good, then you're not trading properly. The only thing that makes a trade good is it follows
+36:51 the plan completely. That's how you'll be profitable long term. So yeah, a couple scenarios. If we take out
+36:57 liquidity and start heavy consolidating and we tap the zone while consolidating with low volume, also not a good sign. I
+37:04 won't take position. Then if we have just a slight retracement like this and we still move direct to the zone and
+37:10 it's still fairly recent that we just took out liquidity, I'll still take the position. So really the only bad
+37:15 situation is if we take out liquidity, have a retracement. Often over here there's a sort of normal supply zone
+37:21 waiting. We tap that normal supply zone then come back. I'm never going to take that position, right? Especially with
+37:26 the five minute, there's a lot of trades. There's no need to compromise and take four positions here and there when you could just wait a day or two
+37:32 and high quality positions will instantly be showing up. So, it's all about patience. I'll quickly give a scenario for a supply just so you can
+37:39 see both sides playing out. So, formal supply,
+37:44 form liquidity, take out it own low. If we take out this liquidity, have a retracement first and then tap the zone.
+37:51 Not going to be why I take. If we take out liquidity, just hang around a little
+37:56 bit, but still tap the zone with clear movement. I'll take it. So, those are a couple different scenarios. These recent
+38:01 trades on UJ, of course, did not do that. They essentially tapped straight away. This one took out liquidity, had
+38:07 one single bearish candle and still very quickly tapped the zone. So, that was okay. Those are the scenarios. Both the
+38:14 trades went flying. Very nice A+ price action between those two. So, with that
+38:20 being said, that brings us to the end of the full strategy guide. Hope that was very valuable. Now, if you want to see
+38:25 the trades that I take, trade with the community, learn the strategy in full detail. Definitely recommend joining the
+38:31 Discord. We have loads of stuff going on in here. Hundreds of webinars covering psychology, technicals, market
+38:37 breakdowns, covering price action in detail, daily forecast I post every morning, the 30 minute time frame, uh
+38:43 live back test reviews. We're doing this current event at the moment which is probably the most helpful thing I've ever done in terms of price action every
+38:50 day covering a straight full month of the back test comparing people's trades they shouldn't have taken should have
+38:56 taken to my own one and breaking down all the price action. So if you guys are interested in joining then link will be
+39:02 in the description. With that being said that's all for today's video. Appreciate you guys watching and I'll see you in
+39:08 the next one. We have loads of stuff going on here. We've got webinars and extras where I cover psychology in
+39:14 detail. Technicals as well, market breakdowns, full technicals here, daily forecast post every single morning for
+39:21 my analysis on the 30-minut time frame. Live back test reviews. This is the current event that we're running
+39:26 comparing people's back test to my own. The trades they should have taken, shouldn't have taken on the live stream.
+39:31 This has been extremely helpful because the amount of setups we go through is insane. You see all the repeating factors of price action between good and
+39:37 bad trades. And then I've got my own trade ideas in here that I post occasionally. With that being said, link
+39:43 in the description if you're interested in joining. I'll see you guys in the next video.
