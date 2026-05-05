@@ -1,5 +1,6 @@
 from scripts.optimizer import config as optimizer_config
 from scripts.optimizer.param_contract import (
+    DEFAULT_PINE_SOURCE,
     extract_pine_inputs,
     optimizer_search_param_names,
     validate_optimizer_pine_contract,
@@ -45,6 +46,17 @@ def test_optimizer_params_are_backed_by_canonical_pine_input_titles() -> None:
 
 def test_optimizer_pine_contract_startup_validation_passes() -> None:
     validate_optimizer_pine_contract()
+
+
+def test_pine_strategy_uses_custom_profile_only() -> None:
+    source = DEFAULT_PINE_SOURCE.read_text()
+
+    assert 'options = ["Custom"]' in source
+    assert "Conservative (Live Trading)" not in source
+    assert "Balanced (Recommended)" not in source
+    assert "Aggressive (Paper Trading)" not in source
+    assert "use_profile_defaults" not in source
+    assert "is_aggressive" not in source
 
 
 def test_result_params_are_a_reproducible_pine_input_snapshot() -> None:

@@ -67,11 +67,8 @@ pip_size = Utils.get_auto_pip_size(syminfo.ticker, syminfo.mintick)
 
 
 config_profile = input.string("Custom", "config_profile",
-     options = ["Conservative (Live Trading)", "Balanced (Recommended)", "Aggressive (Paper Trading)", "Custom"],
+     options = ["Custom"],
      group = "🎯 Quick Setup")
-
-use_profile_defaults = config_profile != "Custom"
-is_aggressive = config_profile == "Aggressive (Paper Trading)"
 
 
 const int MAX_BACKWARD_SCAN = 200
@@ -355,65 +352,6 @@ end_date           = input.time(timestamp("31 Dec 2027 23:59 +0000"), "end_date"
 min_bar_index_for_entries = 100
 
 
-if use_profile_defaults
-    is_conservative = config_profile == "Conservative (Live Trading)"
-    is_balanced = config_profile == "Balanced (Recommended)"
-
-    if is_conservative
-        pvtMax := 5
-        liq_pivot_len := 5
-        liq_max_distance_pips_forex := 10.0
-        liq_max_distance_pips_gold := 100.0
-        liq_entry_max_dist := 8.0
-        ai_quality_threshold := 70
-        min_entry_grade := "B+"
-        if not use_custom_rr
-            risk_reward_ratio := 3.0
-        max_trades_per_day := 1
-        min_tp_distance_pips := 15.0
-    else if is_balanced
-        pvtMax := 5
-        liq_pivot_len := 5
-        liq_max_distance_pips_forex := 20.0
-        liq_max_distance_pips_gold := 150.0
-        liq_entry_max_dist := 10.0
-        ai_quality_threshold := 60
-        min_entry_grade := "C+"
-        if not use_custom_rr
-            risk_reward_ratio := 2.0
-        max_trades_per_day := 2
-        min_tp_distance_pips := 10.0
-    else  // Aggressive
-        pvtMax := 10
-        liq_pivot_len := 3
-        liq_max_distance_pips_forex := 20.0
-        liq_max_distance_pips_gold := 200.0
-        liq_entry_max_dist := 15.0
-        ai_quality_threshold := 50
-        min_entry_grade := "C"
-        if not use_custom_rr
-            risk_reward_ratio := 1.5
-        max_trades_per_day := 2
-        min_tp_distance_pips := 5.0
-
-
-    if is_aggressive and not (is_gold or is_index or is_xpt)
-        liq_max_distance_pips_forex := 12.0  // ← Reduced from 20 (split between Aggressive 20 and Balanced 15)
-        liq_entry_max_dist := 12.0           // ← Entry gate tighter than scan (12 pips scan, 12 pips gate = same quality)
-
-        min_entry_grade := "C+"              // ← Improved from "C" (better zone quality)
-        ai_quality_threshold := 55           // ← Improved from 50 (stricter AI filter, Balanced is 60)
-
-
-        min_tp_distance_pips := 8.0          // ← Up from 5 (prevents spread eating profits)
-
-    require_major_liquidity := is_conservative or is_balanced
-    structure_mode := is_conservative ? "Standard (Bodies)" : "Relaxed (Wicks)"
-    // Grade filter and HTF flip: only for forex (good-marking doesn't use these)
-    enable_grade_filter := (is_conservative or is_balanced) and not (is_gold or is_index or is_xpt)
-    require_htf_flip := (is_conservative or is_balanced) and not (is_gold or is_index or is_xpt)
-    stop_loss_buffer_pips := 1.0
-
 debug_enabled   = debug_level != "None"
 debug_full      = (debug_level == "Full") or (debug_level != "None" and debug_mode)
 debug_basic     = debug_level == "Basic"
@@ -635,24 +573,6 @@ get_tp_ratio(symbol_type, sl_pips) =>
         be_trig := na
         be_sl := na
         move_be := false
-    else if is_aggressive and use_profile_defaults
-        if is_gold or is_xpt
-            [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules_aggressive(sl_pips)
-            base_ratio := g_tp
-            be_trig := g_bet
-            be_sl := g_bes
-            move_be := g_mbe
-        else if is_jpy_pair or (not is_silver and not is_crypto)
-            [f_tp, f_bet, f_bes, f_mbe] = get_forex_tp_rules(sl_pips)
-            base_ratio := f_tp
-            be_trig := f_bet
-            be_sl := f_bes
-            move_be := f_mbe
-        else
-            base_ratio := 4.0
-            be_trig := na
-            be_sl := na
-            move_be := false
     else if is_gold or is_xpt
         [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules(sl_pips)
         base_ratio := g_tp
@@ -1948,7 +1868,7 @@ validate_entry_conditions(bool isDemand, int idx) =>
             else
                 // Liq distance check: scan distance already constrains pivot selection
                 // Gold/indices: no additional entry gate (scan distance = 150/500 pips is sufficient)
-                // Forex: use profile-based liq_entry_max_dist (8-15 pips)
+                // Forex: use custom liq_entry_max_dist.
                 if not (is_gold or is_index or is_xpt) and liq_entry_max_dist > 0.0
                     if not checkLiquidityDistance(z, not isDemand)
                         float liqDist = getLiquidityDistance(z, not isDemand)
@@ -4958,7 +4878,7 @@ if showDebugPanels and showActiveProfile
         text_size = size.normal,
         text_halign = text.align_center)
     table.cell(profileStatusTable, 1, 0, config_profile, 
-        text_color = use_profile_defaults ? color.yellow : color.white, 
+        text_color = color.white,
         bgcolor = color.new(color.rgb(0, 120, 215), 20),
         text_size = size.normal,
         text_halign = text.align_left)
@@ -4970,7 +4890,7 @@ if showDebugPanels and showActiveProfile
     table.cell(profileStatusTable, 1, 2, str.tostring(ai_quality_threshold), text_color = color.white, text_halign = text.align_left)
 
     table.cell(profileStatusTable, 0, 3, "RR Ratio", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    string rr_label = use_custom_rr ? "1:" + str.tostring(risk_reward_ratio, "#.#") : (is_aggressive and use_profile_defaults ? "SL-based" : "1:" + str.tostring(risk_reward_ratio, "#.#"))
+    string rr_label = use_custom_rr ? "1:" + str.tostring(risk_reward_ratio, "#.#") : "1:" + str.tostring(risk_reward_ratio, "#.#")
     table.cell(profileStatusTable, 1, 3, rr_label, text_color = color.white, text_halign = text.align_left)
 
     table.cell(profileStatusTable, 0, 4, "RR Mode", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
@@ -4979,12 +4899,6 @@ if showDebugPanels and showActiveProfile
     if use_custom_rr
         rr_mode := "OVERRIDDEN: Fixed 1:" + str.tostring(risk_reward_ratio, "#.#")
         rr_mode_color := color.orange
-    else if is_aggressive and use_profile_defaults
-        rr_mode := "✓ YOUR RULES (Aggressive)"
-        rr_mode_color := color.lime
-    else if use_profile_defaults and (config_profile == "Conservative (Live Trading)" or config_profile == "Balanced (Recommended)")
-        rr_mode := "SL-based (Profile)"
-        rr_mode_color := color.white
     else
         rr_mode := "SL-based (Default)"
         rr_mode_color := color.gray

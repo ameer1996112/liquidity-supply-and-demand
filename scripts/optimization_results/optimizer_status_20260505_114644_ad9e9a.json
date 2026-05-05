@@ -2,7 +2,7 @@
   "run_id": "20260505_114644_ad9e9a",
   "state": "running",
   "started_at": "2026-05-05T11:46:44.207886+03:00",
-  "last_progress_at": "2026-05-05T12:10:00.139325+03:00",
+  "last_progress_at": "2026-05-05T12:20:43.292186+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
   "optimizer_pid": 18037,
@@ -33,26 +33,26 @@
   "active_pairs": {
     "worker-0": {
       "symbol": "NAS100",
-      "trial": 14,
-      "last_event_at": "2026-05-05T12:09:17.041978+03:00",
-      "status": "running"
+      "trial": 20,
+      "last_event_at": "2026-05-05T12:19:56.851709+03:00",
+      "status": "completed"
     },
     "worker-1": {
       "symbol": "US500",
-      "trial": 3,
-      "last_event_at": "2026-05-05T12:05:27.635578+03:00",
+      "trial": 5,
+      "last_event_at": "2026-05-05T12:17:52.580379+03:00",
       "status": "running"
     },
     "worker-2": {
       "symbol": "GBPJPY",
-      "trial": 12,
-      "last_event_at": "2026-05-05T12:10:00.139325+03:00",
+      "trial": 18,
+      "last_event_at": "2026-05-05T12:20:12.817602+03:00",
       "status": "running"
     },
     "worker-3": {
       "symbol": "GBPCAD",
-      "trial": 10,
-      "last_event_at": "2026-05-05T12:09:01.536107+03:00",
+      "trial": 17,
+      "last_event_at": "2026-05-05T12:20:43.292186+03:00",
       "status": "running"
     }
   },
@@ -60,22 +60,22 @@
     "worker-0": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "92493cce"
+      "last_results_hash": "4c355d70"
     },
     "worker-1": {
       "status": "warning",
-      "stale_reads": 3,
-      "last_results_hash": "d41d8cd9"
+      "stale_reads": 5,
+      "last_results_hash": ""
     },
     "worker-2": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "b6d60292"
+      "last_results_hash": "1892916b"
     },
     "worker-3": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "c8387cfa"
+      "last_results_hash": "f669fb75"
     }
   }
 }

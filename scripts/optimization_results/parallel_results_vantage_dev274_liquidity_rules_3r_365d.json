@@ -1,5 +1,5 @@
 {
-  "XAUUSD": {
+  "NAS100": {
     "status": "completed",
     "params": {
       "risk_pct": 0.4,
@@ -21,7 +21,7 @@
       "enable_accuracy_zones": true,
       "take_profit_pips": 0.0,
       "use_custom_rr": true,
-      "risk_reward_ratio": 4.0,
+      "risk_reward_ratio": 3.0,
       "max_position_size_lots": 100.0,
       "max_lots_per_10k": 10.0,
       "max_usd_risk_cap": 0.0,
@@ -33,57 +33,57 @@
       "enable_ai_lite_mode": false,
       "enable_grade_filter": false,
       "min_entry_grade": "C",
-      "rr_mode": "fixed_4.0",
+      "rr_mode": "fixed_3.0",
       "enable_ai_quality_filter": false,
-      "ai_quality_threshold": 53,
-      "min_tp_distance_pips": 19.3,
-      "liq_max_distance_pips_gold": 204.4,
-      "liq_entry_max_dist": 14.0,
-      "max_bars_held": 35,
-      "stop_loss_buffer_pips": 0.9,
+      "ai_quality_threshold": 48,
+      "min_tp_distance_pips": 19.6,
+      "liq_max_distance_pips_index": 466.2,
+      "liq_entry_max_dist": 18.4,
+      "max_bars_held": 70,
+      "stop_loss_buffer_pips": 2.5,
       "use_break_even": false,
       "enable_double_tp": false,
-      "liq_pivot_len": 2,
-      "pvtMax": 14,
-      "max_sweep_to_touch_bars": 18,
-      "max_peak_to_touch_bars": 49,
-      "min_body_perc": 21,
-      "max_zones": 30,
-      "max_daily_profit_pct": 7.2,
-      "trading_start_hour": 8,
-      "trading_end_hour": 15
+      "liq_pivot_len": 6,
+      "pvtMax": 10,
+      "max_sweep_to_touch_bars": 16,
+      "max_peak_to_touch_bars": 28,
+      "min_body_perc": 64,
+      "max_zones": 15,
+      "max_daily_profit_pct": 3.1,
+      "trading_start_hour": 7,
+      "trading_end_hour": 20
     },
     "source_run_id": null,
-    "score": 9.753054359726434,
-    "net_profit": 5747.16,
-    "win_rate": 19.15,
-    "profit_factor": 1.574,
-    "max_drawdown_pct": 4.93,
-    "total_trades": 47,
+    "score": 17.12779978730868,
+    "net_profit": 12826.7,
+    "win_rate": 33.7,
+    "profit_factor": 1.425,
+    "max_drawdown_pct": 5.48,
+    "total_trades": 181,
     "worker_id": 0,
-    "verified_symbol": "XAUUSD",
+    "verified_symbol": "NAS100",
     "validation_metrics": {
       "final_replay": {
         "matched_original": true,
         "original": {
-          "net_profit": 5747.16,
-          "win_rate": 19.15,
-          "profit_factor": 1.574,
-          "max_drawdown_pct": 4.93,
-          "total_trades": 47,
-          "score": 9.753054359726434
+          "net_profit": 12826.7,
+          "win_rate": 33.7,
+          "profit_factor": 1.425,
+          "max_drawdown_pct": 5.48,
+          "total_trades": 181,
+          "score": 17.12779978730868
         },
         "replay": {
-          "net_profit": 5747.16,
-          "win_rate": 19.15,
-          "profit_factor": 1.574,
-          "max_drawdown_pct": 4.93,
-          "total_trades": 47,
-          "score": 9.753054359726434
+          "net_profit": 12826.7,
+          "win_rate": 33.7,
+          "profit_factor": 1.425,
+          "max_drawdown_pct": 5.48,
+          "total_trades": 181,
+          "score": 17.12779978730868
         },
         "apply_reason": "fresh_result",
-        "results_hash_before": "f1bd5df8",
-        "results_hash_after": "76ef859b"
+        "results_hash_before": "4c355d70",
+        "results_hash_after": "ba1744d3"
       }
     },
     "result_truth": {
@@ -91,9 +91,9 @@
       "evidence_required": true,
       "stage": "final_replay",
       "trust_status": "trusted",
-      "params_digest": "ae9255c74a77cf88",
+      "params_digest": "3a3c208a7bd8f5e8",
       "source_params_digest": "",
-      "requested_symbol": "XAUUSD",
+      "requested_symbol": "NAS100",
       "requested_broker": "VANTAGE",
       "requested_range": "365d",
       "custom_start_date": "",
@@ -104,8 +104,8 @@
           "required": true,
           "reason": "",
           "details": {
-            "expected": "XAUUSD",
-            "observed": "XAUUSD"
+            "expected": "NAS100",
+            "observed": "NAS100"
           }
         },
         "broker_loaded": {
@@ -163,20 +163,20 @@
           "details": {
             "matched_original": true,
             "original": {
-              "net_profit": 5747.16,
-              "win_rate": 19.15,
-              "profit_factor": 1.574,
-              "max_drawdown_pct": 4.93,
-              "total_trades": 47,
-              "score": 9.753054359726434
+              "net_profit": 12826.7,
+              "win_rate": 33.7,
+              "profit_factor": 1.425,
+              "max_drawdown_pct": 5.48,
+              "total_trades": 181,
+              "score": 17.12779978730868
             },
             "replay": {
-              "net_profit": 5747.16,
-              "win_rate": 19.15,
-              "profit_factor": 1.574,
-              "max_drawdown_pct": 4.93,
-              "total_trades": 47,
-              "score": 9.753054359726434
+              "net_profit": 12826.7,
+              "win_rate": 33.7,
+              "profit_factor": 1.425,
+              "max_drawdown_pct": 5.48,
+              "total_trades": 181,
+              "score": 17.12779978730868
             }
           }
         },
@@ -217,8 +217,8 @@
           "required": true,
           "reason": "",
           "details": {
-            "before": "f1bd5df8",
-            "after": "76ef859b",
+            "before": "4c355d70",
+            "after": "ba1744d3",
             "changed": true,
             "allow_unchanged": false
           }
@@ -229,6 +229,6 @@
       "rejection_reasons": []
     },
     "trust_status": "trusted",
-    "timestamp": "2026-05-05T12:51:40.558123"
+    "timestamp": "2026-05-05T12:19:56.852465"
   }
 }
