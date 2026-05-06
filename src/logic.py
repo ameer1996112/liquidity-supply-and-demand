@@ -3,8 +3,10 @@ Trade execution logic (Engine).
 Save to Supabase, filter or notify, optional paper position. Used only by worker.
 """
 
+import asyncio
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from config.logging_config import get_logger
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple, Optional
@@ -33,10 +35,26 @@ from src.adapters import supabase as supabase_module
 from src.services.trade_events import log_event
 from src.services.execution_engine import ExecutionEngine
 from src.services.alert_service import create_default_alert_service
+from src.services.pending_entry_execution import (
+    PendingEntryRequest,
+    infer_pip_size,
+    wait_for_next_wick_entry,
+)
 
 logger = get_logger("trinity.logic")
 
 _paper_trader = None
+
+
+def _run_coroutine_blocking(coro: Any) -> Any:
+    """Run an async helper from the synchronous worker path."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
 
 
 def _should_fetch_broker_pnl_after_close(status: str) -> bool:
@@ -699,6 +717,66 @@ def process_trade(
                             spread = _spread
                     except Exception as spread_err:
                         logger.warning("Failed to fetch spread for %s: %s", symbol, spread_err)
+
+                execution_mode = str(data.get("execution_mode") or "market_on_signal").lower()
+                if execution_mode == "wait_for_next_wick":
+                    pip_size = infer_pip_size(symbol, broker_spec)
+                    pending_request = PendingEntryRequest(
+                        symbol=symbol,
+                        side=str(data.get("side", "")).lower(),
+                        reference_price=float(data.get("entry_reference_price") or entry),
+                        pullback_pips=float(data.get("wick_entry_pullback_pips") or 0.0),
+                        max_spread_pips=float(data.get("max_spread_pips") or 3.0),
+                        pip_size=pip_size,
+                        max_delay_seconds=float(data.get("max_entry_delay_seconds") or 300.0),
+                        poll_interval_seconds=float(data.get("entry_poll_interval_seconds") or 1.0),
+                    )
+                    logger.info(
+                        "Waiting for next-wick entry: alert #%s %s %s ref=%.5f pullback=%.1fp max_spread=%.1fp",
+                        alert_id,
+                        symbol,
+                        pending_request.side,
+                        pending_request.reference_price,
+                        pending_request.pullback_pips,
+                        pending_request.max_spread_pips,
+                    )
+                    pending_result = _run_coroutine_blocking(
+                        wait_for_next_wick_entry(adapter, pending_request)
+                    )
+                    data["_pending_entry_execution"] = {
+                        "triggered": pending_result.triggered,
+                        "reason": pending_result.reason,
+                        "entry_price": pending_result.entry_price,
+                        "bid": pending_result.bid,
+                        "ask": pending_result.ask,
+                        "spread_pips": pending_result.spread_pips,
+                        "attempts": pending_result.attempts,
+                    }
+                    if not pending_result.triggered or pending_result.entry_price is None:
+                        note = (
+                            f"Pending entry cancelled: {pending_result.reason} "
+                            f"(attempts={pending_result.attempts}, spread={pending_result.spread_pips})"
+                        )
+                        logger.info("Alert #%s %s", alert_id, note)
+                        log_event(alert_id, "pending_entry_cancelled", "logic", data["_pending_entry_execution"])
+                        update_alert_status(alert_id, "execution_cancelled", notes=note[:500])
+                        return
+
+                    entry = float(pending_result.entry_price)
+                    data["entry"] = entry
+                    risk = abs(entry - sl)
+                    reward = abs(tp - entry)
+                    rr_ratio = reward / risk if risk > 0 else 0.0
+                    spread = float(pending_result.spread_pips or spread)
+                    log_event(alert_id, "pending_entry_triggered", "logic", data["_pending_entry_execution"])
+                    logger.info(
+                        "Pending entry triggered: alert #%s entry=%.5f bid=%s ask=%s spread=%.1fp",
+                        alert_id,
+                        entry,
+                        pending_result.bid,
+                        pending_result.ask,
+                        pending_result.spread_pips or 0.0,
+                    )
 
                 sizing_result = calculate_position_size_with_spread(
                     payload=data,
