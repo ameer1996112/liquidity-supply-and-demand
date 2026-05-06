@@ -177,6 +177,11 @@ def save_alert(
         'zone_grade': data.get('zone_grade'),
         'bars_since_zone': data.get('bars_since_zone'),
         'liquidity_score': data.get('liquidity_score'),
+        # Backend observational setup scoring for outcome learning.
+        'setup_score': data.get('setup_score'),
+        'setup_grade': data.get('setup_grade'),
+        'setup_score_breakdown': data.get('setup_score_breakdown'),
+        'setup_tags': data.get('setup_tags'),
         # V2.0 Telemetry Fields
         'run_mode': run_mode,
         'run_id': run_id,

@@ -40,6 +40,7 @@ from src.services.pending_entry_execution import (
     infer_pip_size,
     wait_for_next_wick_entry,
 )
+from src.services.setup_scoring import score_rd_setup
 
 logger = get_logger("trinity.logic")
 
@@ -547,6 +548,15 @@ def process_trade(
     symbol = str(data.get("symbol", "")).upper()
     run_mode = str(data.get("run_mode", "PAPER")).upper()
     logger.info("Signal: %s | Mode: %s", symbol, run_mode)
+
+    setup_score = score_rd_setup(data)
+    data.update(setup_score)
+    logger.info(
+        "Setup score: %s %s tags=%s",
+        setup_score["setup_score"],
+        setup_score["setup_grade"],
+        ",".join(setup_score["setup_tags"]),
+    )
 
     should_forward, filter_reasons, _ = should_forward_alert(data)
     mode = "paper" if run_mode == "PAPER" else "manual"

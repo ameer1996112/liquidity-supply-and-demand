@@ -106,6 +106,16 @@ class EntryWebhookPayload(BaseModel):
         description="Maximum allowed live spread at pending entry trigger",
     )
 
+    # Backend-generated observational score. This is for learning/reporting,
+    # not a hard execution gate.
+    setup_score: float | None = Field(default=None, description="Backend RD setup score 0-100")
+    setup_grade: str | None = Field(default=None, description="Backend RD setup grade")
+    setup_score_breakdown: dict[str, Any] | None = Field(
+        default=None,
+        description="Backend RD setup score contribution details",
+    )
+    setup_tags: list[str] | None = Field(default=None, description="Backend RD setup learning tags")
+
 
     @model_validator(mode="after")
     def side_must_be_buy_or_sell(self) -> "EntryWebhookPayload":
