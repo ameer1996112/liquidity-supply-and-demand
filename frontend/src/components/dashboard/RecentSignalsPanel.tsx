@@ -40,6 +40,7 @@ import {
   Check,
 } from 'lucide-react';
 import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
+import { SetupScoreBadge } from '@/components/shared/SetupScoreBadge';
 import { EMPTY_VALUE, formatNumber } from '@/lib/formatters';
 
 type FilterTab = 'all' | 'active' | 'wins' | 'losses' | 'rejects';
@@ -170,6 +171,7 @@ const SignalRowMemo = memo(function SignalRow({
             )}
           </span>
           <TriggerBadge signal={signal} />
+          <SetupScoreBadge signal={signal} compact />
         </div>
         <div className='mt-1'>
           <StatusBadge status={signal.status} pnl={pnl} compact />

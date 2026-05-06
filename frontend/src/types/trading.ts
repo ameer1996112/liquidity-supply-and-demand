@@ -175,6 +175,15 @@ export interface TradingSignal {
   position_size?: number;
   image_url?: string | null;
   setup_evidence?: SetupEvidence | null;
+  setup_score?: number | null;
+  setup_grade?: string | null;
+  setup_score_version?: string | null;
+  setup_asset_class?: string | null;
+  setup_sl_band?: string | null;
+  setup_score_breakdown?: Record<string, unknown> | null;
+  setup_tags?: string[] | null;
+  setup_strengths?: string[] | null;
+  setup_weaknesses?: string[] | null;
 
   // AI Analysis
   score?: number; // AI confidence 0-100

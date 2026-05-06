@@ -18,6 +18,7 @@ import { TradeNoteEditor, TradeNoteIndicator } from './TradeNoteEditor';
 import { formatDuration } from './TradeTable';
 import { SetupEvidenceCell } from './SetupEvidenceCell';
 import { SetupEvidenceDetail } from './SetupEvidenceDetail';
+import { SetupScoreBadge } from '@/components/shared/SetupScoreBadge';
 
 interface ExpandableTradeRowProps {
   signal: TradingSignal;
@@ -157,7 +158,10 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
 
         {/* Setup */}
         <td className="py-2.5 px-3">
-          <SetupEvidenceCell evidence={signal.setup_evidence} />
+          <div className="flex items-center gap-1.5">
+            <SetupEvidenceCell evidence={signal.setup_evidence} />
+            <SetupScoreBadge signal={signal} compact />
+          </div>
         </td>
 
         {/* Zone (type + grade) */}
@@ -301,6 +305,46 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                   Setup Evidence
                 </span>
                 <SetupEvidenceDetail evidence={signal.setup_evidence} />
+                {signal.setup_score != null && (
+                  <div className="space-y-1.5 border-t border-[var(--to-border)]/60 pt-2 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-[var(--to-text-dim)]">Score</span>
+                      <SetupScoreBadge signal={signal} />
+                    </div>
+                    {signal.setup_asset_class && (
+                      <div className="flex justify-between">
+                        <span className="text-[var(--to-text-dim)]">Class</span>
+                        <span className="font-mono text-[var(--to-text-secondary)]">
+                          {signal.setup_asset_class.toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    {signal.setup_sl_band && (
+                      <div className="flex justify-between">
+                        <span className="text-[var(--to-text-dim)]">SL Band</span>
+                        <span className="font-mono text-[var(--to-text-secondary)]">
+                          {signal.setup_sl_band}
+                        </span>
+                      </div>
+                    )}
+                    {signal.setup_strengths?.length ? (
+                      <div>
+                        <span className="text-[var(--to-text-dim)]">Strengths</span>
+                        <p className="mt-0.5 font-mono text-[var(--to-text-secondary)]">
+                          {signal.setup_strengths.slice(0, 3).join(', ')}
+                        </p>
+                      </div>
+                    ) : null}
+                    {signal.setup_weaknesses?.length ? (
+                      <div>
+                        <span className="text-[var(--to-text-dim)]">Watch</span>
+                        <p className="mt-0.5 font-mono text-amber-300">
+                          {signal.setup_weaknesses.slice(0, 3).join(', ')}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </div>
 
               {/* Technical Setup */}

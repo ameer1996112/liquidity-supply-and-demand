@@ -21,6 +21,7 @@ import {
   Mono,
   PnLText,
 } from '@/components/ui/typography';
+import { SetupScoreBadge } from '@/components/shared/SetupScoreBadge';
 
 // =============================================================================
 // TYPES
@@ -517,6 +518,7 @@ export function SignalTable({
                 {getSignalStrategyBadge(signal)}
               </span>
             )}
+            <SetupScoreBadge signal={signal} compact />
           </div>
         </div>
       ),

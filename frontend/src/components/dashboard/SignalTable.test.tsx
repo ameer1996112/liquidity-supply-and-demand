@@ -19,6 +19,8 @@ const signals: TradingSignal[] = [
     strategy_id: 'liq_sd_v1',
     strategy_version: '1',
     strategy_name: 'Liquidity S&D',
+    setup_score: 88.4,
+    setup_grade: 'A+',
   },
   {
     id: 'sig-2',
@@ -82,6 +84,8 @@ describe('SignalTable', () => {
     });
 
     expect(container.textContent).toContain('liq_sd_v1@1');
+    expect(container.textContent).toContain('A+');
+    expect(container.textContent).toContain('88');
     expect(container.textContent).toContain('breakout_v1@2');
 
     const breakoutButton = Array.from(container.querySelectorAll('button')).find(

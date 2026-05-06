@@ -25,6 +25,9 @@ const signalFixture: TradingSignal = {
   side: 'buy',
   status: 'ai_rejected',
   price: 155.458,
+  setup_score: 88.4,
+  setup_grade: 'A+',
+  setup_strengths: ['liquidity_sweep', 'multi_candle_liquidity'],
 };
 
 function DashboardHarness() {
@@ -113,5 +116,14 @@ describe('RecentSignalsPanel drawer behavior', () => {
     });
 
     expect(container.textContent).toContain('liq_sd_v1@1');
+  });
+
+  it('renders setup score on latest signal rows', () => {
+    act(() => {
+      root.render(<DashboardHarness />);
+    });
+
+    expect(container.textContent).toContain('A+');
+    expect(container.textContent).toContain('88');
   });
 });
