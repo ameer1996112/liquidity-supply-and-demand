@@ -297,7 +297,13 @@ export build_webhook_payload(
      int _bars_since_zone = na,
      string _strategy_id = "liq_sd_v1",
      string _strategy_version = "1",
-     string _trade_key = "") =>
+     string _trade_key = "",
+     string _execution_mode = "market_on_signal",
+     float _entry_reference_price = na,
+     float _wick_entry_pullback_pips = na,
+     int _max_entry_delay_seconds = na,
+     float _entry_poll_interval_seconds = na,
+     float _max_spread_pips = na) =>
 
     string payload = '{"strategy_id":"' + _strategy_id + '"'
     payload := payload + ',"strategy_version":"' + _strategy_version + '"'
@@ -310,6 +316,17 @@ export build_webhook_payload(
     payload := payload + ',"account_balance":' + to_json_num(_account_balance, "#.##")
     payload := payload + ',"risk_percent":' + to_json_num(_risk_percent, "#.##")
     payload := payload + ',"run_mode":"PAPER"'
+    payload := payload + ',"execution_mode":"' + _execution_mode + '"'
+    if not na(_entry_reference_price)
+        payload := payload + ',"entry_reference_price":' + to_json_num(_entry_reference_price, "#.##########")
+    if not na(_wick_entry_pullback_pips)
+        payload := payload + ',"wick_entry_pullback_pips":' + to_json_num(_wick_entry_pullback_pips, "#.#")
+    if not na(_max_entry_delay_seconds)
+        payload := payload + ',"max_entry_delay_seconds":' + str.tostring(_max_entry_delay_seconds, "#")
+    if not na(_entry_poll_interval_seconds)
+        payload := payload + ',"entry_poll_interval_seconds":' + to_json_num(_entry_poll_interval_seconds, "#.#")
+    if not na(_max_spread_pips)
+        payload := payload + ',"max_spread_pips":' + to_json_num(_max_spread_pips, "#.#")
 
     // Zone Inspector Data
     if include_zone_id and not na(_zone_id)

@@ -253,6 +253,33 @@ class EntryWebhookPayloadValidationTests(unittest.TestCase):
                 }
             )
 
+    def test_entry_payload_accepts_pending_execution_fields(self):
+        payload = EntryWebhookPayload.model_validate(
+            {
+                "strategy_id": "liq_sd_v1",
+                "strategy_version": "1",
+                "symbol": "EURUSD",
+                "side": "buy",
+                "entry": 1.10,
+                "sl": 1.09,
+                "tp": 1.12,
+                "size": 1.0,
+                "execution_mode": "wait_for_next_wick",
+                "entry_reference_price": 1.10,
+                "wick_entry_pullback_pips": 2.0,
+                "max_entry_delay_seconds": 300,
+                "entry_poll_interval_seconds": 1.0,
+                "max_spread_pips": 1.5,
+            }
+        )
+
+        self.assertEqual(payload.execution_mode, "wait_for_next_wick")
+        self.assertEqual(payload.entry_reference_price, 1.10)
+        self.assertEqual(payload.wick_entry_pullback_pips, 2.0)
+        self.assertEqual(payload.max_entry_delay_seconds, 300)
+        self.assertEqual(payload.entry_poll_interval_seconds, 1.0)
+        self.assertEqual(payload.max_spread_pips, 1.5)
+
 
 if __name__ == "__main__":
     unittest.main()

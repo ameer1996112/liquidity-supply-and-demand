@@ -26,7 +26,7 @@
 
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
-import ameer_1996112/SND_Utils/23 as Utils
+import ameer_1996112/SND_Utils/24 as Utils
 import ameer_1996112/SND_Core/26 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
@@ -178,7 +178,7 @@ structure_mode      = input.string("Relaxed (Wicks)", "structure_mode", options 
 liq_pivot_len       = input.int(10, "liq_pivot_len", minval = 1, group = "💧 Liquidity")
 pvtMax              = input.int(12, "pvtMax", minval = 1, maxval = 500, group = "💧 Liquidity")
 require_major_liquidity = input.bool(true, "require_major_liquidity", group = "💧 Liquidity")
-useOneCandleLiquidity = true  // Always allow — 1-candle liq filtering is handled by the Python backend
+useOneCandleLiquidity = false  // RD 5m rule: liquidity must be formed by more than one candle
 
 liq_max_distance_pips_forex = input.float(33.9, "liq_max_distance_pips_forex", minval = 5.0, group = "💧 Liquidity")
 liq_max_distance_pips_gold  = input.float(150.0, "liq_max_distance_pips_gold", minval = 5.0, group = "💧 Liquidity")
@@ -220,6 +220,7 @@ allow_short_trades    = trade_direction == "Both" or trade_direction == "Short O
 account_size_usd      = input.float(50000, "account_size_usd", minval = 100, step = 1000, group = "🎯 Quick Setup")
 risk_per_trade_pct    = input.float(0.5, "risk_per_trade_pct", minval = 0.1, maxval = 10, step = 0.1, group = "🎯 Quick Setup")
 stop_loss_buffer_pips = input.float(1.4, "stop_loss_buffer_pips", minval = 0, step = 0.1, group = "📊 Trade Execution")
+tp_rule_mode = input.string("RD 2026 Playbook", "tp_rule_mode", options = ["RD 2026 Playbook", "Custom Fixed RR", "Legacy Defaults"], group = "📊 Trade Execution", tooltip = "RD 2026 Playbook uses Gold and JPY/forex SL-size TP tables. Custom Fixed RR uses risk_reward_ratio. Legacy Defaults keeps old fixed defaults for non-forex instruments.")
 use_custom_rr         = input.bool(true, "use_custom_rr", group = "📊 Trade Execution")
 risk_reward_ratio     = input.float(4.0, "risk_reward_ratio", minval = 0.5, step = 0.1, group = "📊 Trade Execution")
 liq_entry_max_dist = input.float(8.7, "liq_entry_max_dist", minval = 0.0, step = 0.1, group = "💧 Liquidity")
@@ -270,6 +271,9 @@ max_trades_per_day = input.int(2, "max_trades_per_day", minval = 1, maxval = 10,
 
 filter_dead_zone = false  // Handled by backend risk page
 filter_trading_hours = input.bool(true, "filter_trading_hours", group = "⏰ Session & Limits")
+use_rd_5m_session = input.bool(true, "use_rd_5m_session", group = "⏰ Session & Limits", tooltip = "RD optimized 5m window: 07:00-09:00 UTC.")
+rd_session_start_hour_utc = input.int(7, "rd_session_start_hour_utc", minval = 0, maxval = 23, group = "⏰ Session & Limits")
+rd_session_end_hour_utc = input.int(9, "rd_session_end_hour_utc", minval = 1, maxval = 24, group = "⏰ Session & Limits")
 trading_start_hour = input.int(0, "trading_start_hour", minval = 0, maxval = 23, group = "⏰ Session & Limits")
 trading_end_hour = input.int(24, "trading_end_hour", minval = 0, maxval = 24, group = "⏰ Session & Limits")
 max_peak_to_touch_bars = input.int(20, "max_peak_to_touch_bars", minval = 1, maxval = 500, group = "📐 Entry Validation")
@@ -278,6 +282,11 @@ max_sweep_to_touch_bars = input.int(25, "max_sweep_to_touch_bars", minval = 1, m
 use_break_even     = input.bool(false, "use_break_even", group = "📊 Trade Execution")
 max_bars_held = input.int(88, "max_bars_held", minval=1, group = "📊 Trade Execution")
 enable_double_tp = input.bool(false, "enable_double_tp", group = "📊 Trade Execution")
+entry_execution_mode = input.string("market_on_signal", "entry_execution_mode", options = ["market_on_signal", "wait_for_next_wick"], group = "📊 Trade Execution")
+wick_entry_pullback_pips = input.float(1.0, "wick_entry_pullback_pips", minval = 0.0, step = 0.1, group = "📊 Trade Execution")
+max_entry_delay_seconds = input.int(300, "max_entry_delay_seconds", minval = 0, maxval = 900, group = "📊 Trade Execution")
+entry_poll_interval_seconds = input.float(1.0, "entry_poll_interval_seconds", minval = 0.1, maxval = 10.0, step = 0.1, group = "📊 Trade Execution")
+max_spread_pips = input.float(3.0, "max_spread_pips", minval = 0.1, step = 0.1, group = "📊 Trade Execution")
 use_fvg_confirmation = input.bool(false, "use_fvg_confirmation", group = "📐 Zone Detection")
 enable_accuracy_zones = input.bool(true, "enable_accuracy_zones", group = "📐 Zone Detection")
 should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_silver or is_index or is_xpt)
@@ -477,9 +486,9 @@ get_gold_tp_rules(sl_pips) =>
 
     if sl_pips <= 50.0
         tp_ratio := 4.5
-        be_trigger_rr := 4.0   // Move to BE generally
-        be_sl_pips_min := 5.0  // Min 5 pips profit
-        move_to_be := true
+        be_trigger_rr := na
+        be_sl_pips_min := na
+        move_to_be := false
     else if sl_pips <= 100.0
         tp_ratio := 3.0
         be_trigger_rr := 2.75
@@ -545,7 +554,7 @@ get_tp_ratio(symbol_type, sl_pips) =>
     float be_sl = na
     bool move_be = false
 
-    if use_custom_rr and not is_index
+    if use_custom_rr and tp_rule_mode == "Custom Fixed RR" and not is_index
         base_ratio := risk_reward_ratio
         be_trig := na
         be_sl := na
@@ -555,7 +564,7 @@ get_tp_ratio(symbol_type, sl_pips) =>
         be_trig := na
         be_sl := na
         move_be := false
-    else if is_gold or is_xpt
+    else if tp_rule_mode == "Legacy Defaults" and (is_gold or is_xpt)
         base_ratio := 4.0
         be_trig := na
         be_sl := na
@@ -1781,6 +1790,9 @@ is_time_dead_zone() =>
 is_outside_trading_hours() =>
     if not filter_trading_hours
         false
+    else if use_rd_5m_session
+        int utcHour = hour(time, "UTC")
+        utcHour < rd_session_start_hour_utc or utcHour >= rd_session_end_hour_utc
     else
         int israelHour = hour(time, "Asia/Jerusalem")
         israelHour < trading_start_hour or israelHour >= trading_end_hour
@@ -1814,13 +1826,20 @@ validate_entry_conditions(bool isDemand, int idx) =>
 
     if canEnter and is_outside_trading_hours()
         canEnter := false
-        int israelHour = hour(time, "Asia/Jerusalem")
-        reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: " + str.tostring(trading_start_hour) + ":00-" + str.tostring(trading_end_hour) + ":00)"
+        if use_rd_5m_session
+            int utcHour = hour(time, "UTC")
+            reason := "Outside RD 5m Session: " + str.tostring(utcHour) + ":00 UTC (allowed: " + str.tostring(rd_session_start_hour_utc) + ":00-" + str.tostring(rd_session_end_hour_utc) + ":00 UTC)"
+        else
+            int israelHour = hour(time, "Asia/Jerusalem")
+            reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: " + str.tostring(trading_start_hour) + ":00-" + str.tostring(trading_end_hour) + ":00)"
 
     if canEnter
         if canEnter and not z.causedSweep
             canEnter := false
             reason := isDemand ? "Waiting for Inducement Sweep (Demand)" : "Waiting for Inducement Sweep (Supply)"
+        if canEnter and z.touchedPreSweep
+            canEnter := false
+            reason := isDemand ? "Zone touched before liquidity sweep (Demand)" : "Zone touched before liquidity sweep (Supply)"
         if canEnter and z.isHistorical
             canEnter := false
             reason := isDemand ? "Demand zone created in historical backfill" : "Supply zone created in historical backfill"
@@ -1876,6 +1895,11 @@ validate_entry_conditions(bool isDemand, int idx) =>
                 canEnter := false
                 reason := isDemand ? "No wick INTO demand zone" : "No wick INTO supply zone"
 
+            bool closesInsideZone = close >= z.bottom and close <= z.top
+            if canEnter and closesInsideZone
+                canEnter := false
+                reason := isDemand ? "Entry candle closed inside zone (Demand)" : "Entry candle closed inside zone (Supply)"
+
         bool zone_already_used = not na(z.lastEntryBar)
         if canEnter and zone_already_used
             canEnter := false
@@ -1904,7 +1928,8 @@ validate_entry_conditions(bool isDemand, int idx) =>
 
 var float[] _trade_entry_price      = array.new_float(1, na)
 var float[] _trade_original_sl      = array.new_float(1, na)
-var float trade_original_sl_pips    = na  // Only reset (not set) in entry blocks — kept as scalar
+var float[] _trade_original_sl_pips = array.new_float(1, na)
+trade_original_sl_pips              = array.get(_trade_original_sl_pips, 0)
 var float[] _trade_current_sl       = array.new_float(1, na)
 var bool  labels_created            = false
 var float[] _trade_tp1_price        = array.new_float(1, na)
@@ -2727,9 +2752,13 @@ if cached_demand_size > 0 and barstate.isconfirmed
 
                     if is_liq_bar or delayed_retouch
                         z.touchedPreSweep := true
+                        array.set(demandZones, i, z)
+                        db_updateZoneLiquidity(z)
 
                 if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
                     z.mitigated := true
+                    array.set(demandZones, i, z)
+                    db_updateZoneLiquidity(z)
 
 if cached_supply_size > 0 and barstate.isconfirmed
     current_close = close
@@ -2804,6 +2833,8 @@ if cached_supply_size > 0 and barstate.isconfirmed
                     z.lastTouchBar := bar_index
                     z.wasTouched := true
                     z.touchedPreSweep := true
+                    array.set(supplyZones, i, z)
+                    db_updateZoneLiquidity(z)
 
                     // Incremental peak update: just check current bar vs stored peak (O(1) instead of O(N))
                     if na(z.peakPrice) or low < z.peakPrice
@@ -2814,6 +2845,8 @@ if cached_supply_size > 0 and barstate.isconfirmed
 
                 if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
                     z.mitigated := true
+                    array.set(supplyZones, i, z)
+                    db_updateZoneLiquidity(z)
 
 int demandSize = array.size(demandZones)
 if demandSize > 0
@@ -2836,11 +2869,11 @@ if demandSize > 0
 
                 bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
 
-                bool bearish_close_inside = current_close <= z.top and current_close >= z.bottom
+                bool close_inside_demand = current_close <= z.top and current_close >= z.bottom
                 bool close_below_zone     = current_close < z.bottom
                 bool wick_below_zone = current_low < z.bottom
 
-                if bearish_close_inside or close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
+                if close_inside_demand or close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
                     remove_zone_all_arrays(true, i)
 
 int supplySize = array.size(supplyZones)
@@ -2856,11 +2889,11 @@ if supplySize > 0
         if z.active
             bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
 
-            bool bullish_close_inside = current_close >= z.bottom and current_close <= z.top
+            bool close_inside_supply = current_close >= z.bottom and current_close <= z.top
             bool close_above_zone     = current_close > z.top
             bool wick_above_zone = current_high > z.top
 
-            if bullish_close_inside or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
+            if close_inside_supply or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
                 remove_zone_all_arrays(false, i)
 
 if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isconfirmed
@@ -3117,19 +3150,19 @@ process_long_entries() =>
                         continue
 
                 float balance  = account_size_usd
-                float risk_pct = risk_per_trade_pct
+                float trade_risk_pct = risk_per_trade_pct
 
                 if use_half_risk_second_trade and array.get(_current_day_trades, 0) == 1 and max_trades_per_day == 2
-                    risk_pct := risk_pct * 0.5
+                    trade_risk_pct := trade_risk_pct * 0.5
 
-                [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, risk_pct, false)
+                [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, trade_risk_pct, false)
 
                 stop_loss_price := pos_sl_fixed
 
                 array.set(_last_pos_size_entry, 0, entry_price)
                 array.set(_last_pos_size_sl, 0, stop_loss_price)
                 array.set(_last_pos_size_balance, 0, balance)
-                array.set(_last_pos_size_risk_pct, 0, risk_pct)
+                array.set(_last_pos_size_risk_pct, 0, trade_risk_pct)
                 array.set(_last_pos_size_sl_pips, 0, sl_pips)
                 array.set(_last_pos_size_valid, 0, pos_is_valid)
                 array.set(_last_pos_size_error, 0, pos_error_msg)
@@ -3241,7 +3274,7 @@ process_long_entries() =>
                         guardian_arrival,        // arrival_type
                         guardian_structure_break, // market_structure_break
                         account_size_usd,         // _account_balance (Corrected)
-                        risk_pct,                // _risk_percent (synced to backend)
+                        trade_risk_pct,          // _risk_percent (synced to backend)
                         f_liq_dist_pips,         // liq_distance_pips
                         f_liq_spread_pips,       // liq_spread_pips
                         time_close,              // current_time (bar close = signal fires at bar close)
@@ -3258,7 +3291,13 @@ process_long_entries() =>
                         bar_index - z.createdBarIndex, // bars_since_zone
                         WEBHOOK_STRATEGY_ID,
                         WEBHOOK_STRATEGY_VERSION,
-                        entry_trade_key
+                        entry_trade_key,
+                        entry_execution_mode,
+                        entry_price,
+                        wick_entry_pullback_pips,
+                        max_entry_delay_seconds,
+                        entry_poll_interval_seconds,
+                        max_spread_pips
                     ) : ""
 
                     if dry_run_mode
@@ -3335,6 +3374,7 @@ process_long_entries() =>
                         array.set(_active_entry_id, 0, "Long")
                         array.set(_trade_entry_price, 0, entry_price)
                         array.set(_trade_original_sl, 0, stop_loss_price)
+                        array.set(_trade_original_sl_pips, 0, sl_pips)
                         array.set(_trade_current_sl, 0, stop_loss_price)
                         array.set(_trade_tp1_price, 0, take_profit_price)
                         array.set(_current_day_trades, 0, array.get(_current_day_trades, 0) + 1)
@@ -3572,19 +3612,19 @@ process_short_entries() =>
                         continue
 
                 float balance  = account_size_usd
-                float risk_pct = risk_per_trade_pct
+                float trade_risk_pct = risk_per_trade_pct
 
                 if use_half_risk_second_trade and array.get(_current_day_trades, 0) == 1 and max_trades_per_day == 2
-                    risk_pct := risk_pct * 0.5
+                    trade_risk_pct := trade_risk_pct * 0.5
 
-                [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, risk_pct, true)
+                [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, trade_risk_pct, true)
 
                 stop_loss_price := pos_sl_fixed
 
                 array.set(_last_pos_size_entry, 0, entry_price)
                 array.set(_last_pos_size_sl, 0, stop_loss_price)
                 array.set(_last_pos_size_balance, 0, balance)
-                array.set(_last_pos_size_risk_pct, 0, risk_pct)
+                array.set(_last_pos_size_risk_pct, 0, trade_risk_pct)
                 array.set(_last_pos_size_sl_pips, 0, sl_pips)
                 array.set(_last_pos_size_valid, 0, pos_is_valid)
                 array.set(_last_pos_size_error, 0, pos_error_msg)
@@ -3696,7 +3736,7 @@ process_short_entries() =>
                         guardian_arrival_short,        // arrival_type
                         guardian_structure_break_short, // market_structure_break
                         account_size_usd,               // _account_balance (Corrected)
-                        risk_pct,                      // _risk_percent (synced to backend)
+                        trade_risk_pct,                // _risk_percent (synced to backend)
                         f_liq_dist_pips_short,         // liq_distance_pips
                         f_liq_spread_pips_short,       // liq_spread_pips
                         time_close,                    // current_time (bar close = signal fires at bar close)
@@ -3713,7 +3753,13 @@ process_short_entries() =>
                         bar_index - z.createdBarIndex, // bars_since_zone
                         WEBHOOK_STRATEGY_ID,
                         WEBHOOK_STRATEGY_VERSION,
-                        entry_trade_key_short
+                        entry_trade_key_short,
+                        entry_execution_mode,
+                        entry_price,
+                        wick_entry_pullback_pips,
+                        max_entry_delay_seconds,
+                        entry_poll_interval_seconds,
+                        max_spread_pips
                     ) : ""
 
                     if dry_run_mode
@@ -3790,6 +3836,7 @@ process_short_entries() =>
                         array.set(_active_entry_id, 0, "Short")
                         array.set(_trade_entry_price, 0, entry_price)
                         array.set(_trade_original_sl, 0, stop_loss_price)
+                        array.set(_trade_original_sl_pips, 0, sl_pips)
                         array.set(_trade_current_sl, 0, stop_loss_price)
                         array.set(_trade_tp1_price, 0, take_profit_price)
                         array.set(_current_day_trades, 0, array.get(_current_day_trades, 0) + 1)
@@ -3850,6 +3897,7 @@ process_short_entries()
 active_entry_id        := array.get(_active_entry_id, 0)
 trade_entry_price      := array.get(_trade_entry_price, 0)
 trade_original_sl      := array.get(_trade_original_sl, 0)
+trade_original_sl_pips := array.get(_trade_original_sl_pips, 0)
 trade_current_sl       := array.get(_trade_current_sl, 0)
 trade_tp1_price        := array.get(_trade_tp1_price, 0)
 trade_key              := array.get(_trade_key, 0)
@@ -4086,6 +4134,7 @@ if strategy.opentrades > 0
         array.set(_trade_entry_price, 0, na)
         trade_original_sl      := na
         array.set(_trade_original_sl, 0, na)
+        array.set(_trade_original_sl_pips, 0, na)
         trade_original_sl_pips := na
         trade_current_sl       := na
         array.set(_trade_current_sl, 0, na)
@@ -4201,6 +4250,7 @@ if trade_just_closed
     array.set(_trade_entry_price, 0, na)
     trade_original_sl := na
     array.set(_trade_original_sl, 0, na)
+    array.set(_trade_original_sl_pips, 0, na)
     trade_original_sl_pips := na
     trade_current_sl := na
     array.set(_trade_current_sl, 0, na)

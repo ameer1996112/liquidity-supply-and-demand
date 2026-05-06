@@ -79,6 +79,33 @@ class EntryWebhookPayload(BaseModel):
     rr_ratio: float | None = Field(None, description="Risk:Reward ratio from Pine Script — checked against min_rr_ratio")
     run_mode: str | None = Field(None, description="Override run mode: LIVE or PAPER (optional, resolved by API if absent)")
 
+    # Backend entry execution refinements. These let TradingView describe the
+    # signal bar, while MetaTrader waits for a spread-aware executable price.
+    execution_mode: Literal["market_on_signal", "wait_for_next_wick"] | None = Field(
+        default="market_on_signal",
+        description="Backend execution mode for entries",
+    )
+    entry_reference_price: float | None = Field(
+        default=None,
+        description="Reference close/entry price used for pending pullback execution",
+    )
+    wick_entry_pullback_pips: float | None = Field(
+        default=None,
+        description="Required bid/ask pullback before live entry",
+    )
+    max_entry_delay_seconds: float | None = Field(
+        default=None,
+        description="Maximum seconds to wait for pending entry mitigation",
+    )
+    entry_poll_interval_seconds: float | None = Field(
+        default=None,
+        description="Seconds between price checks during pending entry",
+    )
+    max_spread_pips: float | None = Field(
+        default=None,
+        description="Maximum allowed live spread at pending entry trigger",
+    )
+
 
     @model_validator(mode="after")
     def side_must_be_buy_or_sell(self) -> "EntryWebhookPayload":

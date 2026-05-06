@@ -132,8 +132,14 @@ OPTIMIZER_CONTEXT_PARAM_DEFAULTS = {
     "use_fvg_confirmation": False,
     "enable_accuracy_zones": True,
     "take_profit_pips": 0.0,
+    "tp_rule_mode": "RD 2026 Playbook",
     "use_custom_rr": True,
     "risk_reward_ratio": 4.0,
+    "entry_execution_mode": "market_on_signal",
+    "wick_entry_pullback_pips": 1.0,
+    "max_entry_delay_seconds": 300,
+    "entry_poll_interval_seconds": 1.0,
+    "max_spread_pips": 3.0,
     "max_position_size_lots": 100.0,
     "max_lots_per_10k": 10.0,
     "max_usd_risk_cap": 0.0,
@@ -141,6 +147,9 @@ OPTIMIZER_CONTEXT_PARAM_DEFAULTS = {
     "enable_trade_limit": True,
     "max_trades_per_day": 3,
     "filter_trading_hours": True,
+    "use_rd_5m_session": True,
+    "rd_session_start_hour_utc": 7,
+    "rd_session_end_hour_utc": 9,
     "ema_context_length": 200,
     "ema_context_slope_lookback": 10,
     "ema_context_neutral_atr_mult": 0.10,
@@ -259,16 +268,21 @@ INPUT_INDEX = {
     "use_break_even": 42,            # checkbox: Break-Even Mode
     "max_bars_held": 43,             # Time-Based Exit
     "enable_double_tp": 44,          # checkbox: Double TP Mode
-    "max_position_size_lots": 45,    # 100
-    "max_lots_per_10k": 46,          # 10
-    "max_usd_risk_cap": 47,          # 0
-    "max_daily_loss_pct": 49,        # Daily Loss Limit
-    "max_daily_profit_pct": 50,      # Daily Profit Target
-    "max_trades_per_day": 52,        # Max Trades/Day
-    "trading_start_hour": 54,        # Start Hour
-    "trading_end_hour": 55,          # End Hour
-    "max_peak_to_touch_bars": 56,    # Max Peak to Touch Bars
-    "max_sweep_to_touch_bars": 57,   # Max Sweep to Touch Bars
+    "entry_execution_mode": 45,       # market_on_signal / wait_for_next_wick
+    "wick_entry_pullback_pips": 46,   # Backend wick pullback
+    "max_entry_delay_seconds": 47,    # Backend pending entry timeout
+    "entry_poll_interval_seconds": 48, # Backend pending poll interval
+    "max_spread_pips": 49,            # Backend pending max spread
+    "max_position_size_lots": 50,     # 100
+    "max_lots_per_10k": 51,           # 10
+    "max_usd_risk_cap": 52,           # 0
+    "max_daily_loss_pct": 54,         # Daily Loss Limit
+    "max_daily_profit_pct": 55,       # Daily Profit Target
+    "max_trades_per_day": 57,         # Max Trades/Day
+    "trading_start_hour": 59,         # Start Hour
+    "trading_end_hour": 60,           # End Hour
+    "max_peak_to_touch_bars": 61,     # Max Peak to Touch Bars
+    "max_sweep_to_touch_bars": 62,    # Max Sweep to Touch Bars
 }
 
 # CHECKBOX indices — these need special handling (toggle, not fill)
