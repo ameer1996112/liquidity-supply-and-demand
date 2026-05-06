@@ -117,6 +117,28 @@ class NotificationService:
             "reason": str(setup_evidence.get("reason") or ""),
         }
 
+    def _build_setup_score_summary(self, signal: dict[str, Any]) -> Optional[dict[str, Any]]:
+        raw_score = signal.get("setup_score")
+        if raw_score is None:
+            return None
+
+        try:
+            score = round(float(raw_score), 1)
+        except (TypeError, ValueError):
+            return None
+
+        strengths = signal.get("setup_strengths") if isinstance(signal.get("setup_strengths"), list) else []
+        weaknesses = signal.get("setup_weaknesses") if isinstance(signal.get("setup_weaknesses"), list) else []
+        return {
+            "score": score,
+            "grade": str(signal.get("setup_grade") or "N/A"),
+            "version": str(signal.get("setup_score_version") or "unknown"),
+            "asset_class": str(signal.get("setup_asset_class") or ""),
+            "sl_band": str(signal.get("setup_sl_band") or ""),
+            "strengths": [str(item) for item in strengths[:3]],
+            "weaknesses": [str(item) for item in weaknesses[:3]],
+        }
+
     # ─── Public API ──────────────────────────────────────────────────────────
 
     def format_signal(
@@ -235,6 +257,17 @@ class NotificationService:
             sections.append({"name": "Risk", "fields": risk_fields})
         if ai_fields:
             sections.append({"name": "AI", "fields": ai_fields})
+        setup_score_summary = self._build_setup_score_summary(signal)
+        if setup_score_summary:
+            setup_fields = {
+                "Setup": f"{setup_score_summary['grade']} {setup_score_summary['score']:.1f}/100",
+                "Score Model": setup_score_summary["version"],
+            }
+            if setup_score_summary["strengths"]:
+                setup_fields["Strengths"] = ", ".join(setup_score_summary["strengths"])
+            if setup_score_summary["weaknesses"]:
+                setup_fields["Watch"] = ", ".join(setup_score_summary["weaknesses"])
+            sections.append({"name": "Setup Score", "fields": setup_fields})
         if context_fields:
             sections.append({"name": "Context", "fields": context_fields})
 
@@ -245,6 +278,8 @@ class NotificationService:
         setup_evidence_summary = self._build_setup_evidence_summary(signal)
         if setup_evidence_summary:
             metadata["setup_evidence_summary"] = setup_evidence_summary
+        if setup_score_summary:
+            metadata["setup_score_summary"] = setup_score_summary
 
         return NotificationPayload(
             type="signal",

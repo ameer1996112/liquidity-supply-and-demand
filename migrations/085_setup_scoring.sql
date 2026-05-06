@@ -4,20 +4,38 @@
 ALTER TABLE public.trading_signals
   ADD COLUMN IF NOT EXISTS setup_score NUMERIC,
   ADD COLUMN IF NOT EXISTS setup_grade TEXT,
+  ADD COLUMN IF NOT EXISTS setup_score_version TEXT,
+  ADD COLUMN IF NOT EXISTS setup_asset_class TEXT,
+  ADD COLUMN IF NOT EXISTS setup_sl_band TEXT,
   ADD COLUMN IF NOT EXISTS setup_score_breakdown JSONB,
-  ADD COLUMN IF NOT EXISTS setup_tags TEXT[];
+  ADD COLUMN IF NOT EXISTS setup_tags TEXT[],
+  ADD COLUMN IF NOT EXISTS setup_strengths TEXT[],
+  ADD COLUMN IF NOT EXISTS setup_weaknesses TEXT[];
 
 COMMENT ON COLUMN public.trading_signals.setup_score IS
   'Backend RD setup score, 0-100, generated before signal persistence.';
 COMMENT ON COLUMN public.trading_signals.setup_grade IS
   'Backend RD setup grade derived from setup_score (A+, A, B, C, D).';
+COMMENT ON COLUMN public.trading_signals.setup_score_version IS
+  'Version of backend setup scoring rules used for this signal.';
+COMMENT ON COLUMN public.trading_signals.setup_asset_class IS
+  'Asset class bucket used by backend setup scoring.';
+COMMENT ON COLUMN public.trading_signals.setup_sl_band IS
+  'SL-size band used by backend setup scoring and outcome learning.';
 COMMENT ON COLUMN public.trading_signals.setup_score_breakdown IS
   'Per-feature point contribution used to explain and learn setup quality.';
 COMMENT ON COLUMN public.trading_signals.setup_tags IS
   'Backend setup tags for outcome analysis, e.g. multi_candle_liquidity.';
+COMMENT ON COLUMN public.trading_signals.setup_strengths IS
+  'Top positive scoring factors shown in bot alerts and reports.';
+COMMENT ON COLUMN public.trading_signals.setup_weaknesses IS
+  'Top weak scoring factors shown in bot alerts and reports.';
 
 CREATE INDEX IF NOT EXISTS idx_trading_signals_setup_score
   ON public.trading_signals (setup_score);
 
 CREATE INDEX IF NOT EXISTS idx_trading_signals_setup_grade
   ON public.trading_signals (setup_grade);
+
+CREATE INDEX IF NOT EXISTS idx_trading_signals_setup_model
+  ON public.trading_signals (setup_score_version, setup_asset_class, setup_sl_band);

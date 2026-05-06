@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+SETUP_SCORE_VERSION = "rd_setup_score_v2"
+
 
 def _as_bool(value: Any) -> bool:
     if isinstance(value, bool):
@@ -54,11 +56,52 @@ def _metric_score(payload: dict[str, Any], key: str) -> float:
     return _bounded(value)
 
 
+def _asset_class(symbol: str) -> str:
+    normalized = symbol.upper()
+    if any(token in normalized for token in ("XAU", "GOLD")):
+        return "gold"
+    if "JPY" in normalized:
+        return "jpy"
+    if any(token in normalized for token in ("NAS", "US100", "US30", "SPX", "US500")):
+        return "index"
+    return "forex"
+
+
+def _sl_band(asset_class: str, sl_pips: float) -> str:
+    if asset_class == "gold":
+        if sl_pips <= 50:
+            return "gold_0_50"
+        if sl_pips <= 100:
+            return "gold_50_100"
+        if sl_pips <= 150:
+            return "gold_100_150"
+        if sl_pips <= 200:
+            return "gold_150_200"
+        return "gold_200_plus"
+    if asset_class == "jpy":
+        if sl_pips <= 3:
+            return "jpy_0_3"
+        if sl_pips <= 7:
+            return "jpy_3_7"
+        if sl_pips <= 11:
+            return "jpy_7_11"
+        return "jpy_11_plus"
+    if sl_pips <= 5:
+        return f"{asset_class}_0_5"
+    if sl_pips <= 10:
+        return f"{asset_class}_5_10"
+    if sl_pips <= 20:
+        return f"{asset_class}_10_20"
+    return f"{asset_class}_20_plus"
+
+
 def score_rd_setup(payload: dict[str, Any]) -> dict[str, Any]:
     """Return observational RD setup score fields for storage and learning."""
     breakdown: dict[str, dict[str, Any]] = {}
     tags: list[str] = []
     total = 0.0
+    strengths: list[str] = []
+    weaknesses: list[str] = []
 
     def add(name: str, points: float, max_points: float, reason: str) -> None:
         nonlocal total
@@ -69,6 +112,11 @@ def score_rd_setup(payload: dict[str, Any]) -> dict[str, Any]:
             "max_points": max_points,
             "reason": reason,
         }
+        ratio = earned / max_points if max_points else 0.0
+        if ratio >= 0.8:
+            strengths.append(name)
+        elif ratio <= 0.25:
+            weaknesses.append(name)
 
     liq_swept = _as_bool(payload.get("liq_swept") or payload.get("liquidity_sweep"))
     caused_sweep = _as_bool(payload.get("caused_sweep"))
@@ -81,6 +129,10 @@ def score_rd_setup(payload: dict[str, Any]) -> dict[str, Any]:
     rr_ratio = _as_float(payload.get("rr_ratio"), 0.0)
     sl_pips = _as_float(payload.get("sl_pips"), 0.0)
     zone_grade = str(payload.get("zone_grade") or "").strip().upper()
+    asset_class = _asset_class(str(payload.get("symbol") or payload.get("ticker") or ""))
+    sl_band = _sl_band(asset_class, sl_pips)
+    tags.append(f"asset_{asset_class}")
+    tags.append(f"sl_band_{sl_band}")
 
     add("liquidity_sweep", 15.0 if liq_swept else 0.0, 15.0, "Liquidity swept before entry")
     add("caused_sweep", 8.0 if caused_sweep else 0.0, 8.0, "Zone caused/participated in sweep")
@@ -100,9 +152,12 @@ def score_rd_setup(payload: dict[str, Any]) -> dict[str, Any]:
 
     if target_swept:
         tags.append("target_already_swept")
+        weaknesses.append("target_already_swept")
     add("target_room", 5.0 if not target_swept else 0.0, 5.0, "Target liquidity still available")
 
     model_points = 8.0 if "direction" in entry_model else 6.0 if "break" in entry_model else 5.0 if "flip" in entry_model else 3.0
+    if "flip" in entry_model:
+        weaknesses.append("flip_entry_model")
     add("entry_model", model_points, 8.0, entry_model or "unknown")
 
     add("zone_quality", _metric_score(payload, "base_quality") * 10.0, 10.0, "Pine base quality")
@@ -144,6 +199,11 @@ def score_rd_setup(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "setup_score": setup_score,
         "setup_grade": setup_grade,
+        "setup_score_version": SETUP_SCORE_VERSION,
+        "setup_asset_class": asset_class,
+        "setup_sl_band": sl_band,
         "setup_score_breakdown": breakdown,
         "setup_tags": tags,
+        "setup_strengths": list(dict.fromkeys(strengths))[:5],
+        "setup_weaknesses": list(dict.fromkeys(weaknesses))[:5],
     }

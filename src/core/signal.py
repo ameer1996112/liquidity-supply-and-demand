@@ -110,11 +110,16 @@ class EntryWebhookPayload(BaseModel):
     # not a hard execution gate.
     setup_score: float | None = Field(default=None, description="Backend RD setup score 0-100")
     setup_grade: str | None = Field(default=None, description="Backend RD setup grade")
+    setup_score_version: str | None = Field(default=None, description="Backend RD setup score model version")
+    setup_asset_class: str | None = Field(default=None, description="Backend setup scoring asset class")
+    setup_sl_band: str | None = Field(default=None, description="Backend setup scoring SL-size band")
     setup_score_breakdown: dict[str, Any] | None = Field(
         default=None,
         description="Backend RD setup score contribution details",
     )
     setup_tags: list[str] | None = Field(default=None, description="Backend RD setup learning tags")
+    setup_strengths: list[str] | None = Field(default=None, description="Top backend setup scoring strengths")
+    setup_weaknesses: list[str] | None = Field(default=None, description="Top backend setup scoring weaknesses")
 
 
     @model_validator(mode="after")

@@ -180,8 +180,13 @@ def save_alert(
         # Backend observational setup scoring for outcome learning.
         'setup_score': data.get('setup_score'),
         'setup_grade': data.get('setup_grade'),
+        'setup_score_version': data.get('setup_score_version'),
+        'setup_asset_class': data.get('setup_asset_class'),
+        'setup_sl_band': data.get('setup_sl_band'),
         'setup_score_breakdown': data.get('setup_score_breakdown'),
         'setup_tags': data.get('setup_tags'),
+        'setup_strengths': data.get('setup_strengths'),
+        'setup_weaknesses': data.get('setup_weaknesses'),
         # V2.0 Telemetry Fields
         'run_mode': run_mode,
         'run_id': run_id,

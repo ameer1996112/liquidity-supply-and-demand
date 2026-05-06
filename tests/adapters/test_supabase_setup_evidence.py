@@ -65,6 +65,11 @@ def test_save_alert_persists_backend_setup_score(monkeypatch) -> None:
             "setup_grade": "A+",
             "setup_score_breakdown": {"liquidity_sweep": {"points": 15.0}},
             "setup_tags": ["multi_candle_liquidity", "grade_aplus"],
+            "setup_score_version": "rd_setup_score_v2",
+            "setup_asset_class": "jpy",
+            "setup_sl_band": "jpy_3_7",
+            "setup_strengths": ["liquidity_sweep"],
+            "setup_weaknesses": ["flip_entry_model"],
         }
     )
 
@@ -72,3 +77,8 @@ def test_save_alert_persists_backend_setup_score(monkeypatch) -> None:
     assert client.recorder.payload["setup_grade"] == "A+"
     assert client.recorder.payload["setup_score_breakdown"]["liquidity_sweep"]["points"] == 15.0
     assert client.recorder.payload["setup_tags"] == ["multi_candle_liquidity", "grade_aplus"]
+    assert client.recorder.payload["setup_score_version"] == "rd_setup_score_v2"
+    assert client.recorder.payload["setup_asset_class"] == "jpy"
+    assert client.recorder.payload["setup_sl_band"] == "jpy_3_7"
+    assert client.recorder.payload["setup_strengths"] == ["liquidity_sweep"]
+    assert client.recorder.payload["setup_weaknesses"] == ["flip_entry_model"]

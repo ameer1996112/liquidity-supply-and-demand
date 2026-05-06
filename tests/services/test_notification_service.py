@@ -119,6 +119,40 @@ def test_format_signal_includes_setup_evidence_summary_metadata() -> None:
     }
 
 
+def test_format_signal_includes_setup_score_for_bot_alerts() -> None:
+    payload = NotificationService().format_signal(
+        {
+            "id": 47,
+            "symbol": "GBPJPY",
+            "side": "BUY",
+            "entry": 193.45,
+            "sl": 193.38,
+            "tp": 193.66,
+            "setup_score": 88.4,
+            "setup_grade": "A+",
+            "setup_score_version": "rd_setup_score_v2",
+            "setup_asset_class": "jpy",
+            "setup_sl_band": "jpy_3_7",
+            "setup_strengths": ["liquidity_sweep", "multi_candle_liquidity"],
+            "setup_weaknesses": ["flip_entry_model"],
+        }
+    )
+
+    assert payload.fields["Setup"] == "A+ 88.4/100"
+    assert payload.fields["Score Model"] == "rd_setup_score_v2"
+    assert payload.fields["Strengths"] == "liquidity_sweep, multi_candle_liquidity"
+    assert payload.fields["Watch"] == "flip_entry_model"
+    assert payload.metadata["setup_score_summary"] == {
+        "score": 88.4,
+        "grade": "A+",
+        "version": "rd_setup_score_v2",
+        "asset_class": "jpy",
+        "sl_band": "jpy_3_7",
+        "strengths": ["liquidity_sweep", "multi_candle_liquidity"],
+        "weaknesses": ["flip_entry_model"],
+    }
+
+
 def test_format_close_reuses_setup_evidence_summary_metadata() -> None:
     payload = NotificationService().format_close(
         {

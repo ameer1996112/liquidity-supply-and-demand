@@ -4,6 +4,7 @@ from src.services.setup_scoring import score_rd_setup
 def test_score_rd_setup_grades_clean_five_minute_setup() -> None:
     result = score_rd_setup(
         {
+            "symbol": "GBPJPY",
             "liq_swept": True,
             "caused_sweep": True,
             "target_swept": False,
@@ -27,7 +28,11 @@ def test_score_rd_setup_grades_clean_five_minute_setup() -> None:
 
     assert result["setup_score"] >= 85
     assert result["setup_grade"] == "A+"
+    assert result["setup_score_version"] == "rd_setup_score_v2"
+    assert result["setup_asset_class"] == "jpy"
+    assert result["setup_sl_band"] == "jpy_3_7"
     assert "multi_candle_liquidity" in result["setup_tags"]
+    assert result["setup_strengths"]
     assert result["setup_score_breakdown"]["liquidity_sweep"]["points"] > 0
 
 
@@ -56,4 +61,23 @@ def test_score_rd_setup_penalizes_one_candle_or_missing_sweep() -> None:
     assert result["setup_score"] < 45
     assert result["setup_grade"] == "D"
     assert "one_candle_liquidity" in result["setup_tags"]
+    assert "target_already_swept" in result["setup_weaknesses"]
     assert result["setup_score_breakdown"]["liquidity_sweep"]["points"] == 0
+
+
+def test_score_rd_setup_uses_gold_sl_band_for_learning_tags() -> None:
+    result = score_rd_setup(
+        {
+            "symbol": "XAUUSD",
+            "liq_swept": True,
+            "caused_sweep": True,
+            "liq_candle_count": 3,
+            "sl_pips": 125,
+            "rr_ratio": 2.5,
+        }
+    )
+
+    assert result["setup_asset_class"] == "gold"
+    assert result["setup_sl_band"] == "gold_100_150"
+    assert "asset_gold" in result["setup_tags"]
+    assert "sl_band_gold_100_150" in result["setup_tags"]
