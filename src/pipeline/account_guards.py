@@ -20,6 +20,7 @@ Guard execution order:
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, Optional
 
 from config import get_settings
@@ -39,6 +40,36 @@ logger = get_logger("trinity.pipeline.account_guards")
 
 def _account_override(overrides: Dict[str, Any], key: str, fallback: Any) -> Any:
     return overrides.get(key, fallback)
+
+
+def _is_alpha_capital_group_profile(profile: Optional[Dict[str, Any]], account_name: str) -> bool:
+    """Detect ACG accounts for firm-specific guard defaults."""
+    profile = profile or {}
+    tokens = (
+        account_name,
+        profile.get("name"),
+        profile.get("prop_firm_name"),
+        profile.get("firm_name"),
+    )
+    normalized = " ".join(str(token or "") for token in tokens)
+    return "alpha capital" in normalized.lower() or "ACG" in re.split(
+        r"[^A-Z0-9]+",
+        normalized.upper(),
+    )
+
+
+def _resolve_consistency_enabled(
+    profile: Optional[Dict[str, Any]],
+    settings_consistency_enabled: bool,
+    account_name: str,
+) -> bool:
+    """Resolve the per-account consistency guard with firm-aware defaults."""
+    profile_consistency = (profile or {}).get("consistency_enabled")
+    if profile_consistency is not None:
+        return bool(profile_consistency)
+    if _is_alpha_capital_group_profile(profile, account_name):
+        return False
+    return bool(settings_consistency_enabled)
 
 
 def run_account_guards(
@@ -291,9 +322,8 @@ def run_account_guards(
         return f"Bucket Full ({account_name}): {len(active_positions)}/{max_pos}"
 
     # ── 8. Consistency Analyzer (evaluation mode only) ────────────────────────
-    _profile_consistency = (profile or {}).get("consistency_enabled")
     _global_consistency = getattr(s, "consistency_enabled", True)
-    _run_consistency = _profile_consistency if _profile_consistency is not None else _global_consistency
+    _run_consistency = _resolve_consistency_enabled(profile, _global_consistency, account_name)
     if _run_consistency and _eval_mode and not sb and run_mode == "LIVE":
         return f"Consistency dependency unavailable for account {account_name} — blocked for safety"
     if _run_consistency and _eval_mode and sb:

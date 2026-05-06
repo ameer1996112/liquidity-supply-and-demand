@@ -65,13 +65,11 @@ const string WEBHOOK_STRATEGY_VERSION = "1"
 
 pip_size = Utils.get_auto_pip_size(syminfo.ticker, syminfo.mintick)
 
-
-config_profile = input.string("Custom", "config_profile",
-     options = ["Conservative (Live Trading)", "Balanced (Recommended)", "Aggressive (Paper Trading)", "Custom"],
-     group = "🎯 Quick Setup")
-
-use_profile_defaults = config_profile != "Custom"
-is_aggressive = config_profile == "Aggressive (Paper Trading)"
+grpEMAContext = "📈 EMA Context"
+ema_context_length = input.int(200, "ema_context_length", minval = 1, maxval = 500, group = grpEMAContext, tooltip = "EMA length used only for alert learning context.")
+ema_context_slope_lookback = input.int(10, "ema_context_slope_lookback", minval = 1, maxval = 100, group = grpEMAContext, tooltip = "Bars used to measure EMA slope in pips for alert learning context.")
+ema_context_neutral_atr_mult = input.float(0.10, "ema_context_neutral_atr_mult", minval = 0.0, maxval = 2.0, step = 0.05, group = grpEMAContext, tooltip = "Zone midpoint distance inside this ATR multiple is marked neutral.")
+show_ema_context_line = input.bool(true, "show_ema_context_line", group = grpEMAContext, tooltip = "Plot the EMA used for alert learning context.")
 
 
 const int MAX_BACKWARD_SCAN = 200
@@ -207,7 +205,6 @@ show_zones           = true
 show_demand_zones    = true
 show_supply_zones    = true
 show_entry_labels    = true
-show_ai_debug_comment = false
 zone_label_style = input.string("Compact", "zone_label_style", options = ["Compact", "Detailed"], group = "🎨 Display")
 zone_label_show_metrics = input.bool(true, "zone_label_show_metrics", group = "🎨 Display")
 show_blocked_trade_labels = input.bool(false, "show_blocked_trade_labels", group = "🎨 Display")
@@ -239,19 +236,15 @@ use_half_risk_second_trade = input.bool(true, "use_half_risk_second_trade", grou
 dry_run_mode          = false  // Dry run disabled by default
 
 debug_mode            = false
-debug_entry_labels    = false
-show_zone_debug_labels = false
-show_debug_labels      = false
 zone_label_size       = "Tiny"
 debug_level           = input.string("None", "debug_level", options = ["None", "Basic", "Full"], group = "🎨 Display")
 debug_last_bars       = 200
 showZoneInspector     = input.bool(true, "showZoneInspector", group = "🎨 Display")
 manual_zone_id_input  = input.string(
      "",
-     "manual_zone_id_input",
-     group   = "🎨 Display"
- )
-showActiveProfile       = input.bool(true, "showActiveProfile", group = "🎨 Display")
+	     "manual_zone_id_input",
+	     group   = "🎨 Display"
+	 )
 show_performance_table  = input.bool(true, "show_performance_table", group = "🎨 Display")
 showResults             = input.bool(true, "showResults", group = "🎨 Display")
 table_text_size         = input.string("Small", "table_text_size", options = ["Tiny", "Small", "Normal"], group = "🎨 Display")
@@ -262,7 +255,6 @@ var color TBL_LBL = color.rgb(200, 200, 200)
 var color TBL_DIM = color.rgb(150, 150, 150)
 var color TBL_DRK = color.rgb(25, 25, 25)
 take_profit_pips        = input.float(0.0, "take_profit_pips", minval = 0, group = "📊 Trade Execution")
-debug_liq_extra         = false
 
 float pip_scale_factor = (is_gold or is_xpt) and pip_size <= 0.011 ? 10.0 : (is_index ? 10.0 : 1.0)
 
@@ -280,16 +272,8 @@ filter_dead_zone = false  // Handled by backend risk page
 filter_trading_hours = input.bool(true, "filter_trading_hours", group = "⏰ Session & Limits")
 trading_start_hour = input.int(0, "trading_start_hour", minval = 0, maxval = 23, group = "⏰ Session & Limits")
 trading_end_hour = input.int(24, "trading_end_hour", minval = 0, maxval = 24, group = "⏰ Session & Limits")
-require_htf_flip = input.bool(true, "require_htf_flip", group = "🤖 AI & Grade Filters")
-
-enable_ai_quality_filter = input.bool(true, "enable_ai_quality_filter", group = "🤖 AI & Grade Filters")
-ai_quality_threshold = input.int(70, "ai_quality_threshold", minval = 0, maxval = 100, group = "🤖 AI & Grade Filters")
-enable_ai_lite_mode = input.bool(false, "enable_ai_lite_mode", group = "🤖 AI & Grade Filters")
-enable_ai_shadow_mode = false
-enable_grade_filter = input.bool(false, "enable_grade_filter", group = "🤖 AI & Grade Filters")
-min_entry_grade     = input.string("C", "min_entry_grade", options=["A+", "A", "B+", "B", "C+", "C"], group = "🤖 AI & Grade Filters")
-max_peak_to_touch_bars = input.int(20, "max_peak_to_touch_bars", minval = 1, maxval = 500, group = "🤖 AI & Grade Filters")
-max_sweep_to_touch_bars = input.int(25, "max_sweep_to_touch_bars", minval = 1, maxval = 500, group = "🤖 AI & Grade Filters")
+max_peak_to_touch_bars = input.int(20, "max_peak_to_touch_bars", minval = 1, maxval = 500, group = "📐 Entry Validation")
+max_sweep_to_touch_bars = input.int(25, "max_sweep_to_touch_bars", minval = 1, maxval = 500, group = "📐 Entry Validation")
 
 use_break_even     = input.bool(false, "use_break_even", group = "📊 Trade Execution")
 max_bars_held = input.int(88, "max_bars_held", minval=1, group = "📊 Trade Execution")
@@ -354,65 +338,6 @@ start_date         = input.time(timestamp("01 Jan 2023 00:00 +0000"), "start_dat
 end_date           = input.time(timestamp("31 Dec 2027 23:59 +0000"), "end_date", group = "🎯 Quick Setup")
 min_bar_index_for_entries = 100
 
-
-if use_profile_defaults
-    is_conservative = config_profile == "Conservative (Live Trading)"
-    is_balanced = config_profile == "Balanced (Recommended)"
-
-    if is_conservative
-        pvtMax := 5
-        liq_pivot_len := 5
-        liq_max_distance_pips_forex := 10.0
-        liq_max_distance_pips_gold := 100.0
-        liq_entry_max_dist := 8.0
-        ai_quality_threshold := 70
-        min_entry_grade := "B+"
-        if not use_custom_rr
-            risk_reward_ratio := 3.0
-        max_trades_per_day := 1
-        min_tp_distance_pips := 15.0
-    else if is_balanced
-        pvtMax := 5
-        liq_pivot_len := 5
-        liq_max_distance_pips_forex := 20.0
-        liq_max_distance_pips_gold := 150.0
-        liq_entry_max_dist := 10.0
-        ai_quality_threshold := 60
-        min_entry_grade := "C+"
-        if not use_custom_rr
-            risk_reward_ratio := 2.0
-        max_trades_per_day := 2
-        min_tp_distance_pips := 10.0
-    else  // Aggressive
-        pvtMax := 10
-        liq_pivot_len := 3
-        liq_max_distance_pips_forex := 20.0
-        liq_max_distance_pips_gold := 200.0
-        liq_entry_max_dist := 15.0
-        ai_quality_threshold := 50
-        min_entry_grade := "C"
-        if not use_custom_rr
-            risk_reward_ratio := 1.5
-        max_trades_per_day := 2
-        min_tp_distance_pips := 5.0
-
-
-    if is_aggressive and not (is_gold or is_index or is_xpt)
-        liq_max_distance_pips_forex := 12.0  // ← Reduced from 20 (split between Aggressive 20 and Balanced 15)
-        liq_entry_max_dist := 12.0           // ← Entry gate tighter than scan (12 pips scan, 12 pips gate = same quality)
-
-        min_entry_grade := "C+"              // ← Improved from "C" (better zone quality)
-        ai_quality_threshold := 55           // ← Improved from 50 (stricter AI filter, Balanced is 60)
-
-
-        min_tp_distance_pips := 8.0          // ← Up from 5 (prevents spread eating profits)
-
-    require_major_liquidity := is_conservative or is_balanced
-    structure_mode := is_conservative ? "Standard (Bodies)" : "Relaxed (Wicks)"
-    // Grade filter and HTF flip: only for forex (good-marking doesn't use these)
-    enable_grade_filter := (is_conservative or is_balanced) and not (is_gold or is_index or is_xpt)
-    require_htf_flip := (is_conservative or is_balanced) and not (is_gold or is_index or is_xpt)
-    stop_loss_buffer_pips := 1.0
 
 debug_enabled   = debug_level != "None"
 debug_full      = (debug_level == "Full") or (debug_level != "None" and debug_mode)
@@ -635,24 +560,6 @@ get_tp_ratio(symbol_type, sl_pips) =>
         be_trig := na
         be_sl := na
         move_be := false
-    else if is_aggressive and use_profile_defaults
-        if is_gold or is_xpt
-            [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules_aggressive(sl_pips)
-            base_ratio := g_tp
-            be_trig := g_bet
-            be_sl := g_bes
-            move_be := g_mbe
-        else if is_jpy_pair or (not is_silver and not is_crypto)
-            [f_tp, f_bet, f_bes, f_mbe] = get_forex_tp_rules(sl_pips)
-            base_ratio := f_tp
-            be_trig := f_bet
-            be_sl := f_bes
-            move_be := f_mbe
-        else
-            base_ratio := 4.0
-            be_trig := na
-            be_sl := na
-            move_be := false
     else if is_gold or is_xpt
         [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules(sl_pips)
         base_ratio := g_tp
@@ -673,7 +580,9 @@ get_tp_ratio(symbol_type, sl_pips) =>
 
 float feature_rsi = ta.rsi(close, 14)
 float feature_ema200 = ta.ema(close, 200)
+float feature_ema_context = ta.ema(close, ema_context_length)
 int feature_trend = close > feature_ema200 ? 1 : 0
+
 [diplus, diminus, feature_adx] = ta.dmi(14, 14)
 int feature_hour = hour(time)
 
@@ -1243,7 +1152,8 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
         float bestLiqPrice = 1.0e10  // Start high, look for lowest valid pivot
         int bestLiqBar = na
 
-        int maxOff = bar_index - z.createdBarIndex - 2
+        int rawMaxOff = bar_index - z.createdBarIndex - 2
+        int maxOff = math.min(rawMaxOff, MAX_LIQ_SCAN_BARS)
 
         if maxOff >= 0
             for off = 0 to maxOff
@@ -1360,7 +1270,8 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
         float bestLiqPrice = 0.0  // Start low, look for highest valid pivot
         int bestLiqBar = na
 
-        int maxOff = bar_index - z.createdBarIndex - 2
+        int rawMaxOff = bar_index - z.createdBarIndex - 2
+        int maxOff = math.min(rawMaxOff, MAX_LIQ_SCAN_BARS)
 
         if maxOff >= 0
             for off = 0 to maxOff
@@ -1744,21 +1655,6 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                  bgcolor = zoneBgColor,
                  xloc = xloc.bar_index)
 
-            string accTag = isAccuracy ? "⭐ ACC " : ""
-
-            if show_debug_labels and isAccuracy
-                string debugInfo = ""
-                if isDemand
-                    float zoneHigh = high[baseIdx]
-                    float reactionHigh = high[baseIdx - 1]
-                    debugInfo := " [Z:" + str.tostring(zoneHigh, format.mintick) + " > R:" + str.tostring(reactionHigh, format.mintick) + "]"
-                else
-                    float zoneLow = low[baseIdx]
-                    float reactionLow = low[baseIdx - 1]
-                    debugInfo := " [Z:" + str.tostring(zoneLow, format.mintick) + " < R:" + str.tostring(reactionLow, format.mintick) + "]"
-
-                accTag := accTag + debugInfo
-
             string sideTag = isDemand ? "D-" : "S-"
             string compactText = sideTag + str.tostring(zoneUZID)
             string detailedText = (isDemand ? "Demand " : "Supply ") + compactText
@@ -2087,9 +1983,6 @@ stat_total_entry_checks           = array.get(_stat_total_entry_checks, 0)
 stat_entries_blocked_by_timing    = array.get(_stat_entries_blocked_by_timing, 0)
 stat_entries_blocked_by_liquidity = array.get(_stat_entries_blocked_by_liquidity, 0)
 
-var string[] _trade_entry_grade = array.new_string(1, "C")
-trade_entry_grade = array.get(_trade_entry_grade, 0)
-
 var int stat_trades_accuracy_total  = 0
 var int stat_trades_accuracy_wins   = 0
 var int stat_trades_accuracy_losses = 0
@@ -2108,14 +2001,6 @@ var float stat_rr_sum_other   = 0.0
 
 var int   stat_rr_count_other = 0
 
-var int stat_grade_A_total = 0
-var int stat_grade_A_wins  = 0
-var int stat_grade_B_total = 0
-var int stat_grade_B_wins  = 0
-var int stat_grade_C_total = 0
-var int stat_grade_C_wins  = 0
-
-
 var table performanceTable = na
 
 draw_performance_table(tbl) =>
@@ -2123,7 +2008,7 @@ draw_performance_table(tbl) =>
 
     if show_performance_table and showResults
         if na(result)
-            result := table.new(position.top_right, 2, 9, 
+            result := table.new(position.top_right, 2, 6, 
                  bgcolor = color.new(color.rgb(30, 35, 40), 5), 
                  border_width = 1, border_color = color.new(color.white, 70), 
                  frame_width = 1, frame_color = color.new(color.white, 70))
@@ -2171,21 +2056,8 @@ draw_performance_table(tbl) =>
             string dd_str = "-$" + str.tostring(math.abs(max_dd), "#,##0.00")
             table.cell(result, 1, 5, dd_str, text_color = color.rgb(255, 100, 100), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = tbl_sz)
 
-            table.cell(result, 0, 6, "A-Grade WR", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = tbl_sz)
-            string a_wr_str = str.tostring(Utils.safe_percent(stat_grade_A_wins, stat_grade_A_total), "#.0") + "% (" + str.tostring(stat_grade_A_total) + ")"
-            table.cell(result, 1, 6, a_wr_str, text_color = color.white, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = tbl_sz)
-
-            table.cell(result, 0, 7, "B-Grade WR", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = tbl_sz)
-            string b_wr_str = str.tostring(Utils.safe_percent(stat_grade_B_wins, stat_grade_B_total), "#.0") + "% (" + str.tostring(stat_grade_B_total) + ")"
-            table.cell(result, 1, 7, b_wr_str, text_color = color.white, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = tbl_sz)
-
-            table.cell(result, 0, 8, "AI Filter", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = tbl_sz)
-            string ai_filter_str = enable_ai_quality_filter ? ("ON (≥" + str.tostring(ai_quality_threshold) + ")") : "OFF"
-            color ai_color = enable_ai_quality_filter ? color.rgb(0, 200, 100) : color.rgb(150, 150, 150)
-            table.cell(result, 1, 8, ai_filter_str, text_color = ai_color, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = tbl_sz)
-
     if (not show_performance_table or not showResults) and not na(result)
-        for r = 0 to 8
+        for r = 0 to 5
             table.cell(result, 0, r, "", bgcolor = color.new(color.black, 100))
             table.cell(result, 1, r, "", bgcolor = color.new(color.black, 100))
 
@@ -2715,15 +2587,6 @@ isValidEntry(isDemand, idx) =>
     [canEnter, reason, z] = validate_entry_conditions(isDemand, idx)
 
 
-    if canEnter and enable_grade_filter
-
-        int minGradeVal = Core.get_grade_value(min_entry_grade)
-        int zoneGradeVal = Core.get_grade_value(z.grade)
-
-        if zoneGradeVal < minGradeVal
-            canEnter := false
-            reason := "Grade too low (" + z.grade + " < " + min_entry_grade + ")"
-
     if canEnter
         float bodySize = math.abs(close - open)
         float candleRange = high - low
@@ -2810,7 +2673,7 @@ if cached_demand_size > 0 and barstate.isconfirmed
                 z.structureSweepLevel := na
                 z.inactiveReason := "Ghost Data Cleared"
 
-            if not z.liquidityValid or na(z.lastEntryBar)
+            if not z.liquidityValid
                 f_scan_demand_liquidity(i)
 
             f_check_demand_sweeps(i)
@@ -2916,7 +2779,7 @@ if cached_supply_size > 0 and barstate.isconfirmed
                 z.structureSweepLevel := na
                 z.inactiveReason := "Ghost Data Cleared"
 
-            if not z.liquidityValid or na(z.lastEntryBar)
+            if not z.liquidityValid
                 f_scan_supply_liquidity(i)
 
             f_check_supply_sweeps(i)
@@ -3428,6 +3291,18 @@ process_long_entries() =>
                         [ai_pine_score_val, _ai_bd] = Core.calculate_ai_quality_score(z, true, feature_rvol, feature_session, feature_trend, feature_adx, feature_htf_trend, feature_rsi, (z.top - z.bottom) / atr14)
                         // Pine rule-based AI score — sent to backend as context feature, not a gate
                         ai_features += " | F:ai_pine_score=" + str.tostring(ai_pine_score_val, "#.0")
+                        float ema_context_zone_mid = (z.top + z.bottom) / 2.0
+                        float ema_context_neutral_buffer = atr14 * ema_context_neutral_atr_mult
+                        float ema_context_zone_mid_distance_pips = pip_size > 0 ? (ema_context_zone_mid - feature_ema_context) / pip_size : na
+                        int ema_context_zone_side = math.abs(ema_context_zone_mid - feature_ema_context) <= ema_context_neutral_buffer ? 0 : (ema_context_zone_mid > feature_ema_context ? 1 : -1)
+                        float ema_context_slope = pip_size > 0 ? (feature_ema_context - feature_ema_context[ema_context_slope_lookback]) / pip_size : na
+                        int ema_context_aligned = ema_context_zone_side == 1 ? 1 : 0
+                        ai_features += " | F:ema_context_length=" + str.tostring(ema_context_length)
+                        ai_features += " | F:ema_context_value=" + str.tostring(feature_ema_context, format.mintick)
+                        ai_features += " | F:ema_context_zone_mid_distance_pips=" + (not na(ema_context_zone_mid_distance_pips) ? str.tostring(ema_context_zone_mid_distance_pips, "#.##") : "N/A")
+                        ai_features += " | F:ema_context_zone_side=" + str.tostring(ema_context_zone_side)
+                        ai_features += " | F:ema_context_slope=" + (not na(ema_context_slope) ? str.tostring(ema_context_slope, "#.##") : "N/A")
+                        ai_features += " | F:ema_context_aligned=" + str.tostring(ema_context_aligned)
                         float zone_height_pips = pip_size > 0 ? (z.top - z.bottom) / pip_size : 0.0
                         string dna_session = feature_session == 0 ? "As" : (feature_session == 1 ? "Ld" : (feature_session == 2 ? "NY" : "Of"))
                         string dna_model   = chosenModel == "FLIP" ? "Flp" : (chosenModel == "BOC" ? "BoC" : "Dir")
@@ -3443,7 +3318,7 @@ process_long_entries() =>
                                       + "|Sn:" + dna_session
                                       + "|T:"  + (feature_trend == 1 ? "1" : "0")
                                       + "|H:"  + (feature_htf_trend == 1 ? "1" : "0")
-                        string entryComment = (show_entry_labels ? "" : typeTag) + ai_dna + (show_ai_debug_comment ? ai_features : "")
+                        string entryComment = (show_entry_labels ? "" : typeTag) + ai_dna
 
                         if enable_webhook_alerts
                             strategy.entry("Long", strategy.long, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload)
@@ -3460,7 +3335,6 @@ process_long_entries() =>
                         array.set(_active_entry_id, 0, "Long")
                         array.set(_trade_entry_price, 0, entry_price)
                         array.set(_trade_original_sl, 0, stop_loss_price)
-                        array.set(_trade_entry_grade, 0, z.grade)
                         array.set(_trade_current_sl, 0, stop_loss_price)
                         array.set(_trade_tp1_price, 0, take_profit_price)
                         array.set(_current_day_trades, 0, array.get(_current_day_trades, 0) + 1)
@@ -3872,6 +3746,18 @@ process_short_entries() =>
                         [ai_pine_score_val, _ai_bd] = Core.calculate_ai_quality_score(z, false, feature_rvol, feature_session, feature_trend, feature_adx, feature_htf_trend, feature_rsi, (z.top - z.bottom) / atr14)
                         // Pine rule-based AI score — sent to backend as context feature, not a gate
                         ai_features += " | F:ai_pine_score=" + str.tostring(ai_pine_score_val, "#.0")
+                        float ema_context_zone_mid = (z.top + z.bottom) / 2.0
+                        float ema_context_neutral_buffer = atr14 * ema_context_neutral_atr_mult
+                        float ema_context_zone_mid_distance_pips = pip_size > 0 ? (ema_context_zone_mid - feature_ema_context) / pip_size : na
+                        int ema_context_zone_side = math.abs(ema_context_zone_mid - feature_ema_context) <= ema_context_neutral_buffer ? 0 : (ema_context_zone_mid > feature_ema_context ? 1 : -1)
+                        float ema_context_slope = pip_size > 0 ? (feature_ema_context - feature_ema_context[ema_context_slope_lookback]) / pip_size : na
+                        int ema_context_aligned = ema_context_zone_side == -1 ? 1 : 0
+                        ai_features += " | F:ema_context_length=" + str.tostring(ema_context_length)
+                        ai_features += " | F:ema_context_value=" + str.tostring(feature_ema_context, format.mintick)
+                        ai_features += " | F:ema_context_zone_mid_distance_pips=" + (not na(ema_context_zone_mid_distance_pips) ? str.tostring(ema_context_zone_mid_distance_pips, "#.##") : "N/A")
+                        ai_features += " | F:ema_context_zone_side=" + str.tostring(ema_context_zone_side)
+                        ai_features += " | F:ema_context_slope=" + (not na(ema_context_slope) ? str.tostring(ema_context_slope, "#.##") : "N/A")
+                        ai_features += " | F:ema_context_aligned=" + str.tostring(ema_context_aligned)
                         float zone_height_pips = pip_size > 0 ? (z.top - z.bottom) / pip_size : 0.0
                         string dna_session = feature_session == 0 ? "As" : (feature_session == 1 ? "Ld" : (feature_session == 2 ? "NY" : "Of"))
                         string dna_model   = chosenModel == "FLIP" ? "Flp" : (chosenModel == "BOC" ? "BoC" : "Dir")
@@ -3887,7 +3773,7 @@ process_short_entries() =>
                                       + "|Sn:" + dna_session
                                       + "|T:"  + (feature_trend == 1 ? "1" : "0")
                                       + "|H:"  + (feature_htf_trend == 1 ? "1" : "0")
-                        string entryComment = (show_entry_labels ? "" : typeTag) + ai_dna + (show_ai_debug_comment ? ai_features : "")
+                        string entryComment = (show_entry_labels ? "" : typeTag) + ai_dna
 
                         if enable_webhook_alerts
                             strategy.entry("Short", strategy.short, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload_short)
@@ -3904,7 +3790,6 @@ process_short_entries() =>
                         array.set(_active_entry_id, 0, "Short")
                         array.set(_trade_entry_price, 0, entry_price)
                         array.set(_trade_original_sl, 0, stop_loss_price)
-                        array.set(_trade_entry_grade, 0, z.grade)
                         array.set(_trade_current_sl, 0, stop_loss_price)
                         array.set(_trade_tp1_price, 0, take_profit_price)
                         array.set(_current_day_trades, 0, array.get(_current_day_trades, 0) + 1)
@@ -3972,7 +3857,6 @@ tp1_hit                := array.get(_tp1_hit, 0)
 trade_be_trigger_rr    := array.get(_trade_be_trigger_rr, 0)
 trade_be_sl_pips       := array.get(_trade_be_sl_pips, 0)
 trade_be_moved         := array.get(_trade_be_moved, 0)
-trade_entry_grade      := array.get(_trade_entry_grade, 0)
 current_day_trades     := array.get(_current_day_trades, 0)
 last_global_long_entry_bar  := array.get(_last_global_long_entry_bar, 0)
 last_global_short_entry_bar := array.get(_last_global_short_entry_bar, 0)
@@ -4302,20 +4186,6 @@ if trade_just_closed
         else
             stat_trades_normal_losses += 1
 
-    if str.contains(trade_entry_grade, "A")
-        stat_grade_A_total += 1
-        if was_win
-            stat_grade_A_wins += 1
-    else if str.contains(trade_entry_grade, "B")
-        stat_grade_B_total += 1
-        if was_win
-            stat_grade_B_wins += 1
-    else
-        stat_grade_C_total += 1
-        if was_win
-            stat_grade_C_wins += 1
-
-
     bucket = Utils.get_symbol_bucket(syminfo.ticker)
     if bucket == "XAU"
         stat_rr_sum_xau += pnl_r
@@ -4347,9 +4217,6 @@ if trade_just_closed
     array.set(_trade_be_sl_pips, 0, na)
     trade_be_moved := false
     array.set(_trade_be_moved, 0, false)
-    trade_entry_grade := "C"
-    array.set(_trade_entry_grade, 0, "C")
-
     trade_entry_bar_index := na
     array.set(_trade_entry_bar_index, 0, na)
     trade_worst_price := na
@@ -4944,76 +4811,10 @@ else
 
 performanceTable := draw_performance_table(performanceTable)
 
-var table profileStatusTable = na
-
-if showDebugPanels and showActiveProfile
-    if na(profileStatusTable)
-        profileStatusTable := table.new(position.bottom_center, 2, 9, 
-             bgcolor = color.new(color.rgb(20, 25, 30), 10), 
-             frame_color = color.new(color.rgb(100, 110, 120), 80), frame_width = 1, 
-             border_color = color.new(color.rgb(60, 70, 80), 50), border_width = 1)
-    table.cell(profileStatusTable, 0, 0, "⚡ ACTIVE PROFILE", 
-        text_color = color.white, 
-        bgcolor = color.new(color.rgb(0, 120, 215), 20),
-        text_size = size.normal,
-        text_halign = text.align_center)
-    table.cell(profileStatusTable, 1, 0, config_profile, 
-        text_color = use_profile_defaults ? color.yellow : color.white, 
-        bgcolor = color.new(color.rgb(0, 120, 215), 20),
-        text_size = size.normal,
-        text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 1, "pvtMax", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 1, str.tostring(pvtMax), text_color = color.white, text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 2, "AI Threshold", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 2, str.tostring(ai_quality_threshold), text_color = color.white, text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 3, "RR Ratio", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    string rr_label = use_custom_rr ? "1:" + str.tostring(risk_reward_ratio, "#.#") : (is_aggressive and use_profile_defaults ? "SL-based" : "1:" + str.tostring(risk_reward_ratio, "#.#"))
-    table.cell(profileStatusTable, 1, 3, rr_label, text_color = color.white, text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 4, "RR Mode", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    string rr_mode = ""
-    color rr_mode_color = color.white
-    if use_custom_rr
-        rr_mode := "OVERRIDDEN: Fixed 1:" + str.tostring(risk_reward_ratio, "#.#")
-        rr_mode_color := color.orange
-    else if is_aggressive and use_profile_defaults
-        rr_mode := "✓ YOUR RULES (Aggressive)"
-        rr_mode_color := color.lime
-    else if use_profile_defaults and (config_profile == "Conservative (Live Trading)" or config_profile == "Balanced (Recommended)")
-        rr_mode := "SL-based (Profile)"
-        rr_mode_color := color.white
-    else
-        rr_mode := "SL-based (Default)"
-        rr_mode_color := color.gray
-    table.cell(profileStatusTable, 1, 4, rr_mode, text_color = rr_mode_color, text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 5, "Max Trades/Day", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 5, str.tostring(max_trades_per_day), text_color = color.white, text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 6, "Structure Mode", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 6, structure_mode, text_color = color.white, text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 7, "Grade Filter", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 7, enable_grade_filter ? min_entry_grade + "+" : "OFF", 
-        text_color = enable_grade_filter ? color.green : color.gray, 
-        text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 8, "Time Filters", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    time_filter_status = (filter_dead_zone ? "✓" : "✗") + " Dead Zone | " + (filter_trading_hours ? "✓" : "✗") + " Hours"
-    table.cell(profileStatusTable, 1, 8, time_filter_status, 
-        text_color = (filter_dead_zone and filter_trading_hours) ? color.green : color.orange, 
-        text_halign = text.align_left)
-else
-    if not na(profileStatusTable)
-        table.delete(profileStatusTable)
-        profileStatusTable := na
-
 plot(strategy.position_size != 0 ? trade_tp1_price : na, "Trade TP Level", color = color.new(color.lime, 50), style = plot.style_linebr, linewidth = 2)
 plot(strategy.position_size != 0 ? trade_current_sl : na, "Trade SL Level", color = color.new(color.red, 50), style = plot.style_linebr, linewidth = 2)
 plot(strategy.position_size != 0 ? trade_entry_price : na, "Trade Entry", color = color.new(color.blue, 50), style = plot.style_linebr, linewidth = 1)
+plot(show_ema_context_line ? feature_ema_context : na, "EMA Context", color = color.new(color.blue, 0), linewidth = 2)
 
 plot(plot_id, "W0: Zone ID", display = display.none)
 plot(plot_type, "W1: Zone Type", display = display.none)

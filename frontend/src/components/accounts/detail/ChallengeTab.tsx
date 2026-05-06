@@ -21,9 +21,9 @@ const PROVIDER_PRESETS: Record<string, Record<string, Partial<ChallengeSettings>
     funded:  { profit_target: 0,    max_daily_loss_pct: 4.0, max_drawdown_pct: 8.0, min_trading_days: 0, consistency_limit_pct: 40 },
   },
   ACG: {
-    phase1: { profit_target: 5000, max_daily_loss_pct: 4.0, max_drawdown_pct: 8.0, min_trading_days: 5, consistency_limit_pct: 40 },
-    phase2: { profit_target: 2500, max_daily_loss_pct: 4.0, max_drawdown_pct: 8.0, min_trading_days: 5, consistency_limit_pct: 40 },
-    funded:  { profit_target: 0,    max_daily_loss_pct: 4.0, max_drawdown_pct: 8.0, min_trading_days: 0, consistency_limit_pct: 40 },
+    phase1: { profit_target: 5000, max_daily_loss_pct: 4.0, max_drawdown_pct: 8.0, min_trading_days: 5, consistency_limit_pct: 40, consistency_enabled: false },
+    phase2: { profit_target: 2500, max_daily_loss_pct: 4.0, max_drawdown_pct: 8.0, min_trading_days: 5, consistency_limit_pct: 40, consistency_enabled: false },
+    funded:  { profit_target: 0,    max_daily_loss_pct: 4.0, max_drawdown_pct: 8.0, min_trading_days: 0, consistency_limit_pct: 40, consistency_enabled: false },
   },
   MyFundedFX: {
     phase1: { profit_target: 8000, max_daily_loss_pct: 4.0, max_drawdown_pct: 8.0, min_trading_days: 5, consistency_limit_pct: 50 },

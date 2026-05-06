@@ -8,13 +8,19 @@ import { Button } from '@/components/ui/button';
 import { Plus, Loader2, X, ChevronDown, ChevronUp, Shield, CheckCircle, AlertCircle, Wifi } from 'lucide-react';
 
 // Bot kill thresholds per provider (set at 80% of firm limits for safety buffer)
-const PROVIDER_DEFAULTS: Record<string, { profitTarget: number; dailyLossPct: number; ddPct: number; minDays: number }> = {
-  FTMO:       { profitTarget: 5000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 4 },
-  ACG:        { profitTarget: 5000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 5 },
-  MyFundedFX: { profitTarget: 8000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 5 },
-  TFT:        { profitTarget: 5000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 4 },
-  E8:         { profitTarget: 8000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 5 },
-  Other:      { profitTarget: 5000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 4 },
+const PROVIDER_DEFAULTS: Record<string, {
+  profitTarget: number;
+  dailyLossPct: number;
+  ddPct: number;
+  minDays: number;
+  consistencyEnabled: boolean | null;
+}> = {
+  FTMO:       { profitTarget: 5000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 4, consistencyEnabled: true },
+  ACG:        { profitTarget: 5000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 5, consistencyEnabled: false },
+  MyFundedFX: { profitTarget: 8000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 5, consistencyEnabled: true },
+  TFT:        { profitTarget: 5000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 4, consistencyEnabled: null },
+  E8:         { profitTarget: 8000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 5, consistencyEnabled: null },
+  Other:      { profitTarget: 5000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 4, consistencyEnabled: null },
 };
 
 interface AddAccountFormProps {
@@ -157,7 +163,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
             max_drawdown_pct: ddPct,
             min_trading_days: minDays,
             consistency_limit_pct: 40,
-            consistency_enabled: null,  // use global setting by default
+            consistency_enabled: PROVIDER_DEFAULTS[provider]?.consistencyEnabled ?? null,
           });
         } catch {
           // Non-fatal: challenge settings can be edited later in the Challenge tab
