@@ -34,6 +34,7 @@ type SortField =
   | 'entry'
   | 'pnl'
   | 'status'
+  | 'setup_score'
   | 'score';
 type SortDir = 'asc' | 'desc';
 type FilterTab = 'all' | 'open' | 'closed' | 'rejected' | 'filtered';
@@ -120,6 +121,7 @@ function getSortValue(signal: TradingSignal, field: SortField): string | number 
     case 'entry':      return signal.entry ?? signal.price ?? 0;
     case 'pnl':        return getPnl(signal) ?? 0;
     case 'status':     return signal.status;
+    case 'setup_score': return signal.setup_score ?? -1;
     case 'score':      return signal.score ?? signal.ai_confidence ?? 0;
     default:           return '';
   }
@@ -518,7 +520,6 @@ export function SignalTable({
                 {getSignalStrategyBadge(signal)}
               </span>
             )}
-            <SetupScoreBadge signal={signal} compact />
           </div>
         </div>
       ),
@@ -634,10 +635,22 @@ export function SignalTable({
       }),
     },
     {
+      id: 'setup_score',
+      align: 'right',
+      isNumeric: true,
+      width: 'w-[76px]',
+      header: <SortHeader field='setup_score' label='Setup' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
+      render: (signal) => (
+        <div className='inline-flex w-full justify-end'>
+          <SetupScoreBadge signal={signal} compact />
+        </div>
+      ),
+    },
+    {
       id: 'score',
       align: 'right',
       isNumeric: true,
-      width: 'w-[52px]',
+      width: 'w-[44px]',
       header: (
         <button
           type='button'
@@ -645,7 +658,7 @@ export function SignalTable({
           onClick={() => handleSort('score')}
         >
           <TrendingUp className='h-2.5 w-2.5' strokeWidth={1.5} />
-          <span>Score</span>
+          <span>AI</span>
           {sortField === 'score' ? (
             sortDir === 'asc' ? <ArrowUp className='h-2.5 w-2.5' /> : <ArrowDown className='h-2.5 w-2.5' />
           ) : (
