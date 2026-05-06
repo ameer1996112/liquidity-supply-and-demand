@@ -8,6 +8,7 @@ Comprehensive API for:
 """
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -1363,6 +1364,19 @@ class ChallengeSettingsResponse(BaseModel):
     evaluation_start_date: Optional[str]
 
 
+def _default_consistency_enabled_for_account(
+    account_name: str,
+    requested_value: Optional[bool],
+) -> Optional[bool]:
+    """Keep firm-specific defaults when callers leave the override unset."""
+    if requested_value is not None:
+        return requested_value
+    normalized = account_name.upper()
+    if "alpha capital" in account_name.lower() or "ACG" in re.split(r"[^A-Z0-9]+", normalized):
+        return False
+    return None
+
+
 @router.get("/accounts/{account_name}/challenge", response_model=ChallengeSettingsResponse)
 def get_challenge_settings(account_name: str):
     """Get challenge/evaluation settings for an account from its broker_profile."""
@@ -1451,7 +1465,10 @@ def update_challenge_settings(account_name: str, body: ChallengeSettingsRequest)
         "max_daily_loss_pct": body.max_daily_loss_pct,
         "max_drawdown_pct": body.max_drawdown_pct,
         "consistency_limit_pct": body.consistency_limit_pct,
-        "consistency_enabled": body.consistency_enabled,  # None | True | False
+        "consistency_enabled": _default_consistency_enabled_for_account(
+            account_name,
+            body.consistency_enabled,
+        ),  # None | True | False
     }
     # Set evaluation start date when activating phase1
     if body.evaluation_mode and body.evaluation_phase == "phase1":

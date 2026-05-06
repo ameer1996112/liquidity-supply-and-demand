@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any
 import json
 import logging
+import re
 
 from src.adapters.supabase_api import get_api_supabase
 from src.services.prop_firm_detector import PropFirmDetector
@@ -11,6 +12,19 @@ logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/api/v1/prop-firm", tags=["Prop Firm"])
+
+
+def _default_consistency_enabled(account_name: str, value: Any) -> Any:
+    """Default ACG accounts to no consistency rule when callers leave it unset."""
+    if value is not None:
+        return value
+    if "alpha capital" in account_name.lower() or "ACG" in re.split(
+        r"[^A-Z0-9]+",
+        account_name.upper(),
+    ):
+        return False
+    return None
+
 
 def get_detector(supabase=Depends(get_api_supabase)) -> PropFirmDetector:
     return PropFirmDetector(supabase)
@@ -165,7 +179,10 @@ async def update_challenge_config(account_name: str, config: Dict[str, Any], sup
             update_data[field] = float(config[field]) if field != "min_trading_days" else int(config[field])
             
     if "consistency_enabled" in config:
-        update_data["consistency_enabled"] = bool(config["consistency_enabled"]) if config["consistency_enabled"] is not None else None
+        defaulted_value = _default_consistency_enabled(account_name, config["consistency_enabled"])
+        update_data["consistency_enabled"] = (
+            bool(defaulted_value) if defaulted_value is not None else None
+        )
         
     # Get broker_profile_id from account_strategies
     acc_resp = supabase.table("account_strategies").select("broker_profile_id").eq("account_name", account_name).execute()

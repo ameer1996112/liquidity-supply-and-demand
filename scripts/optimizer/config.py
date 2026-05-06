@@ -41,10 +41,6 @@ OPTUNA_SEARCH_SPACE: dict = {
     # ── Risk/Reward ───────────────────────────────────────────────────────────
     "rr_mode":                  {"type": "categorical", "choices": ["dynamic", "fixed_2.5", "fixed_3.0", "fixed_4.0"]},
 
-    # ── AI Quality Filter ─────────────────────────────────────────────────────
-    "enable_ai_quality_filter": {"type": "categorical", "choices": [True, False]},
-    "ai_quality_threshold":     {"type": "int",         "low": 40,   "high": 75},
-
     # ── Entry distance filters ────────────────────────────────────────────────
     "min_tp_distance_pips":     {"type": "float",       "low": 5.0,  "high": 20.0},
     "liq_distance":             {"type": "float",       "low": None, "high": None},  # resolved per asset class
@@ -125,7 +121,6 @@ OPTIMIZER_METADATA_PARAMS = tuple(OPTIMIZER_METADATA_PARAM_DEFAULTS)
 
 OPTIMIZER_CONTEXT_PARAM_DEFAULTS = {
     **OPTIMIZER_METADATA_PARAM_DEFAULTS,
-    "config_profile": "Custom",
     "trade_direction": "Both",
     "account_size_usd": 50000,
     "risk_per_trade_pct": 0.5,
@@ -146,10 +141,9 @@ OPTIMIZER_CONTEXT_PARAM_DEFAULTS = {
     "enable_trade_limit": True,
     "max_trades_per_day": 3,
     "filter_trading_hours": True,
-    "require_htf_flip": True,
-    "enable_ai_lite_mode": False,
-    "enable_grade_filter": False,
-    "min_entry_grade": "C",
+    "ema_context_length": 200,
+    "ema_context_slope_lookback": 10,
+    "ema_context_neutral_atr_mult": 0.10,
 }
 
 
@@ -175,12 +169,12 @@ OPTIMIZER_UI_ONLY_PARAMS = (
     "debug_level",
     "showZoneInspector",
     "manual_zone_id_input",
-    "showActiveProfile",
     "show_performance_table",
     "showResults",
     "table_text_size",
     "show_grade_on_zone",
     "show_ai_score_on_label",
+    "show_ema_context_line",
     "start_date",
     "end_date",
 )
@@ -198,10 +192,6 @@ CHECKBOX_PARAM_NAMES = {
     "use_half_risk_second_trade",
     "enable_trade_limit",
     "filter_trading_hours",
-    "require_htf_flip",
-    "enable_ai_quality_filter",
-    "enable_ai_lite_mode",
-    "enable_grade_filter",
 }
 
 # ─── Default pairs ────────────────────────────────────────────────────────────
@@ -210,7 +200,6 @@ CHECKBOX_PARAM_NAMES = {
 
 PARAM_GRID_FULL = {
     "liq_max_distance_pips_forex": [10.0, 15.0, 20.0, 25.0, 30.0],
-    "ai_quality_threshold": [40, 50, 55, 60, 65, 70],
     "min_tp_distance_pips": [5.0, 8.0, 10.0, 12.0, 15.0],
     "max_sweep_to_touch_bars": [8, 12, 15, 20, 25],
     "max_peak_to_touch_bars": [20, 25, 30, 40, 50],
@@ -218,7 +207,6 @@ PARAM_GRID_FULL = {
 
 PARAM_GRID_FAST = {
     "liq_max_distance_pips_forex": [12.0, 18.0, 25.0],
-    "ai_quality_threshold": [50, 60, 70],
     "min_tp_distance_pips": [5.0, 10.0, 15.0],
     "max_sweep_to_touch_bars": [10, 15, 20],
     "max_peak_to_touch_bars": [25, 35, 50],
@@ -227,7 +215,6 @@ PARAM_GRID_FAST = {
 # Gold-specific parameters (different scale)
 PARAM_GRID_GOLD = {
     "liq_max_distance_pips_gold": [80.0, 120.0, 150.0, 200.0],
-    "ai_quality_threshold": [40, 50, 60, 70],
     "min_tp_distance_pips": [5.0, 10.0, 15.0],
     "max_sweep_to_touch_bars": [10, 15, 20],
     "max_peak_to_touch_bars": [25, 35, 50],
@@ -236,7 +223,6 @@ PARAM_GRID_GOLD = {
 # Index-specific parameters
 PARAM_GRID_INDEX = {
     "liq_max_distance_pips_index": [300.0, 400.0, 500.0, 700.0],
-    "ai_quality_threshold": [40, 50, 60],
     "min_tp_distance_pips": [5.0, 8.0, 12.0],
     "max_sweep_to_touch_bars": [10, 15, 20],
     "max_peak_to_touch_bars": [25, 35, 50],
@@ -281,21 +267,17 @@ INPUT_INDEX = {
     "max_trades_per_day": 52,        # Max Trades/Day
     "trading_start_hour": 54,        # Start Hour
     "trading_end_hour": 55,          # End Hour
-    "enable_ai_quality_filter": 57,  # checkbox: AI Quality Filter
-    "ai_quality_threshold": 58,      # Min Score
-    "max_peak_to_touch_bars": 61,    # Max Peak to Touch Bars
-    "max_sweep_to_touch_bars": 62,   # Max Sweep to Touch Bars
+    "max_peak_to_touch_bars": 56,    # Max Peak to Touch Bars
+    "max_sweep_to_touch_bars": 57,   # Max Sweep to Touch Bars
 }
 
 # CHECKBOX indices — these need special handling (toggle, not fill)
-CHECKBOX_INDICES = {5, 38, 42, 44, 57}
+CHECKBOX_INDICES = {5, 38, 42, 44}
 
 # ─── Hill-climbing params (kept for --smart backward compat) ──────────────────
 
 HILL_CLIMB_PARAMS = [
     ("rr_mode", ["dynamic", "fixed_2.5", "fixed_4.0"], "rr_mode"),
-    ("enable_ai_quality_filter", [True, False], "checkbox"),
-    ("ai_quality_threshold", [50, 60, 70], "numeric"),
     ("min_tp_distance_pips", [5, 10, 15], "numeric"),
     ("liq_distance", [10, 20, 30], "liq_distance"),
     ("max_bars_held", [24, 48, 72], "numeric"),

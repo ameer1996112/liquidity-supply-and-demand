@@ -207,6 +207,51 @@ def test_live_eval_blocks_when_consistency_analyzer_crashes(monkeypatch):
     assert result == "Consistency dependency unavailable for account ACG-DEMO-3 — blocked for safety"
 
 
+def test_acg_eval_defaults_to_no_consistency_guard(monkeypatch):
+    monkeypatch.setattr(
+        _ACCOUNT_GUARDS,
+        "load_account_guard_overrides",
+        lambda account_id: {"mtm_guardian_enabled": False, "pine_adaptive_enabled": False},
+    )
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "_get_sb", lambda: object())
+    monkeypatch.setattr("src.adapters.redis_queue.get_redis", lambda: SimpleNamespace(get=lambda key: None))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_daily_pnl", lambda profile: 0.0)
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_positions_from_db", lambda profile: [])
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_safety", lambda *args, **kwargs: (True, 1.0, "ok"))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_signal_guards", lambda *args, **kwargs: (True, None), raising=False)
+
+    class _UnexpectedConsistency:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("ACG accounts should skip the consistency analyzer by default")
+
+    monkeypatch.setattr("src.services.consistency_analyzer.ConsistencyAnalyzer", _UnexpectedConsistency)
+
+    result = run_account_guards(
+        payload={
+            "symbol": "XAUUSD",
+            "side": "buy",
+            "run_mode": "LIVE",
+            "account_balance": 50000,
+            "entry": 4647.12,
+            "tp": 4689.04,
+            "size": 0.1,
+        },
+        profile={
+            "id": "acct-1",
+            "name": "ACG-DEMO-3",
+            "risk_pct": 0.5,
+            "max_positions": 3,
+            "evaluation_mode": True,
+            "consistency_enabled": None,
+        },
+        s=_settings(evaluation_mode=True, consistency_enabled=True),
+        current_equity_global=50000,
+        correlation_manager=None,
+    )
+
+    assert result is None
+
+
 def test_monthly_loss_limit_uses_account_scoped_pnl(monkeypatch):
     monkeypatch.setattr(
         _ACCOUNT_GUARDS,

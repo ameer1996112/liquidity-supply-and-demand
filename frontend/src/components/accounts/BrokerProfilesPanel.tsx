@@ -37,6 +37,7 @@ export interface BrokerProfile {
   max_daily_loss_pct?: number | null;
   max_drawdown_pct?: number | null;
   profit_target_usd?: number | null;
+  consistency_enabled?: boolean | null;
 }
 
 export function needsCTraderReconnect(
@@ -203,6 +204,11 @@ function defaultForm(type: AccountType): WizardForm {
     prop_firm_name: '', evaluation_phase: 'phase1',
     max_daily_loss_pct: '', max_drawdown_pct: '', profit_target_usd: '',
   };
+}
+
+function hasNoConsistencyRule(propFirmName: string): boolean {
+  const normalized = propFirmName.toLowerCase();
+  return normalized.includes('alpha capital') || /\bACG\b/i.test(propFirmName);
 }
 
 // ── Wizard sub-components ─────────────────────────────────────────────────────
@@ -555,6 +561,7 @@ function AddAccountWizard({ onSuccess, onCancel }: { onSuccess: () => void; onCa
       max_daily_loss_pct: f.max_daily_loss_pct ? parseFloat(f.max_daily_loss_pct) : undefined,
       max_drawdown_pct: f.max_drawdown_pct ? parseFloat(f.max_drawdown_pct) : undefined,
       profit_target_usd: f.profit_target_usd ? parseFloat(f.profit_target_usd) : undefined,
+      consistency_enabled: hasNoConsistencyRule(f.prop_firm_name) ? false : undefined,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['broker-profiles'] });

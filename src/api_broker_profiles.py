@@ -90,6 +90,7 @@ class BrokerProfileCreate(BaseModel):
     max_daily_loss_pct: Optional[float] = Field(default=None, ge=0, le=100)
     max_drawdown_pct: Optional[float] = Field(default=None, ge=0, le=100)
     profit_target_usd: Optional[float] = Field(default=None, ge=0)
+    consistency_enabled: Optional[bool] = Field(default=None)
 
     model_config = {
         "json_schema_extra": {
@@ -208,6 +209,11 @@ def _infer_account_type(row: Dict[str, Any]) -> str:
     if phase == "funded":
         return "funded"
     return "evaluation"
+
+
+def _has_no_consistency_rule(prop_firm_name: Optional[str], account_name: Optional[str]) -> bool:
+    text = f"{prop_firm_name or ''} {account_name or ''}"
+    return "alpha capital" in text.lower() or "ACG" in re.split(r"[^A-Z0-9]+", text.upper())
 
 
 def _to_response(row: Dict[str, Any]) -> BrokerProfileResponse:
@@ -392,6 +398,12 @@ def create_broker_profile(body: BrokerProfileCreate):
             "max_drawdown_pct": body.max_drawdown_pct if body.max_drawdown_pct is not None else 10.0,
             "profit_target": body.profit_target_usd if body.profit_target_usd is not None else 0.0,
         }
+        if body.consistency_enabled is not None:
+            payload["consistency_enabled"] = body.consistency_enabled
+        elif body.account_type in ("evaluation", "funded") and _has_no_consistency_rule(
+            body.prop_firm_name, body.name
+        ):
+            payload["consistency_enabled"] = False
         # prop_firm_name is only in some DB versions — add if column exists
         if body.prop_firm_name:
             payload["prop_firm_name"] = body.prop_firm_name
