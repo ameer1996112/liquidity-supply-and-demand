@@ -101,6 +101,7 @@ export interface SetupEvidenceFocusZone {
   high?: number;
   low?: number;
   study?: string;
+  source?: string;
 }
 
 export interface SetupEvidenceFocusImage {

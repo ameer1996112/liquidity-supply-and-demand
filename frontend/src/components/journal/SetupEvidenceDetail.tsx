@@ -162,7 +162,7 @@ export function SetupEvidenceDetail({ evidence, fallback }: SetupEvidenceDetailP
         : 'border-[var(--to-border)] bg-[var(--to-surface-raised)] text-[var(--to-text-dim)]';
 
   return (
-    <div className='space-y-3 rounded-xl border border-[var(--to-border)] bg-[var(--to-surface-raised)]/20 p-3'>
+    <div className='space-y-3 rounded-xl border border-emerald-400/15 bg-[#0a1017]/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'>
       <div className='flex flex-wrap items-center gap-2'>
         <span
           className={cn(
@@ -182,15 +182,19 @@ export function SetupEvidenceDetail({ evidence, fallback }: SetupEvidenceDetailP
           <button
             type='button'
             aria-label='Open setup evidence'
-            className='group relative block overflow-hidden rounded-lg border border-[var(--to-border)]'
+            className='group relative block overflow-hidden rounded-lg border border-emerald-400/20 bg-[#05080d] shadow-[0_12px_36px_rgba(0,0,0,0.35)]'
             onClick={() => setModalOpen(true)}
           >
             <img
               src={evidence.focus_image.url}
               alt='Setup evidence preview'
-              className='w-full max-w-md rounded-lg object-cover transition duration-200 group-hover:scale-[1.01]'
+              className='w-full max-w-md rounded-lg object-cover opacity-90 transition duration-300 group-hover:scale-[1.015] group-hover:opacity-100'
             />
-            <span className='pointer-events-none absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-medium text-white'>
+            <span className='pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.05),rgba(0,0,0,0.45))] opacity-80 transition group-hover:opacity-45' />
+            <span className='pointer-events-none absolute left-2 top-2 inline-flex items-center rounded-full border border-emerald-300/25 bg-black/70 px-2 py-1 font-mono text-[9px] uppercase tracking-wide text-emerald-200'>
+              Chart
+            </span>
+            <span className='pointer-events-none absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/75 px-2 py-1 text-[10px] font-medium text-white shadow-lg backdrop-blur'>
               <Expand className='h-3 w-3' />
               View
             </span>
