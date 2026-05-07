@@ -94,7 +94,7 @@ function getSortValue(signal: TradingSignal, key: SortKey): number | string {
     case 'exit':
       return signal.exit_price ?? 0;
     case 'size':
-      return signal.position_size ?? 0;
+      return signal.position_size ?? signal.size ?? 0;
     case 'slPips':
       return signal.sl_pips ?? 0;
     case 'score':
