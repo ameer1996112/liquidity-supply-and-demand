@@ -900,10 +900,10 @@ def save_result(
 
     setup_evidence = payload.get("setup_evidence")
     if isinstance(setup_evidence, dict):
-        data["setup_evidence"] = setup_evidence
-        focus_image = setup_evidence.get("focus_image")
-        if isinstance(focus_image, dict) and focus_image.get("url"):
-            data["image_url"] = focus_image["url"]
+        from src.services.setup_evidence_capture import strip_setup_screenshot_fields
+
+        data["setup_evidence"] = strip_setup_screenshot_fields(setup_evidence)
+        data["image_url"] = None
 
     signal_time_str = payload.get("signal_time")
     if signal_time_str:

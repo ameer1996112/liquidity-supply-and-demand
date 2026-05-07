@@ -65,17 +65,7 @@ class NotificationService:
         signal: dict[str, Any],
         explicit_image_url: Optional[str] = None,
     ) -> Optional[str]:
-        if explicit_image_url:
-            return explicit_image_url
-
-        setup_evidence = signal.get("setup_evidence")
-        if isinstance(setup_evidence, dict):
-            focus_image = setup_evidence.get("focus_image")
-            if isinstance(focus_image, dict) and focus_image.get("url"):
-                return str(focus_image["url"])
-
-        image_url = signal.get("image_url")
-        return str(image_url) if image_url else None
+        return None
 
     def _resolve_close_image_url(
         self,
@@ -113,7 +103,7 @@ class NotificationService:
             "status": status,
             "status_label": f"Setup Evidence: {status.upper()}",
             "focus_zone_label": focus_zone_label,
-            "has_image": bool(self._resolve_setup_image_url(signal)),
+            "has_image": False,
             "reason": str(setup_evidence.get("reason") or ""),
         }
 

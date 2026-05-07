@@ -1,7 +1,7 @@
 from src.services.notification_service import NotificationService
 
 
-def test_format_signal_prefers_setup_evidence_image_url() -> None:
+def test_format_signal_omits_setup_evidence_image_url() -> None:
     payload = NotificationService().format_signal(
         {
             "id": 44,
@@ -18,7 +18,7 @@ def test_format_signal_prefers_setup_evidence_image_url() -> None:
         }
     )
 
-    assert payload.image_url == "https://provider.example/setup.png"
+    assert payload.image_url is None
 
 
 def test_close_image_resolver_prefers_close_sources_in_order() -> None:
@@ -114,7 +114,7 @@ def test_format_signal_includes_setup_evidence_summary_metadata() -> None:
         "status": "ok",
         "status_label": "Setup Evidence: OK",
         "focus_zone_label": "SUPPLY A+",
-        "has_image": True,
+        "has_image": False,
         "reason": "",
     }
 
@@ -175,7 +175,7 @@ def test_format_close_reuses_setup_evidence_summary_metadata() -> None:
         "status": "degraded",
         "status_label": "Setup Evidence: DEGRADED",
         "focus_zone_label": "SUPPLY A+",
-        "has_image": True,
+        "has_image": False,
         "reason": "focus zone fallback",
     }
 

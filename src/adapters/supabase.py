@@ -226,10 +226,10 @@ def save_alert(
 
     setup_evidence = data.get('setup_evidence')
     if setup_evidence is not None:
-        insert_data['setup_evidence'] = setup_evidence
-        focus_image = setup_evidence.get('focus_image') if isinstance(setup_evidence, dict) else None
-        if isinstance(focus_image, dict) and focus_image.get('url'):
-            insert_data['image_url'] = focus_image['url']
+        from src.services.setup_evidence_capture import strip_setup_screenshot_fields
+
+        insert_data['setup_evidence'] = strip_setup_screenshot_fields(setup_evidence)
+        insert_data['image_url'] = None
 
     # ── De-duplication: if the API already pre-inserted a 'received' row,
     # update it in-place rather than inserting a second row.

@@ -109,7 +109,7 @@ def test_format_alert_keeps_account_badge_and_omits_empty_details():
     assert "Details" not in payload.fields
 
 
-def test_format_signal_keeps_image_url_and_metadata():
+def test_format_signal_omits_image_url_and_keeps_metadata():
     svc = NotificationService()
     signal = {
         "id": 16,
@@ -123,7 +123,7 @@ def test_format_signal_keeps_image_url_and_metadata():
 
     payload = svc.format_signal(signal, ai_result={"decision": "GO", "rf_prob": 0.9}, account_name="Funded Alpha")
 
-    assert payload.image_url == "https://www.tradingview.com/x/abc123/"
+    assert payload.image_url is None
     assert payload.metadata["symbol"] == "EURUSD"
     assert payload.metadata["ai_result"]["decision"] == "GO"
 
@@ -175,7 +175,7 @@ def test_format_signal_includes_session_and_bar_time():
     }
     payload = svc.format_signal(signal, account_name="Ameer Live MT5")
 
-    assert payload.image_url == "https://www.tradingview.com/x/abc123/"
+    assert payload.image_url is None
     assert payload.account_name == "Ameer Live MT5"
     assert "Session" in payload.fields
     assert "🇬🇧" in payload.fields["Session"]   # London session emoji

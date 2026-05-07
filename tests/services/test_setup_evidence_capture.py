@@ -6,6 +6,7 @@ from src.services.setup_evidence_capture import (
     capture_setup_evidence_for_signal,
     needs_setup_evidence_backfill,
     setup_evidence_matches_signal,
+    strip_setup_screenshot_fields,
 )
 
 
@@ -39,30 +40,11 @@ class _FakeSupabase:
         return _FakeQuery(self.recorder)
 
 
-def test_capture_setup_evidence_updates_signal_with_zone_screenshot() -> None:
+def test_capture_setup_evidence_is_disabled() -> None:
     client = _FakeSupabase()
 
-    def _provider(**kwargs: Any) -> dict[str, Any]:
-        assert kwargs["symbol"] == "GBPJPY"
-        assert kwargs["timeframe"] == "5m"
-        assert kwargs["zone_id"] == 17733
-        assert kwargs["timeout_seconds"] >= 20
-        assert kwargs["setup_time"] == "2026-04-17 00:20:00"
-        assert kwargs["zone_top"] == 215.8
-        assert kwargs["zone_bottom"] == 215.2
-        assert kwargs["zone_type"] == "supply"
-        return {
-            "status": "ok",
-            "structured": {
-                "setup_evidence": {
-                    "status": "ok",
-                    "focus_zone": {"id": 17733, "high": 215.8, "low": 215.2},
-                    "focus_image": {"url": "http://provider.test/provider-artifacts/setup.png"},
-                    "reason": "",
-                }
-            },
-            "screenshot_url": "http://provider.test/provider-artifacts/setup.png",
-        }
+    def _provider(**_kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("setup screenshot provider should not be called")
 
     updated = capture_setup_evidence_for_signal(
         client,
@@ -79,11 +61,8 @@ def test_capture_setup_evidence_updates_signal_with_zone_screenshot() -> None:
         provider=_provider,
     )
 
-    assert updated is True
-    assert client.recorder["table"] == "trading_signals"
-    assert client.recorder["eq"] == ("id", 123)
-    assert client.recorder["payload"]["setup_evidence"]["focus_zone"]["id"] == 17733
-    assert client.recorder["payload"]["image_url"] == "http://provider.test/provider-artifacts/setup.png"
+    assert updated is False
+    assert client.recorder == {}
 
 
 def test_capture_setup_evidence_skips_payload_without_zone_id() -> None:
@@ -103,67 +82,18 @@ def test_capture_setup_evidence_skips_payload_without_zone_id() -> None:
     assert client.recorder == {}
 
 
-def test_capture_setup_evidence_accepts_prefixed_zone_id() -> None:
-    client = _FakeSupabase()
+def test_strip_setup_screenshot_fields_removes_focus_image() -> None:
+    evidence = {
+        "status": "ok",
+        "focus_zone": {"id": 18429},
+        "focus_image": {"url": "http://provider.test/provider-artifacts/gbpnzd.png"},
+    }
 
-    def _provider(**kwargs: Any) -> dict[str, Any]:
-        assert kwargs["zone_id"] == 18429
-        return {
-            "status": "ok",
-            "structured": {
-                "setup_evidence": {
-                    "status": "ok",
-                    "focus_zone": {"id": 18429, "high": 2.282, "low": 2.281},
-                    "focus_image": {"url": "http://provider.test/provider-artifacts/gbpnzd.png"},
-                    "reason": "",
-                }
-            },
-        }
-
-    updated = capture_setup_evidence_for_signal(
-        client,
-        signal_id=573,
-        payload={"symbol": "GBPNZD", "timeframe": "5m", "F:zone_id": 18429},
-        provider=_provider,
-    )
-
-    assert updated is True
-    assert client.recorder["payload"]["setup_evidence"]["focus_zone"]["id"] == 18429
-    assert client.recorder["payload"]["image_url"] == "http://provider.test/provider-artifacts/gbpnzd.png"
-
-
-def test_capture_setup_evidence_clears_stale_image_url_when_image_is_invalid() -> None:
-    client = _FakeSupabase()
-
-    def _provider(**_kwargs: Any) -> dict[str, Any]:
-        return {
-            "status": "degraded",
-            "structured": {
-                "setup_evidence": {
-                    "status": "degraded",
-                    "focus_zone": {
-                        "type": "supply",
-                        "source": "signal",
-                        "id": 18981,
-                        "high": 4750.34,
-                        "low": 4743.55,
-                    },
-                    "focus_image": None,
-                    "reason": "visual chart screenshot was blank or still loading",
-                }
-            },
-        }
-
-    updated = capture_setup_evidence_for_signal(
-        client,
-        signal_id=575,
-        payload={"symbol": "XAUUSD", "timeframe": "5m", "zone_id": 18981},
-        provider=_provider,
-    )
-
-    assert updated is True
-    assert client.recorder["payload"]["setup_evidence"]["status"] == "degraded"
-    assert client.recorder["payload"]["image_url"] is None
+    assert strip_setup_screenshot_fields(evidence) == {
+        "status": "ok",
+        "focus_zone": {"id": 18429},
+        "focus_image": None,
+    }
 
 
 def test_setup_evidence_matches_exact_signal_zone() -> None:

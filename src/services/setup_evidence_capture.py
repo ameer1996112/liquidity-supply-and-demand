@@ -67,6 +67,14 @@ def _focus_image_url(setup_evidence: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def strip_setup_screenshot_fields(setup_evidence: Any) -> Any:
+    if not isinstance(setup_evidence, dict):
+        return setup_evidence
+    cleaned = dict(setup_evidence)
+    cleaned["focus_image"] = None
+    return cleaned
+
+
 def _to_float(value: Any) -> Optional[float]:
     if value in (None, ""):
         return None
@@ -131,6 +139,16 @@ def capture_setup_evidence_for_signal(
     payload: Dict[str, Any],
     provider: ChartContextProvider = fetch_and_normalize_chart_context,
 ) -> bool:
+    logger.info("Setup screenshot capture is disabled; signal_id=%s", signal_id)
+    return False
+
+
+def _capture_setup_evidence_for_signal_disabled(
+    supabase_client: Any,
+    signal_id: int,
+    payload: Dict[str, Any],
+    provider: ChartContextProvider = fetch_and_normalize_chart_context,
+) -> bool:
     zone_id = _payload_zone_id(payload)
     symbol = str(payload.get("symbol") or "").strip()
     timeframe = str(payload.get("timeframe") or "5m").strip() or "5m"
@@ -182,13 +200,4 @@ def schedule_setup_evidence_capture(
     signal_id: int,
     payload: Dict[str, Any],
 ) -> None:
-    if _payload_zone_id(payload) is None:
-        return
-
-    thread = threading.Thread(
-        target=capture_setup_evidence_for_signal,
-        args=(supabase_client, signal_id, dict(payload)),
-        daemon=True,
-        name=f"SetupEvidenceCapture-{signal_id}",
-    )
-    thread.start()
+    logger.debug("Setup screenshot capture scheduling disabled for signal_id=%s", signal_id)

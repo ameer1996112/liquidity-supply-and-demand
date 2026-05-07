@@ -22,7 +22,7 @@ class _Client:
         return self.recorder
 
 
-def test_save_alert_persists_setup_evidence_and_image_url(monkeypatch) -> None:
+def test_save_alert_persists_setup_evidence_without_image_url(monkeypatch) -> None:
     client = _Client()
     monkeypatch.setattr(supabase_module, "supabase", client)
 
@@ -46,7 +46,8 @@ def test_save_alert_persists_setup_evidence_and_image_url(monkeypatch) -> None:
 
     assert alert_id == 123
     assert client.recorder.payload["setup_evidence"]["status"] == "ok"
-    assert client.recorder.payload["image_url"] == "https://provider.example/setup.png"
+    assert client.recorder.payload["setup_evidence"]["focus_image"] is None
+    assert client.recorder.payload["image_url"] is None
 
 
 def test_save_alert_persists_backend_setup_score(monkeypatch) -> None:
