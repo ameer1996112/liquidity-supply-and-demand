@@ -9,6 +9,8 @@ import {
   TrendingUp,
   Wifi,
   AlertTriangle,
+  Crosshair,
+  ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TradingSignal, SignalStatus } from '@/types/trading';
@@ -261,16 +263,27 @@ function SideBadge({ side }: { side: string }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
+        'inline-flex min-w-[54px] justify-center rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
         isBuy
-          ? 'bg-[var(--to-long)]/12 text-[var(--to-long)]'
-          : 'bg-[var(--to-short)]/12 text-[var(--to-short)]',
+          ? 'border-[var(--to-long)]/25 bg-[var(--to-long)]/12 text-[var(--to-long)]'
+          : 'border-[var(--to-short)]/25 bg-[var(--to-short)]/12 text-[var(--to-short)]',
       )}
       style={{ fontFamily: 'var(--font-mono)' }}
     >
-      {isBuy ? 'LONG' : 'SHORT'}
+      {isBuy ? 'BUY' : 'SELL'}
     </span>
   );
+}
+
+function formatSignalPrice(symbol: string, value?: number | null): string {
+  if (value == null) return '—';
+  const normalized = symbol.toUpperCase();
+  const decimals = normalized.includes('JPY')
+    ? 3
+    : normalized.includes('XAU') || normalized.includes('GOLD') || normalized.includes('BTC')
+      ? 2
+      : 5;
+  return Number(value).toFixed(decimals);
 }
 
 function CouncilPlaceholder({ title }: { title?: string }) {
@@ -466,11 +479,11 @@ export function SignalTable({
     {
       id: 'created_at',
       align: 'left',
-      width: 'w-[72px]',
-      header: <SortHeader field='created_at' label='Time' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
+      width: 'w-[64px]',
+      header: <SortHeader field='created_at' label='Age' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
       render: (signal) => (
         <span
-          className='inline-flex items-center font-mono text-[10px] tabular-nums text-[var(--to-text-primary)]'
+          className='inline-flex items-center rounded border border-[var(--to-border)]/60 bg-[var(--to-surface-raised)]/35 px-1.5 py-1 font-mono text-[10px] tabular-nums text-[var(--to-text-primary)]'
           style={{ fontFamily: 'var(--font-mono)' }}
           title={new Date(signal.created_at).toLocaleString()}
         >
@@ -481,11 +494,11 @@ export function SignalTable({
     {
       id: 'symbol',
       align: 'left',
-      width: 'w-[80px]',
-      header: <SortHeader field='symbol' label='Pair' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
+      width: 'w-[136px]',
+      header: <SortHeader field='symbol' label='Market' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
       render: (signal) => (
-        <div className='inline-flex flex-col gap-0.5'>
-          <Mono size='lg' bold className='text-text-primary'>
+        <div className='inline-flex min-w-0 flex-col gap-1'>
+          <Mono size='lg' bold className='text-text-primary tracking-wide'>
             {signal.symbol}
           </Mono>
           <div className='inline-flex flex-wrap gap-1'>
@@ -530,70 +543,53 @@ export function SignalTable({
     {
       id: 'side',
       align: 'left',
-      width: 'w-[60px]',
-      header: <SortHeader field='side' label='Side' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
+      width: 'w-[64px]',
+      header: <SortHeader field='side' label='Bias' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
       render: (signal) => <SideBadge side={signal.side} />,
     },
     {
       id: 'entry',
       align: 'right',
       isNumeric: true,
-      width: 'w-[76px]',
-      header: <SortHeader field='entry' label='Entry' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
+      width: 'w-[176px]',
+      header: <SortHeader field='entry' label='Trade Plan' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
       render: safeRender('entry', (signal) => {
         const broker = brokerMap[String(signal.id)];
         const entry = signal.entry ?? signal.price;
         const currentPrice = broker?.current_price;
-        const dec = signal.symbol?.includes('JPY') ? 3 : 5;
-        const entryNum = entry != null ? Number(entry) : null;
-        const entryFormatted = entryNum != null && !isNaN(entryNum) ? entryNum.toFixed(dec) : '—';
+        const sl = signal.sl ?? signal.stop_loss;
+        const tp = signal.tp ?? signal.take_profit;
+        const entryFormatted = formatSignalPrice(signal.symbol, entry);
+        const slStr = formatSignalPrice(signal.symbol, sl);
+        const tpStr = formatSignalPrice(signal.symbol, tp);
         const currPriceNum = currentPrice != null ? Number(currentPrice) : null;
         const titleText = currPriceNum != null && !isNaN(currPriceNum)
-          ? `Live: ${currPriceNum.toFixed(dec)}`
-          : undefined;
+          ? `Live: ${formatSignalPrice(signal.symbol, currPriceNum)}`
+          : `Entry: ${entryFormatted} · SL: ${slStr} · TP: ${tpStr}`;
         return (
-          <span
-            className='inline-flex items-center gap-0.5 font-mono text-[10px] tabular-nums text-text-secondary justify-end'
+          <div
+            className='inline-flex flex-col items-end gap-1 font-mono text-[10px] tabular-nums'
             style={{ fontFamily: 'var(--font-mono)' }}
             title={titleText}
           >
-            {currentPrice != null && (
-              <Wifi className='h-[9px] w-[9px] shrink-0 text-[var(--to-long)]/60' />
-            )}
-            {entryFormatted}
-          </span>
-        );
-      }),
-    },
-    {
-      id: 'sl_tp',
-      align: 'right',
-      isNumeric: true,
-      width: 'w-[72px]',
-      header: (
-        <span className='inline-flex items-center justify-end gap-0.5 w-full text-[10px]'>
-          SL / TP
-        </span>
-      ),
-      render: safeRender('sl_tp', (signal) => {
-        const sl = signal.sl ?? signal.stop_loss;
-        const tp = signal.tp ?? signal.take_profit;
-        const sym = signal.symbol ?? '';
-        const dec = sym.includes('JPY') ? 3 : sym.includes('XAU') || sym.includes('GOLD') ? 2 : 5;
-        const slNum = sl != null ? Number(sl) : null;
-        const tpNum = tp != null ? Number(tp) : null;
-        const slStr = slNum != null && !isNaN(slNum) ? slNum.toFixed(dec) : '—';
-        const tpStr = tpNum != null && !isNaN(tpNum) ? tpNum.toFixed(dec) : '—';
-        return (
-          <span
-            className='inline-flex items-center gap-px font-mono text-[10px] tabular-nums'
-            style={{ fontFamily: 'var(--font-mono)' }}
-            title={`SL: ${slStr} · TP: ${tpStr}`}
-          >
-            <span className='text-[var(--to-short)]/75'>{slStr}</span>
-            <span className='text-text-secondary/30 mx-0.5'>/</span>
-            <span className='text-[var(--to-long)]/75'>{tpStr}</span>
-          </span>
+            <span className='inline-flex items-center gap-1 text-[var(--to-text-secondary)]'>
+              {currentPrice != null ? (
+                <Wifi className='h-[9px] w-[9px] shrink-0 text-[var(--to-long)]/60' />
+              ) : (
+                <Crosshair className='h-[9px] w-[9px] shrink-0 text-[var(--to-text-dim)]/60' />
+              )}
+              <span className='text-[8px] uppercase tracking-wider text-[var(--to-text-dim)]'>Entry</span>
+              <span className='font-semibold text-[var(--to-text-secondary)]'>{entryFormatted}</span>
+            </span>
+            <span className='inline-flex items-center gap-1'>
+              <span className='rounded bg-[var(--to-short)]/10 px-1 py-0.5 text-[var(--to-short)]/85'>
+                SL {slStr}
+              </span>
+              <span className='rounded bg-[var(--to-long)]/10 px-1 py-0.5 text-[var(--to-long)]/85'>
+                TP {tpStr}
+              </span>
+            </span>
+          </div>
         );
       }),
     },
@@ -601,8 +597,8 @@ export function SignalTable({
       id: 'pnl',
       align: 'right',
       isNumeric: true,
-      width: 'w-[80px]',
-      header: <SortHeader field='pnl' label='P&L' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
+      width: 'w-[86px]',
+      header: <SortHeader field='pnl' label='Result' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
       render: safeRender('pnl', (signal) => {
         const broker = brokerMap[String(signal.id)];
         const livePnl = broker?.live_pnl;
@@ -641,16 +637,17 @@ export function SignalTable({
       id: 'risk',
       align: 'right',
       isNumeric: true,
-      width: 'w-[76px]',
-      header: <SortHeader field='risk' label='Risk' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
+      width: 'w-[92px]',
+      header: <SortHeader field='risk' label='At Risk' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
       render: safeRender('risk', (signal) => {
         const risk = calculateJournalRisk(signal);
         return (
           <span
-            className='inline-flex justify-end font-mono text-[10px] font-bold tabular-nums text-[var(--to-short)]'
+            className='inline-flex items-center justify-end gap-1 rounded border border-[var(--to-short)]/20 bg-[var(--to-short)]/8 px-1.5 py-1 font-mono text-[10px] font-bold tabular-nums text-[var(--to-short)]'
             style={{ fontFamily: 'var(--font-mono)' }}
             title={formatJournalRiskTitle(risk)}
           >
+            <ShieldAlert className='h-3 w-3 opacity-70' strokeWidth={1.7} />
             {formatJournalRisk(risk)}
           </span>
         );
@@ -661,7 +658,7 @@ export function SignalTable({
       align: 'right',
       isNumeric: true,
       width: 'w-[76px]',
-      header: <SortHeader field='setup_score' label='Setup' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
+      header: <SortHeader field='setup_score' label='Setup Q' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
       render: (signal) => (
         <div className='inline-flex w-full justify-end'>
           <SetupScoreBadge signal={signal} compact />
@@ -680,7 +677,7 @@ export function SignalTable({
           onClick={() => handleSort('score')}
         >
           <TrendingUp className='h-2.5 w-2.5' strokeWidth={1.5} />
-          <span>AI</span>
+          <span>AI Conv.</span>
           {sortField === 'score' ? (
             sortDir === 'asc' ? <ArrowUp className='h-2.5 w-2.5' /> : <ArrowDown className='h-2.5 w-2.5' />
           ) : (
@@ -726,7 +723,7 @@ export function SignalTable({
       id: 'status',
       align: 'left',
       width: 'w-[80px]',
-      header: <SortHeader field='status' label='Status' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
+      header: <SortHeader field='status' label='State' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
       render: (signal) => {
         const broker = brokerMap[String(signal.id)];
         return <StatusBadge status={signal.status} isStale={broker?.is_stale} />;
