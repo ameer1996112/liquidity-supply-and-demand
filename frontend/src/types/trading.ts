@@ -226,6 +226,12 @@ export interface TradingSignal {
   // Trade metrics
   rr_ratio?: number;
   sl_pips?: number;
+  risk_usd?: number | null;
+  target_risk_usd?: number | null;
+  effective_risk_percent?: number | null;
+  spread_pips?: number | null;
+  effective_sl_pips?: number | null;
+  pip_value_per_lot?: number | null;
   pnl?: number;
   pnl_usd?: number; // Alternative PnL field (net: includes commission + swap)
   pnl_percentage?: number;
@@ -375,6 +381,12 @@ export function normalizeSignal(
     return_strength: raw.return_strength,
     rr_ratio: raw.rr_ratio,
     sl_pips: raw.sl_pips,
+    risk_usd: raw.risk_usd ?? null,
+    target_risk_usd: raw.target_risk_usd ?? null,
+    effective_risk_percent: raw.effective_risk_percent ?? null,
+    spread_pips: raw.spread_pips ?? null,
+    effective_sl_pips: raw.effective_sl_pips ?? null,
+    pip_value_per_lot: raw.pip_value_per_lot ?? null,
     pnl: raw.pnl ?? raw.pnl_usd,
     pnl_usd: raw.pnl_usd ?? raw.pnl,
     pnl_percentage: raw.pnl_percentage,

@@ -20,7 +20,7 @@ import { SetupEvidenceCell } from './SetupEvidenceCell';
 import { SetupEvidenceDetail } from './SetupEvidenceDetail';
 import { SetupScoreBadge } from '@/components/shared/SetupScoreBadge';
 import { formatJournalPrice } from './priceFormat';
-import { calculateJournalRisk, formatJournalRisk } from './riskFormat';
+import { calculateJournalRisk, formatJournalRisk, formatJournalRiskTitle } from './riskFormat';
 
 interface ExpandableTradeRowProps {
   signal: TradingSignal;
@@ -242,7 +242,10 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
         </td>
 
         {/* Risk */}
-        <td className="py-2.5 px-3 font-mono text-[11px] font-semibold text-short">
+        <td
+          className="py-2.5 px-3 font-mono text-[11px] font-semibold text-short"
+          title={formatJournalRiskTitle(risk)}
+        >
           {formatJournalRisk(risk)}
         </td>
 
@@ -396,10 +399,26 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[var(--to-text-dim)]">Risk</span>
-                    <span className="font-mono font-semibold text-short">
+                    <span className="font-mono font-semibold text-short" title={formatJournalRiskTitle(risk)}>
                       {formatJournalRisk(risk)}
                     </span>
                   </div>
+                  {risk && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-[var(--to-text-dim)]">Spread</span>
+                        <span className="font-mono text-[var(--to-text-secondary)]">
+                          {risk.spreadPips.toFixed(1)} pips
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[var(--to-text-dim)]">Effective SL</span>
+                        <span className="font-mono text-[var(--to-text-secondary)]">
+                          {risk.effectiveSlPips.toFixed(1)} pips
+                        </span>
+                      </div>
+                    </>
+                  )}
                   {signal.rr_ratio != null && (
                     <div className="flex justify-between">
                       <span className="text-[var(--to-text-dim)]">R:R</span>

@@ -6,7 +6,10 @@ const CRYPTO_SYMBOLS = ['BTC', 'ETH', 'BCH', 'LTC', 'XRP', 'ADA', 'SOL', 'DOGE']
 export interface JournalRisk {
   riskUsd: number;
   slPips: number;
+  spreadPips: number;
+  effectiveSlPips: number;
   pipValuePerLot: number;
+  source: 'stored' | 'estimated';
 }
 
 export function getJournalPipSize(symbol: string): number {
@@ -40,7 +43,18 @@ export function getJournalPipValuePerLot(symbol: string, entry: number): number 
 
 export function calculateJournalRisk(signal: Pick<
   TradingSignal,
-  'symbol' | 'ticker' | 'price' | 'entry' | 'stop_loss' | 'sl' | 'position_size' | 'size'
+  | 'symbol'
+  | 'ticker'
+  | 'price'
+  | 'entry'
+  | 'stop_loss'
+  | 'sl'
+  | 'position_size'
+  | 'size'
+  | 'risk_usd'
+  | 'spread_pips'
+  | 'effective_sl_pips'
+  | 'pip_value_per_lot'
 >): JournalRisk | null {
   const symbol = signal.symbol || signal.ticker || '';
   const entry = signal.price ?? signal.entry;
@@ -51,15 +65,21 @@ export function calculateJournalRisk(signal: Pick<
 
   const pipSize = getJournalPipSize(symbol);
   const slPips = Math.abs(entry - stopLoss) / pipSize;
-  const pipValuePerLot = getJournalPipValuePerLot(symbol, entry);
-  const riskUsd = slPips * pipValuePerLot * lots;
+  const spreadPips = signal.spread_pips ?? 0;
+  const effectiveSlPips = signal.effective_sl_pips ?? slPips + spreadPips;
+  const pipValuePerLot = signal.pip_value_per_lot ?? getJournalPipValuePerLot(symbol, entry);
+  const storedRiskUsd = signal.risk_usd != null && signal.risk_usd > 0 ? signal.risk_usd : null;
+  const riskUsd = storedRiskUsd ?? effectiveSlPips * pipValuePerLot * lots;
 
   if (!Number.isFinite(riskUsd) || riskUsd <= 0) return null;
 
   return {
     riskUsd,
     slPips,
+    spreadPips,
+    effectiveSlPips,
     pipValuePerLot,
+    source: storedRiskUsd != null ? 'stored' : 'estimated',
   };
 }
 
@@ -69,4 +89,16 @@ export function formatJournalRisk(risk?: JournalRisk | null): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+export function formatJournalRiskTitle(risk?: JournalRisk | null): string | undefined {
+  if (!risk) return undefined;
+  const sourceLabel = risk.source === 'stored' ? 'backend sizing' : 'estimated from journal fields';
+  return [
+    `Risk: ${formatJournalRisk(risk)} (${sourceLabel})`,
+    `SL: ${risk.slPips.toFixed(1)} pips`,
+    `Spread: ${risk.spreadPips.toFixed(1)} pips`,
+    `Effective SL: ${risk.effectiveSlPips.toFixed(1)} pips`,
+    `Pip value: $${risk.pipValuePerLot.toFixed(2)}/lot`,
+  ].join(' | ');
 }

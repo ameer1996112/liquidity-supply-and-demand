@@ -252,4 +252,27 @@ describe('SignalTable', () => {
     expect(container.textContent).toContain('420.64');
     expect(container.textContent).not.toContain('1126.76');
   });
+
+  it('shows spread-aware risk in latest signals', () => {
+    const signal: TradingSignal = {
+      ...signals[0],
+      id: 'risk-sig',
+      symbol: 'USDJPY',
+      entry: 156.404,
+      sl: 156.503,
+      size: 0.4,
+      risk_usd: 30.44,
+      spread_pips: 1.2,
+      effective_sl_pips: 11.9,
+      pip_value_per_lot: 6.3937,
+      status: 'open',
+    };
+
+    act(() => {
+      root.render(<SignalTable signals={[signal]} />);
+    });
+
+    expect(container.textContent).toContain('Risk');
+    expect(container.textContent).toContain('$30.44');
+  });
 });

@@ -22,6 +22,7 @@ import {
   PnLText,
 } from '@/components/ui/typography';
 import { SetupScoreBadge } from '@/components/shared/SetupScoreBadge';
+import { calculateJournalRisk, formatJournalRisk, formatJournalRiskTitle } from '@/components/journal/riskFormat';
 
 // =============================================================================
 // TYPES
@@ -32,6 +33,7 @@ type SortField =
   | 'symbol'
   | 'side'
   | 'entry'
+  | 'risk'
   | 'pnl'
   | 'status'
   | 'setup_score'
@@ -119,6 +121,7 @@ function getSortValue(signal: TradingSignal, field: SortField): string | number 
     case 'symbol':     return signal.symbol;
     case 'side':       return signal.side;
     case 'entry':      return signal.entry ?? signal.price ?? 0;
+    case 'risk':       return calculateJournalRisk(signal)?.riskUsd ?? 0;
     case 'pnl':        return getPnl(signal) ?? 0;
     case 'status':     return signal.status;
     case 'setup_score': return signal.setup_score ?? -1;
@@ -632,6 +635,25 @@ export function SignalTable({
         }
 
         return <PnLText value={dbPnl} variant='currency' size='sm' />;
+      }),
+    },
+    {
+      id: 'risk',
+      align: 'right',
+      isNumeric: true,
+      width: 'w-[76px]',
+      header: <SortHeader field='risk' label='Risk' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
+      render: safeRender('risk', (signal) => {
+        const risk = calculateJournalRisk(signal);
+        return (
+          <span
+            className='inline-flex justify-end font-mono text-[10px] font-bold tabular-nums text-[var(--to-short)]'
+            style={{ fontFamily: 'var(--font-mono)' }}
+            title={formatJournalRiskTitle(risk)}
+          >
+            {formatJournalRisk(risk)}
+          </span>
+        );
       }),
     },
     {

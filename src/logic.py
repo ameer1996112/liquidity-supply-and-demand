@@ -904,6 +904,18 @@ def process_trade(
                                 "entry_time": datetime.now(timezone.utc).isoformat(),
                                 "opened_at": datetime.now(timezone.utc).isoformat(),
                             }
+                            sizing = data.get("_sizing") or {}
+                            if sizing:
+                                for source_key, db_key in {
+                                    "risk_usd": "risk_usd",
+                                    "target_risk_usd": "target_risk_usd",
+                                    "effective_risk_percent": "effective_risk_percent",
+                                    "spread_pips": "spread_pips",
+                                    "effective_sl_pips": "effective_sl_pips",
+                                    "pip_value_per_lot": "pip_value_per_lot",
+                                }.items():
+                                    if sizing.get(source_key) is not None:
+                                        update_payload[db_key] = float(sizing[source_key])
                             # Store BE trigger levels sent by Pine Script
                             if data.get("be_trigger_price"):
                                 update_payload["be_trigger_price"] = float(data["be_trigger_price"])
@@ -1006,6 +1018,18 @@ def process_trade(
                                 "broker_order_id": str(broker_order_id),
                                 "entry_time": datetime.now(timezone.utc).isoformat(),
                             }
+                            sizing = data.get("_sizing") or {}
+                            if sizing:
+                                for source_key, db_key in {
+                                    "risk_usd": "risk_usd",
+                                    "target_risk_usd": "target_risk_usd",
+                                    "effective_risk_percent": "effective_risk_percent",
+                                    "spread_pips": "spread_pips",
+                                    "effective_sl_pips": "effective_sl_pips",
+                                    "pip_value_per_lot": "pip_value_per_lot",
+                                }.items():
+                                    if sizing.get(source_key) is not None:
+                                        submitted_payload[db_key] = float(sizing[source_key])
                             if alert_id:
                                 client.table("trading_signals").update(submitted_payload).eq("id", alert_id).execute()
                             elif trade_key:
