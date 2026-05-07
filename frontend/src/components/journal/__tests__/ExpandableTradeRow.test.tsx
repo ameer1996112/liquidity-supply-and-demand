@@ -85,6 +85,7 @@ describe('ExpandableTradeRow', () => {
     });
 
     expect(container.textContent).toContain('0.4 lots');
+    expect(container.textContent).toContain('$25.32');
     expect(container.textContent).not.toContain('-- lots');
     root.unmount();
   });

@@ -20,6 +20,7 @@ import { SetupEvidenceCell } from './SetupEvidenceCell';
 import { SetupEvidenceDetail } from './SetupEvidenceDetail';
 import { SetupScoreBadge } from '@/components/shared/SetupScoreBadge';
 import { formatJournalPrice } from './priceFormat';
+import { calculateJournalRisk, formatJournalRisk } from './riskFormat';
 
 interface ExpandableTradeRowProps {
   signal: TradingSignal;
@@ -76,6 +77,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
   const sl = signal.stop_loss ?? signal.sl;
   const tp = signal.take_profit ?? signal.tp;
   const positionSize = signal.position_size ?? signal.size;
+  const risk = calculateJournalRisk(signal);
   const statusClass =
     statusColors[signal.status?.toLowerCase() || ''] || 'text-[var(--to-text-dim)] bg-[var(--to-surface-raised)]/30';
 
@@ -239,6 +241,11 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
           {slPips != null ? slPips.toFixed(1) : '--'}
         </td>
 
+        {/* Risk */}
+        <td className="py-2.5 px-3 font-mono text-[11px] font-semibold text-short">
+          {formatJournalRisk(risk)}
+        </td>
+
         {/* AI Score */}
         <td className="py-2.5 px-3">
           {score != null ? (
@@ -293,7 +300,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
       {/* Expanded Detail Row */}
       {expanded && (
         <tr className="border-b border-panel-border bg-[var(--to-surface)]/80">
-          <td colSpan={19} className="p-4">
+          <td colSpan={20} className="p-4">
             <div className="grid grid-cols-4 gap-6">
               <div className="space-y-2">
                 <span className="text-[10px] text-text-dim uppercase tracking-wider font-medium">
@@ -385,6 +392,12 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                     <span className="text-[var(--to-text-dim)]">Position Size</span>
                     <span className="font-mono text-[var(--to-text-secondary)]">
                       {positionSize != null ? `${positionSize} lots` : '--'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--to-text-dim)]">Risk</span>
+                    <span className="font-mono font-semibold text-short">
+                      {formatJournalRisk(risk)}
                     </span>
                   </div>
                   {signal.rr_ratio != null && (

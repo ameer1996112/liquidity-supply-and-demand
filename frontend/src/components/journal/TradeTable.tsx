@@ -5,6 +5,7 @@ import { TradingSignal, getSymbol, getScore, getPnl } from '@/types/trading';
 import { ExpandableTradeRow } from './ExpandableTradeRow';
 import { cn } from '@/lib/utils';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { calculateJournalRisk } from './riskFormat';
 
 interface TradeTableProps {
   signals: TradingSignal[];
@@ -24,6 +25,7 @@ type SortKey =
   | 'entry'
   | 'exit'
   | 'slPips'
+  | 'risk'
   | 'score'
   | 'rr'
   | 'pnl'
@@ -45,6 +47,7 @@ const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
   { key: 'exit', label: 'Exit' },
   { key: 'size', label: 'Size' },
   { key: 'slPips', label: 'SL Pips' },
+  { key: 'risk', label: 'Risk' },
   { key: 'score', label: 'AI' },
   { key: 'rr', label: 'R:R' },
   { key: 'duration', label: 'Duration' },
@@ -97,6 +100,8 @@ function getSortValue(signal: TradingSignal, key: SortKey): number | string {
       return signal.position_size ?? signal.size ?? 0;
     case 'slPips':
       return signal.sl_pips ?? 0;
+    case 'risk':
+      return calculateJournalRisk(signal)?.riskUsd ?? 0;
     case 'score':
       return getScore(signal) ?? -1;
     case 'rr':
