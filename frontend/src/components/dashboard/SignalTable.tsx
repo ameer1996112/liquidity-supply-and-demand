@@ -258,7 +258,7 @@ const SIGNAL_GRID_STYLE = {
     '64px minmax(150px,1.2fr) 64px minmax(92px,0.8fr) minmax(92px,0.8fr) minmax(92px,0.8fr) 96px 96px 76px 64px 92px',
 } as const;
 
-const SIGNAL_TABLE_MIN_WIDTH = 'min-w-[1120px]';
+const SIGNAL_TABLE_WIDTH = 'w-full min-w-[1120px]';
 
 interface SignalBlotterHeaderProps {
   sortField: SortField;
@@ -271,7 +271,7 @@ function SignalBlotterHeader({ sortField, sortDir, onSort }: SignalBlotterHeader
     <div
       className={cn(
         'sticky top-0 z-10 grid items-center border-b border-[var(--to-border)] bg-[#0d1219]/95 px-3 py-2 backdrop-blur',
-        SIGNAL_TABLE_MIN_WIDTH,
+        SIGNAL_TABLE_WIDTH,
       )}
       style={SIGNAL_GRID_STYLE}
     >
@@ -355,7 +355,7 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
       type='button'
       className={cn(
         'group grid items-center border-b border-[var(--to-border)]/40 px-3 py-2 text-left transition-colors duration-150',
-        SIGNAL_TABLE_MIN_WIDTH,
+        SIGNAL_TABLE_WIDTH,
         'bg-[#0d1218]/90 hover:bg-[#121821]',
         'border-l-2',
         sideBorderColor(signal.side),
@@ -796,7 +796,7 @@ export function SignalTable({
         ) : (
           <div className={cn(
             'overflow-hidden rounded-md border border-[var(--to-border)]/60 bg-[#090d13]',
-            SIGNAL_TABLE_MIN_WIDTH,
+            SIGNAL_TABLE_WIDTH,
           )}>
             <SignalBlotterHeader
               sortField={sortField}
