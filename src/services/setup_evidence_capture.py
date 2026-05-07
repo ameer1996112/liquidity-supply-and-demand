@@ -67,6 +67,64 @@ def _focus_image_url(setup_evidence: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _to_float(value: Any) -> Optional[float]:
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _nearly_equal(left: float, right: float, tolerance: float = 0.00001) -> bool:
+    return abs(left - right) <= tolerance
+
+
+def setup_evidence_matches_signal(payload: Dict[str, Any], setup_evidence: Any) -> bool:
+    """Return True only when evidence points at this signal's exact setup zone."""
+    if not isinstance(setup_evidence, dict):
+        return False
+    if setup_evidence.get("status") != "ok":
+        return False
+    if not _focus_image_url(setup_evidence):
+        return False
+
+    zone_id = _payload_zone_id(payload)
+    focus_zone = setup_evidence.get("focus_zone")
+    if zone_id is None or not isinstance(focus_zone, dict):
+        return False
+
+    focus_zone_id = _to_int(focus_zone.get("id"))
+    if focus_zone_id != zone_id:
+        return False
+
+    expected_top = _to_float(_payload_value(payload, "zone_top"))
+    expected_bottom = _to_float(_payload_value(payload, "zone_bottom"))
+    if expected_top is not None and expected_bottom is not None:
+        expected_high = max(expected_top, expected_bottom)
+        expected_low = min(expected_top, expected_bottom)
+        actual_high = _to_float(focus_zone.get("high"))
+        actual_low = _to_float(focus_zone.get("low"))
+        if actual_high is None or actual_low is None:
+            return False
+        if not _nearly_equal(actual_high, expected_high) or not _nearly_equal(actual_low, expected_low):
+            return False
+
+    expected_type = _payload_value(payload, "zone_type")
+    actual_type = focus_zone.get("type")
+    if expected_type and actual_type and str(expected_type).lower() != str(actual_type).lower():
+        return False
+
+    return True
+
+
+def needs_setup_evidence_backfill(row: Dict[str, Any]) -> bool:
+    return _payload_zone_id(row) is not None and not setup_evidence_matches_signal(
+        row,
+        row.get("setup_evidence"),
+    )
+
+
 def capture_setup_evidence_for_signal(
     supabase_client: Any,
     signal_id: int,

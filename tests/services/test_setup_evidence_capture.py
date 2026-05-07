@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.services.setup_evidence_capture import capture_setup_evidence_for_signal
+from src.services.setup_evidence_capture import (
+    capture_setup_evidence_for_signal,
+    needs_setup_evidence_backfill,
+    setup_evidence_matches_signal,
+)
 
 
 class _FakeResponse:
@@ -126,3 +130,67 @@ def test_capture_setup_evidence_accepts_prefixed_zone_id() -> None:
     assert updated is True
     assert client.recorder["payload"]["setup_evidence"]["focus_zone"]["id"] == 18429
     assert client.recorder["payload"]["image_url"] == "http://provider.test/provider-artifacts/gbpnzd.png"
+
+
+def test_setup_evidence_matches_exact_signal_zone() -> None:
+    payload = {
+        "zone_id": 18429,
+        "zone_type": "supply",
+        "zone_top": 2.28358,
+        "zone_bottom": 2.28294,
+    }
+    evidence = {
+        "status": "ok",
+        "focus_zone": {
+            "id": 18429,
+            "type": "supply",
+            "high": 2.28358,
+            "low": 2.28294,
+        },
+        "focus_image": {"url": "http://provider/setup.png"},
+    }
+
+    assert setup_evidence_matches_signal(payload, evidence) is True
+    assert needs_setup_evidence_backfill({**payload, "setup_evidence": evidence}) is False
+
+
+def test_setup_evidence_rejects_requested_id_without_exact_focus_zone() -> None:
+    payload = {
+        "zone_id": 18429,
+        "zone_type": "supply",
+        "zone_top": 2.28358,
+        "zone_bottom": 2.28294,
+    }
+    wrong_evidence = {
+        "status": "ok",
+        "focus_zone": {
+            "type": "horizontal_level",
+            "price": 2.89,
+            "requested_zone_id": 18429,
+        },
+        "focus_image": {"url": "http://provider/wrong.png"},
+    }
+
+    assert setup_evidence_matches_signal(payload, wrong_evidence) is False
+    assert needs_setup_evidence_backfill({**payload, "setup_evidence": wrong_evidence}) is True
+
+
+def test_setup_evidence_rejects_mismatched_zone_range() -> None:
+    payload = {
+        "zone_id": 18429,
+        "zone_type": "supply",
+        "zone_top": 2.28358,
+        "zone_bottom": 2.28294,
+    }
+    wrong_range = {
+        "status": "ok",
+        "focus_zone": {
+            "id": 18429,
+            "type": "supply",
+            "high": 2.29,
+            "low": 2.28,
+        },
+        "focus_image": {"url": "http://provider/wrong.png"},
+    }
+
+    assert setup_evidence_matches_signal(payload, wrong_range) is False
