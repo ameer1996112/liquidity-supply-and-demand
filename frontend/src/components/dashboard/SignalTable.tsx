@@ -9,7 +9,6 @@ import {
   TrendingUp,
   Wifi,
   AlertTriangle,
-  Crosshair,
   ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,10 +17,7 @@ import { getPnl } from '@/types/trading';
 import type { CouncilSummary } from '@/lib/api';
 import type { ActivePosition } from '@/hooks/usePositions';
 import { TableEmptyState } from '@/components/shared/TableStates';
-import {
-  Mono,
-  PnLText,
-} from '@/components/ui/typography';
+import { PnLText } from '@/components/ui/typography';
 import { SetupScoreBadge } from '@/components/shared/SetupScoreBadge';
 import { calculateJournalRisk, formatJournalRisk, formatJournalRiskTitle } from '@/components/journal/riskFormat';
 
@@ -313,6 +309,29 @@ interface SignalBlotterRowProps {
   onSelect?: (signal: TradingSignal) => void;
 }
 
+function PriceCell({
+  symbol,
+  value,
+  tone = 'neutral',
+}: {
+  symbol: string;
+  value?: number | null;
+  tone?: 'neutral' | 'long' | 'short';
+}) {
+  const toneClass =
+    tone === 'long'
+      ? 'text-[var(--to-long)]'
+      : tone === 'short'
+        ? 'text-[var(--to-short)]'
+        : 'text-[var(--to-text-secondary)]';
+
+  return (
+    <span className={cn('block text-right font-mono text-[11px] font-medium tabular-nums', toneClass)}>
+      {formatSignalPrice(symbol, value)}
+    </span>
+  );
+}
+
 function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRowProps) {
   const entry = signal.entry ?? signal.price;
   const sl = signal.sl ?? signal.stop_loss;
@@ -347,24 +366,27 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
       onClick={() => onSelect?.(signal)}
     >
       <span
-        className='inline-flex w-fit items-center rounded border border-[var(--to-border)]/60 bg-black/15 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-[var(--to-text-secondary)]'
+        className='inline-flex w-fit items-center rounded border border-[var(--to-border)]/45 bg-black/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-[var(--to-text-secondary)]'
         title={new Date(signal.created_at).toLocaleString()}
       >
         {relativeTime(signal.created_at)}
       </span>
 
       <div className='flex min-w-0 flex-col gap-0.5'>
-        <Mono size='base' bold className='text-[var(--to-text-primary)]'>
+        <span className='truncate text-[13px] font-semibold text-[var(--to-text-primary)]'>
           {signal.symbol}
-        </Mono>
-        <div className='flex min-w-0 flex-wrap gap-1'>
+        </span>
+        <div className='flex min-w-0 items-center gap-1.5 text-[9px] text-[var(--to-text-dim)]'>
           {(signal as any).account_name && (
-            <span className='rounded border border-blue-400/15 bg-blue-400/8 px-1.5 py-0.5 text-[9px] uppercase text-blue-200/70'>
+            <span className='truncate'>
               {(signal as any).account_name}
             </span>
           )}
+          {(signal as any).account_name && getSignalStrategyBadge(signal) && (
+            <span className='text-[var(--to-border)]'>/</span>
+          )}
           {getSignalStrategyBadge(signal) && (
-            <span className='rounded border border-emerald-400/15 bg-emerald-400/8 px-1.5 py-0.5 text-[9px] uppercase text-emerald-200/70'>
+            <span className='truncate'>
               {getSignalStrategyBadge(signal)}
             </span>
           )}
@@ -373,29 +395,16 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
 
       <SideBadge side={signal.side} />
 
-      <div
-        className='flex flex-col items-end gap-1 font-mono text-[10px] tabular-nums'
-        title={`Entry: ${formatSignalPrice(signal.symbol, entry)} · SL: ${formatSignalPrice(signal.symbol, sl)} · TP: ${formatSignalPrice(signal.symbol, tp)}`}
-      >
-        <span className='inline-flex items-center gap-1 text-[var(--to-text-secondary)]'>
-          {broker?.current_price != null ? (
-            <Wifi className='h-[9px] w-[9px] shrink-0 text-[var(--to-long)]/65' />
-          ) : (
-            <Crosshair className='h-[9px] w-[9px] shrink-0 text-[var(--to-text-dim)]/60' />
-          )}
-          <span className='text-[8px] uppercase text-[var(--to-text-dim)]'>Entry</span>
-          <span className='font-semibold text-[var(--to-text-secondary)]'>
-            {formatSignalPrice(signal.symbol, entry)}
-          </span>
-        </span>
-        <span className='inline-flex items-center gap-1'>
-          <span className='rounded border border-[var(--to-short)]/15 bg-[var(--to-short)]/10 px-1 py-0.5 text-[var(--to-short)]/90'>
-            SL {formatSignalPrice(signal.symbol, sl)}
-          </span>
-          <span className='rounded border border-[var(--to-long)]/15 bg-[var(--to-long)]/10 px-1 py-0.5 text-[var(--to-long)]/90'>
-            TP {formatSignalPrice(signal.symbol, tp)}
-          </span>
-        </span>
+      <div title={`Entry: ${formatSignalPrice(signal.symbol, entry)}`}>
+        <PriceCell symbol={signal.symbol} value={entry} />
+      </div>
+
+      <div title={`Stop Loss: ${formatSignalPrice(signal.symbol, sl)}`}>
+        <PriceCell symbol={signal.symbol} value={sl} tone='short' />
+      </div>
+
+      <div title={`Take Profit: ${formatSignalPrice(signal.symbol, tp)}`}>
+        <PriceCell symbol={signal.symbol} value={tp} tone='long' />
       </div>
 
       <div className='flex justify-end'>
@@ -424,7 +433,7 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
 
       <div className='flex justify-end'>
         <span
-          className='inline-flex items-center gap-1 rounded border border-[var(--to-short)]/20 bg-[var(--to-short)]/8 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-[var(--to-short)]'
+          className='inline-flex items-center gap-1 rounded border border-[var(--to-short)]/15 bg-[var(--to-short)]/7 px-1.5 py-0.5 font-mono text-[10px] font-medium tabular-nums text-[var(--to-short)]'
           title={formatJournalRiskTitle(risk)}
         >
           <ShieldAlert className='h-2.5 w-2.5 opacity-65' strokeWidth={1.7} />
@@ -436,7 +445,7 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
         <SetupScoreBadge signal={signal} compact />
       </div>
 
-      <div className='flex justify-end font-mono text-[10px] font-semibold tabular-nums'>
+      <div className='flex justify-end font-mono text-[11px] font-medium tabular-nums'>
         <span className={cn(scoreColor)}>{score == null ? '—' : Math.round(score)}</span>
       </div>
 
