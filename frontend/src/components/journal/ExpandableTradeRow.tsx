@@ -75,6 +75,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
   const entry = signal.price ?? signal.entry;
   const sl = signal.stop_loss ?? signal.sl;
   const tp = signal.take_profit ?? signal.tp;
+  const positionSize = signal.position_size ?? signal.size;
   const statusClass =
     statusColors[signal.status?.toLowerCase() || ''] || 'text-[var(--to-text-dim)] bg-[var(--to-surface-raised)]/30';
 
@@ -230,7 +231,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
 
         {/* Size */}
         <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--to-text-dim)]">
-          {signal.position_size != null ? `${signal.position_size}L` : '--'}
+          {positionSize != null ? `${positionSize}L` : '--'}
         </td>
 
         {/* SL Pips */}
@@ -383,7 +384,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                   <div className="flex justify-between">
                     <span className="text-[var(--to-text-dim)]">Position Size</span>
                     <span className="font-mono text-[var(--to-text-secondary)]">
-                      {signal.position_size ?? '--'} lots
+                      {positionSize != null ? `${positionSize} lots` : '--'}
                     </span>
                   </div>
                   {signal.rr_ratio != null && (
