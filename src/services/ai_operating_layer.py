@@ -24,8 +24,23 @@ def fetch_and_normalize_chart_context(
     timeout_seconds: float,
     retry_count: int,
     zone_id: int | str | None = None,
+    setup_time: str | None = None,
+    zone_top: float | str | None = None,
+    zone_bottom: float | str | None = None,
+    zone_type: str | None = None,
 ) -> Dict[str, Any]:
-    raw = fetch_chart_context(base_url, symbol, timeframe, timeout_seconds, retry_count, zone_id=zone_id)
+    raw = fetch_chart_context(
+        base_url,
+        symbol,
+        timeframe,
+        timeout_seconds,
+        retry_count,
+        zone_id=zone_id,
+        setup_time=setup_time,
+        zone_top=zone_top,
+        zone_bottom=zone_bottom,
+        zone_type=zone_type,
+    )
     setup_evidence = raw.get(
         "setup_evidence",
         {

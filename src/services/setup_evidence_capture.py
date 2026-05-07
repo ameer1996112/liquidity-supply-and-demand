@@ -29,6 +29,18 @@ def _payload_zone_id(payload: Dict[str, Any]) -> Optional[int]:
     return None
 
 
+def _payload_setup_time(payload: Dict[str, Any]) -> Optional[str]:
+    for key in ("bar_time", "signal_time", "created_at", "time", "timestamp"):
+        value = payload.get(key)
+        if value not in (None, ""):
+            return str(value)
+    return None
+
+
+def _payload_value(payload: Dict[str, Any], key: str) -> Any:
+    return payload.get(key) if payload.get(key) is not None else payload.get(f"F:{key}")
+
+
 def _extract_setup_evidence(chart_context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     structured = chart_context.get("structured")
     if not isinstance(structured, dict):
@@ -64,6 +76,7 @@ def capture_setup_evidence_for_signal(
     zone_id = _payload_zone_id(payload)
     symbol = str(payload.get("symbol") or "").strip()
     timeframe = str(payload.get("timeframe") or "5m").strip() or "5m"
+    setup_time = _payload_setup_time(payload)
     if not supabase_client or not signal_id or not zone_id or not symbol:
         return False
 
@@ -80,6 +93,10 @@ def capture_setup_evidence_for_signal(
             timeout_seconds=25.0,
             retry_count=0,
             zone_id=zone_id,
+            setup_time=setup_time,
+            zone_top=_payload_value(payload, "zone_top"),
+            zone_bottom=_payload_value(payload, "zone_bottom"),
+            zone_type=_payload_value(payload, "zone_type"),
         )
         setup_evidence = _extract_setup_evidence(chart_context)
         if not setup_evidence:

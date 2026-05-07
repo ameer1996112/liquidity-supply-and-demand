@@ -58,9 +58,27 @@ async def get_chart_context(
     symbol: str = Query(...),
     timeframe: str = Query(...),
     zone_id: int | None = Query(None),
+    setup_time: str | None = Query(None),
+    zone_top: float | None = Query(None),
+    zone_bottom: float | None = Query(None),
+    zone_type: str | None = Query(None),
 ) -> dict:
-    logger.info("chart-context request symbol=%s timeframe=%s zone_id=%s", symbol, timeframe, zone_id)
-    payload = fetch_live_chart_context(symbol, timeframe, zone_id=zone_id)
+    logger.info(
+        "chart-context request symbol=%s timeframe=%s zone_id=%s setup_time=%s",
+        symbol,
+        timeframe,
+        zone_id,
+        setup_time,
+    )
+    payload = fetch_live_chart_context(
+        symbol,
+        timeframe,
+        zone_id=zone_id,
+        setup_time=setup_time,
+        zone_top=zone_top,
+        zone_bottom=zone_bottom,
+        zone_type=zone_type,
+    )
     logger.info(
         "chart-context response actual_symbol=%s actual_timeframe=%s reason=%s",
         payload.get("symbol"),

@@ -91,6 +91,67 @@ def _normalize_labels(labels_payload: Optional[Dict[str, Any]]) -> List[Dict[str
     return labels
 
 
+def _normalize_setup_time(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    try:
+        if raw.isdigit():
+            dt = datetime.fromtimestamp(int(raw), tz=timezone.utc)
+        else:
+            cleaned = raw.replace("Z", "+00:00")
+            if "T" not in cleaned and " " in cleaned:
+                cleaned = cleaned.replace(" ", "T")
+            dt = datetime.fromisoformat(cleaned)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            else:
+                dt = dt.astimezone(timezone.utc)
+        return dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    except (TypeError, ValueError):
+        return raw
+
+
+def _setup_date(value: str) -> str:
+    normalized = _normalize_setup_time(value) or value
+    return normalized[:10]
+
+
+def _safe_name_token(value: Any) -> str:
+    token = str(value or "").strip()
+    return "".join(ch if ch.isalnum() or ch in ("-", "_") else "-" for ch in token).strip("-")
+
+
+def _symbol_matches(actual: Any, requested: str) -> bool:
+    actual_text = str(actual or "").upper()
+    requested_text = requested.upper()
+    if not actual_text or not requested_text:
+        return False
+    return actual_text == requested_text or actual_text.endswith(f":{requested_text}")
+
+
+def _requested_focus_zone(
+    requested_zone_id: Optional[int],
+    zone_top: Optional[float],
+    zone_bottom: Optional[float],
+    zone_type: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    if requested_zone_id is None or zone_top is None or zone_bottom is None:
+        return None
+    high = max(zone_top, zone_bottom)
+    low = min(zone_top, zone_bottom)
+    return {
+        "type": zone_type or "price_zone",
+        "source": "signal",
+        "id": requested_zone_id,
+        "label": f"{(zone_type or 'zone').upper()}-{requested_zone_id}",
+        "high": high,
+        "low": low,
+    }
+
+
 def _zone_matches_requested_id(zone: Dict[str, Any], requested_zone_id: Optional[int]) -> bool:
     if requested_zone_id is None:
         return False
@@ -110,6 +171,7 @@ def _pick_primary_zone(
         for zone in zones:
             if _zone_matches_requested_id(zone, requested_zone_id):
                 return zone
+        return None
     for zone in zones:
         if zone.get("type") == "price_zone":
             return zone
@@ -150,15 +212,22 @@ def _build_setup_evidence(
     requested_zone_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     if screenshot_payload and screenshot_payload.get("success"):
+        missing_requested_zone = requested_zone_id is not None and not focus_zone
         return {
-            "status": "ok" if focus_zone else "degraded",
+            "status": "degraded" if missing_requested_zone else "ok" if focus_zone else "degraded",
             "focus_zone": focus_zone,
             "focus_image": {
                 "path": screenshot_payload.get("file_path", ""),
                 "region": screenshot_payload.get("region", "chart"),
             },
             "requested_zone_id": requested_zone_id,
-            "reason": "" if focus_zone else "zone not detected; full chart screenshot captured",
+            "reason": (
+                ""
+                if focus_zone
+                else f"requested zone {requested_zone_id} not detected; screenshot captured"
+                if requested_zone_id is not None
+                else "zone not detected; full chart screenshot captured"
+            ),
         }
 
     return {
@@ -182,8 +251,10 @@ def build_chart_context_payload(
     lines_payload: Optional[Dict[str, Any]],
     labels_payload: Optional[Dict[str, Any]],
     requested_zone_id: Optional[int] = None,
+    requested_focus_zone: Optional[Dict[str, Any]] = None,
     boxes_payload: Optional[Dict[str, Any]] = None,
     screenshot_payload: Optional[Dict[str, Any]] = None,
+    setup_time: Optional[str] = None,
     now_iso: Optional[str] = None,
 ) -> Dict[str, Any]:
     timestamp = now_iso or _now_iso()
@@ -221,8 +292,12 @@ def build_chart_context_payload(
     normalized_line_zones = _normalize_zones(
         lines_payload if lines_payload and lines_payload.get("success") else None
     )
-    focus_zone = _pick_primary_zone(normalized_box_zones, requested_zone_id) or (
-        normalized_line_zones[0] if normalized_line_zones else None
+    normalized_labels = _normalize_labels(labels_payload if labels_payload and labels_payload.get("success") else None)
+    focus_zone_candidates = [*normalized_box_zones, *normalized_labels, *normalized_line_zones]
+    focus_zone = (
+        _pick_primary_zone(focus_zone_candidates, requested_zone_id)
+        or requested_focus_zone
+        or (normalized_line_zones[0] if requested_zone_id is None and normalized_line_zones else None)
     )
     if focus_zone and requested_zone_id is not None:
         focus_zone = {**focus_zone, "requested_zone_id": requested_zone_id}
@@ -240,7 +315,7 @@ def build_chart_context_payload(
         "symbol": status_payload.get("chart_symbol", requested_symbol),
         "timeframe": _normalize_timeframe(status_payload.get("chart_resolution", requested_timeframe)),
         "provider_timestamp": timestamp,
-        "pine_labels": _normalize_labels(labels_payload if labels_payload and labels_payload.get("success") else None),
+        "pine_labels": normalized_labels,
         "zones": [*normalized_box_zones, *normalized_line_zones],
         "indicator_values": _normalize_indicator_values(values_payload if values_payload and values_payload.get("success") else None),
         "setup_evidence": _build_setup_evidence(focus_zone, screenshot_payload, requested_zone_id),
@@ -249,6 +324,7 @@ def build_chart_context_payload(
             "requested_symbol": requested_symbol,
             "requested_timeframe": requested_timeframe,
             "requested_zone_id": requested_zone_id,
+            "setup_time": _normalize_setup_time(setup_time),
             "partial_failures": partial_failures,
         },
     }
@@ -261,7 +337,7 @@ def run_mcp_command(command: Sequence[str]) -> Dict[str, Any]:
             cwd=MCP_REPO_PATH,
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=25,
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
@@ -289,13 +365,20 @@ def fetch_live_chart_context(
     requested_symbol: str,
     requested_timeframe: str,
     zone_id: Optional[int] = None,
+    setup_time: Optional[str] = None,
+    zone_top: Optional[float] = None,
+    zone_bottom: Optional[float] = None,
+    zone_type: Optional[str] = None,
 ) -> Dict[str, Any]:
+    requested_focus_zone = _requested_focus_zone(zone_id, zone_top, zone_bottom, zone_type)
     compatibility_status = get_chart_provider_compatibility_status()
     if not compatibility_status.get("chart_context_enabled"):
         payload = build_chart_context_payload(
             requested_symbol=requested_symbol,
             requested_timeframe=requested_timeframe,
             requested_zone_id=zone_id,
+            requested_focus_zone=requested_focus_zone,
+            setup_time=setup_time,
             status_payload={
                 "success": False,
                 "error": compatibility_status.get("reason") or "chart context disabled",
@@ -315,6 +398,8 @@ def fetch_live_chart_context(
             requested_symbol=requested_symbol,
             requested_timeframe=requested_timeframe,
             requested_zone_id=zone_id,
+            requested_focus_zone=requested_focus_zone,
+            setup_time=setup_time,
             status_payload=status_payload,
             values_payload=None,
             lines_payload=None,
@@ -323,9 +408,26 @@ def fetch_live_chart_context(
             screenshot_payload=None,
         )
 
-    screenshot_name = f"setup_{requested_symbol}_{requested_timeframe}_{_now_iso()}".replace(":", "-")
+    normalized_setup_time = _normalize_setup_time(setup_time)
+    screenshot_time = normalized_setup_time or _now_iso()
+    screenshot_parts = ["setup", requested_symbol, requested_timeframe]
+    if zone_id is not None:
+        screenshot_parts.append(str(zone_id))
+    screenshot_parts.append(screenshot_time)
+    screenshot_name = "_".join(_safe_name_token(part) for part in screenshot_parts if part)
     symbol_payload = run_mcp_command(["node", "src/cli/index.js", "symbol", requested_symbol])
     timeframe_payload = run_mcp_command(["node", "src/cli/index.js", "timeframe", requested_timeframe])
+    replay_payload: Optional[Dict[str, Any]] = None
+    scroll_payload: Optional[Dict[str, Any]] = None
+    if normalized_setup_time:
+        replay_stop_payload = run_mcp_command(["node", "src/cli/index.js", "replay", "stop"])
+        replay_payload = run_mcp_command(
+            ["node", "src/cli/index.js", "replay", "start", "--date", _setup_date(normalized_setup_time)]
+        )
+        scroll_payload = run_mcp_command(["node", "src/cli/index.js", "scroll", normalized_setup_time])
+    else:
+        replay_stop_payload = None
+    final_status_payload = run_mcp_command(["node", "src/cli/index.js", "status"])
     values_payload = run_mcp_command(["node", "src/cli/index.js", "values"])
     lines_payload = run_mcp_command(["node", "src/cli/index.js", "data", "lines"])
     labels_payload = run_mcp_command(["node", "src/cli/index.js", "data", "labels"])
@@ -338,20 +440,35 @@ def fetch_live_chart_context(
         requested_symbol=requested_symbol,
         requested_timeframe=requested_timeframe,
         requested_zone_id=zone_id,
+        requested_focus_zone=requested_focus_zone,
         status_payload={
             **status_payload,
             **{k: v for k, v in symbol_payload.items() if k.startswith("chart_")},
             **{k: v for k, v in timeframe_payload.items() if k.startswith("chart_")},
+            **{k: v for k, v in final_status_payload.items() if k.startswith("chart_")},
         },
         values_payload=values_payload,
         lines_payload=lines_payload,
         labels_payload=labels_payload,
         boxes_payload=boxes_payload,
         screenshot_payload=screenshot_payload,
+        setup_time=normalized_setup_time,
     )
     partial_failures = payload["metadata"].setdefault("partial_failures", [])
     if not symbol_payload.get("success"):
         partial_failures.append(symbol_payload.get("error", "symbol switch failed"))
     if not timeframe_payload.get("success"):
         partial_failures.append(timeframe_payload.get("error", "timeframe switch failed"))
+    if not final_status_payload.get("success"):
+        partial_failures.append(final_status_payload.get("error", "post-navigation status failed"))
+    elif not _symbol_matches(final_status_payload.get("chart_symbol"), requested_symbol):
+        partial_failures.append(
+            f"requested symbol {requested_symbol} not active; active chart is {final_status_payload.get('chart_symbol')}"
+        )
+    if replay_payload is not None and not replay_payload.get("success"):
+        partial_failures.append(replay_payload.get("error", "replay start failed"))
+    if replay_stop_payload is not None and not replay_stop_payload.get("success"):
+        partial_failures.append(replay_stop_payload.get("error", "replay stop failed"))
+    if scroll_payload is not None and not scroll_payload.get("success"):
+        partial_failures.append(scroll_payload.get("error", "setup time scroll failed"))
     return payload

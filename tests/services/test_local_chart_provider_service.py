@@ -183,6 +183,73 @@ def test_build_chart_context_payload_prefers_requested_zone_id(tmp_path: Path, m
     assert payload["setup_evidence"]["focus_image"]["path"].endswith("17733.png")
 
 
+def test_build_chart_context_payload_degrades_when_requested_zone_is_absent(tmp_path: Path) -> None:
+    screenshot_path = tmp_path / "setup-zone.png"
+    _write_png(screenshot_path)
+
+    payload = build_chart_context_payload(
+        requested_symbol="GBPNZD",
+        requested_timeframe="5m",
+        requested_zone_id=18429,
+        status_payload={"success": True, "chart_symbol": "OANDA:GBPNZD", "chart_resolution": "5"},
+        values_payload={"success": True, "studies": []},
+        lines_payload={
+            "success": True,
+            "studies": [
+                {
+                    "name": "Institutional Liquidity Protocol [Pro]",
+                    "horizontal_levels": [1.86],
+                }
+            ],
+        },
+        labels_payload={"success": True, "studies": []},
+        boxes_payload={"success": True, "studies": []},
+        screenshot_payload={"success": True, "file_path": str(screenshot_path), "region": "chart"},
+        now_iso="2026-05-07T07:10:00Z",
+    )
+
+    assert payload["setup_evidence"]["status"] == "degraded"
+    assert payload["setup_evidence"]["focus_zone"] is None
+    assert payload["setup_evidence"]["reason"] == "requested zone 18429 not detected; screenshot captured"
+
+
+def test_build_chart_context_payload_uses_signal_zone_when_mcp_zone_is_absent(tmp_path: Path) -> None:
+    screenshot_path = tmp_path / "setup-zone.png"
+    _write_png(screenshot_path)
+
+    payload = build_chart_context_payload(
+        requested_symbol="GBPNZD",
+        requested_timeframe="5m",
+        requested_zone_id=18429,
+        requested_focus_zone={
+            "type": "supply",
+            "source": "signal",
+            "id": 18429,
+            "label": "SUPPLY-18429",
+            "high": 2.28358,
+            "low": 2.28294,
+        },
+        status_payload={"success": True, "chart_symbol": "OANDA:GBPNZD", "chart_resolution": "5"},
+        values_payload={"success": True, "studies": []},
+        lines_payload={"success": True, "studies": []},
+        labels_payload={"success": True, "studies": []},
+        boxes_payload={"success": True, "studies": []},
+        screenshot_payload={"success": True, "file_path": str(screenshot_path), "region": "chart"},
+        now_iso="2026-05-07T07:10:00Z",
+    )
+
+    assert payload["setup_evidence"]["status"] == "ok"
+    assert payload["setup_evidence"]["focus_zone"] == {
+        "type": "supply",
+        "source": "signal",
+        "id": 18429,
+        "label": "SUPPLY-18429",
+        "high": 2.28358,
+        "low": 2.28294,
+        "requested_zone_id": 18429,
+    }
+
+
 def test_build_chart_context_payload_keeps_structured_context_when_screenshot_fails() -> None:
     payload = build_chart_context_payload(
         requested_symbol="XAUUSD",
@@ -347,6 +414,7 @@ def test_fetch_live_chart_context_runs_mcp_sequence_when_compatibility_is_suppor
         ["node", "src/cli/index.js", "status"],
         ["node", "src/cli/index.js", "symbol", "XAUUSD"],
         ["node", "src/cli/index.js", "timeframe", "5m"],
+        ["node", "src/cli/index.js", "status"],
         ["node", "src/cli/index.js", "values"],
         ["node", "src/cli/index.js", "data", "lines"],
         ["node", "src/cli/index.js", "data", "labels"],
@@ -364,3 +432,89 @@ def test_fetch_live_chart_context_runs_mcp_sequence_when_compatibility_is_suppor
     assert payload["symbol"] == "VANTAGE:XAUUSD"
     assert payload["timeframe"] == "5m"
     assert payload["indicator_values"]["EMA"]["EMA"] == "3250.1"
+
+
+def test_fetch_live_chart_context_uses_replay_and_scroll_for_historical_setup(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.local_chart_provider_service.get_chart_provider_compatibility_status",
+        lambda: {
+            "status": "supported",
+            "chart_context_enabled": True,
+            "tradingview_version": "1.2.3",
+            "checked_at": "2026-05-07T08:00:00Z",
+            "reason": "",
+            "probe": {"command": "status", "ok": True},
+        },
+    )
+    monkeypatch.setattr("src.local_chart_provider_service._now_iso", lambda: "2026-05-07T08:00:00Z")
+
+    seen_commands: list[list[str]] = []
+
+    def _fake_run(command: list[str]) -> dict[str, object]:
+        seen_commands.append(command)
+        command_key = tuple(command)
+        payload_map = {
+            ("node", "src/cli/index.js", "status"): {
+                "success": True,
+                "chart_symbol": "OANDA:GBPNZD",
+                "chart_resolution": "5",
+            },
+            ("node", "src/cli/index.js", "symbol", "GBPNZD"): {"success": True},
+            ("node", "src/cli/index.js", "timeframe", "5m"): {"success": True},
+            ("node", "src/cli/index.js", "replay", "stop"): {
+                "success": True,
+                "action": "already_stopped",
+            },
+            ("node", "src/cli/index.js", "replay", "start", "--date", "2026-05-07"): {
+                "success": True,
+                "replay_started": True,
+            },
+            ("node", "src/cli/index.js", "scroll", "2026-05-07T07:10:00Z"): {"success": True},
+            ("node", "src/cli/index.js", "values"): {"success": True, "studies": []},
+            ("node", "src/cli/index.js", "data", "lines"): {"success": True, "studies": []},
+            ("node", "src/cli/index.js", "data", "labels"): {"success": True, "studies": []},
+            ("node", "src/cli/index.js", "data", "boxes", "--verbose"): {
+                "success": True,
+                "studies": [
+                    {
+                        "name": "Liquidity Zones",
+                        "boxes": [{"high": 1.856, "low": 1.854}],
+                        "all_boxes": [{"id": 18429, "high": 1.856, "low": 1.854, "x1": 300, "x2": 460}],
+                    }
+                ],
+            },
+            (
+                "node",
+                "src/cli/index.js",
+                "screenshot",
+                "--region",
+                "chart",
+                "--output",
+                "setup_GBPNZD_5m_18429_2026-05-07T07-10-00Z",
+            ): {"success": True, "file_path": "/tmp/setup.png", "region": "chart"},
+        }
+        return payload_map[command_key]
+
+    monkeypatch.setattr("src.local_chart_provider_service.run_mcp_command", _fake_run)
+
+    payload = fetch_live_chart_context(
+        "GBPNZD",
+        "5m",
+        zone_id=18429,
+        setup_time="2026-05-07T07:10:00Z",
+        zone_top=2.28358,
+        zone_bottom=2.28294,
+        zone_type="supply",
+    )
+
+    assert seen_commands[:7] == [
+        ["node", "src/cli/index.js", "status"],
+        ["node", "src/cli/index.js", "symbol", "GBPNZD"],
+        ["node", "src/cli/index.js", "timeframe", "5m"],
+        ["node", "src/cli/index.js", "replay", "stop"],
+        ["node", "src/cli/index.js", "replay", "start", "--date", "2026-05-07"],
+        ["node", "src/cli/index.js", "scroll", "2026-05-07T07:10:00Z"],
+        ["node", "src/cli/index.js", "status"],
+    ]
+    assert payload["setup_evidence"]["status"] == "ok"
+    assert payload["setup_evidence"]["focus_zone"]["id"] == 18429

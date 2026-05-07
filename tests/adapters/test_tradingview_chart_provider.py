@@ -32,6 +32,10 @@ def test_fetch_chart_context_returns_provider_payload(monkeypatch) -> None:
         timeout_seconds=1.0,
         retry_count=0,
         zone_id=17733,
+        setup_time="2026-04-17T00:20:00Z",
+        zone_top=0.7210,
+        zone_bottom=0.7195,
+        zone_type="demand",
     )
 
     assert payload["symbol"] == "XAUUSD"
@@ -40,6 +44,10 @@ def test_fetch_chart_context_returns_provider_payload(monkeypatch) -> None:
         "symbol": "XAUUSD",
         "timeframe": "5m",
         "zone_id": 17733,
+        "setup_time": "2026-04-17T00:20:00Z",
+        "zone_top": 0.7210,
+        "zone_bottom": 0.7195,
+        "zone_type": "demand",
     }
 
 

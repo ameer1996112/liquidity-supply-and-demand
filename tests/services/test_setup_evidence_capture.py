@@ -43,6 +43,10 @@ def test_capture_setup_evidence_updates_signal_with_zone_screenshot() -> None:
         assert kwargs["timeframe"] == "5m"
         assert kwargs["zone_id"] == 17733
         assert kwargs["timeout_seconds"] >= 20
+        assert kwargs["setup_time"] == "2026-04-17 00:20:00"
+        assert kwargs["zone_top"] == 215.8
+        assert kwargs["zone_bottom"] == 215.2
+        assert kwargs["zone_type"] == "supply"
         return {
             "status": "ok",
             "structured": {
@@ -59,7 +63,15 @@ def test_capture_setup_evidence_updates_signal_with_zone_screenshot() -> None:
     updated = capture_setup_evidence_for_signal(
         client,
         signal_id=123,
-        payload={"symbol": "GBPJPY", "timeframe": "5m", "zone_id": 17733},
+        payload={
+            "symbol": "GBPJPY",
+            "timeframe": "5m",
+            "zone_id": 17733,
+            "signal_time": "2026-04-17 00:20:00",
+            "zone_top": 215.8,
+            "zone_bottom": 215.2,
+            "zone_type": "supply",
+        },
         provider=_provider,
     )
 
