@@ -17,7 +17,6 @@ import type { TradingSignal, SignalStatus } from '@/types/trading';
 import { getPnl } from '@/types/trading';
 import type { CouncilSummary } from '@/lib/api';
 import type { ActivePosition } from '@/hooks/usePositions';
-import { DataTable, type DataTableColumn } from '@/components/shared/DataTable';
 import { TableEmptyState } from '@/components/shared/TableStates';
 import {
   Mono,
@@ -148,37 +147,6 @@ function getSignalStrategyBadge(signal: TradingSignal): string | null {
   return version ? `${key}@${version}` : key;
 }
 
-// =============================================================================
-// SAFE RENDER WRAPPER — prevents a single cell crash from collapsing the table
-// =============================================================================
-
-/**
- * Wraps a column render function with a try/catch. If the render throws,
- * logs the error and shows an 'ERR' indicator instead of propagating the
- * exception through DataTable's data.map() and silently emptying the table.
- */
-function safeRender<T>(
-  id: string,
-  fn: (row: T) => React.ReactNode
-): (row: T) => React.ReactNode {
-  return (row: T) => {
-    try {
-      return fn(row);
-    } catch (err) {
-      console.error(`[SignalTable] ${id} render error:`, err, row);
-      return (
-        <span
-          className='font-mono text-[9px] text-[var(--to-short)]/70'
-          title={String(err)}
-        >
-          ERR
-        </span>
-      );
-    }
-  };
-}
-
-
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }> = {
   open:                { label: 'OPEN',      bg: 'bg-[var(--to-long)]/12',          text: 'text-[var(--to-long)]' },
   active:              { label: 'OPEN',      bg: 'bg-[var(--to-long)]/12',          text: 'text-[var(--to-long)]' },
@@ -284,6 +252,188 @@ function formatSignalPrice(symbol: string, value?: number | null): string {
       ? 2
       : 5;
   return Number(value).toFixed(decimals);
+}
+
+const SIGNAL_GRID_STYLE = {
+  gridTemplateColumns: '64px minmax(132px,1.05fr) 74px minmax(236px,1.5fr) 100px 112px 82px 92px 92px',
+} as const;
+
+interface SignalBlotterHeaderProps {
+  sortField: SortField;
+  sortDir: SortDir;
+  onSort: (field: SortField) => void;
+}
+
+function SignalBlotterHeader({ sortField, sortDir, onSort }: SignalBlotterHeaderProps) {
+  return (
+    <div
+      className='sticky top-0 z-10 grid min-w-[1020px] items-center border-b border-[var(--to-border)] bg-[#0b1017]/95 px-3 py-2 backdrop-blur'
+      style={SIGNAL_GRID_STYLE}
+    >
+      <SortHeader field='created_at' label='Age' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='symbol' label='Market' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='side' label='Bias' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='entry' label='Plan' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='pnl' label='Result' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='risk' label='At Risk' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='setup_score' label='Setup Q' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <button
+        type='button'
+        className='inline-flex w-full items-center justify-end gap-1 font-mono text-[10px] uppercase tracking-wider text-[var(--to-text-dim)]'
+        onClick={() => onSort('score')}
+      >
+        <TrendingUp className='h-2.5 w-2.5' strokeWidth={1.5} />
+        <span>AI Conv.</span>
+        {sortField === 'score' ? (
+          sortDir === 'asc' ? <ArrowUp className='h-2.5 w-2.5' /> : <ArrowDown className='h-2.5 w-2.5' />
+        ) : (
+          <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
+        )}
+      </button>
+      <SortHeader field='status' label='State' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+    </div>
+  );
+}
+
+interface SignalBlotterRowProps {
+  signal: TradingSignal;
+  broker?: ActivePosition;
+  council?: CouncilSummary;
+  onSelect?: (signal: TradingSignal) => void;
+}
+
+function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRowProps) {
+  const entry = signal.entry ?? signal.price;
+  const sl = signal.sl ?? signal.stop_loss;
+  const tp = signal.tp ?? signal.take_profit;
+  const risk = calculateJournalRisk(signal);
+  const livePnl = broker?.live_pnl;
+  const dbPnl = getPnl(signal);
+  const shouldShowLivePnl = isOpenStatus(signal.status) && !hasRealizedClose(signal) && livePnl != null;
+  const score = signal.score ?? signal.ai_confidence;
+  const scoreColor =
+    score == null
+      ? 'text-[var(--to-text-dim)]/40'
+      : score >= 70
+        ? 'text-[var(--to-long)]'
+        : score >= 50
+          ? 'text-[var(--to-warning)]'
+          : 'text-[var(--to-short)]';
+
+  return (
+    <button
+      type='button'
+      className={cn(
+        'group grid min-w-[1020px] items-center border-b border-[var(--to-border)]/45 px-3 py-2.5 text-left transition duration-150',
+        'bg-[#0f141b]/70 hover:bg-[#141b25] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]',
+        'border-l-2',
+        sideBorderColor(signal.side),
+        broker?.is_stale && 'opacity-60',
+        isOpenStatus(signal.status) && 'bg-[#111a27]',
+      )}
+      style={SIGNAL_GRID_STYLE}
+      onClick={() => onSelect?.(signal)}
+    >
+      <span
+        className='inline-flex w-fit items-center rounded border border-[var(--to-border)]/70 bg-black/20 px-2 py-1 font-mono text-[10px] tabular-nums text-[var(--to-text-secondary)]'
+        title={new Date(signal.created_at).toLocaleString()}
+      >
+        {relativeTime(signal.created_at)}
+      </span>
+
+      <div className='flex min-w-0 flex-col gap-1'>
+        <Mono size='lg' bold className='text-[var(--to-text-primary)] tracking-wide'>
+          {signal.symbol}
+        </Mono>
+        <div className='flex min-w-0 flex-wrap gap-1'>
+          {(signal as any).account_name && (
+            <span className='rounded border border-blue-400/15 bg-blue-400/8 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-blue-200/70'>
+              {(signal as any).account_name}
+            </span>
+          )}
+          {getSignalStrategyBadge(signal) && (
+            <span className='rounded border border-emerald-400/15 bg-emerald-400/8 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-emerald-200/70'>
+              {getSignalStrategyBadge(signal)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <SideBadge side={signal.side} />
+
+      <div
+        className='flex flex-col items-end gap-1 font-mono text-[10px] tabular-nums'
+        title={`Entry: ${formatSignalPrice(signal.symbol, entry)} · SL: ${formatSignalPrice(signal.symbol, sl)} · TP: ${formatSignalPrice(signal.symbol, tp)}`}
+      >
+        <span className='inline-flex items-center gap-1 text-[var(--to-text-secondary)]'>
+          {broker?.current_price != null ? (
+            <Wifi className='h-[9px] w-[9px] shrink-0 text-[var(--to-long)]/65' />
+          ) : (
+            <Crosshair className='h-[9px] w-[9px] shrink-0 text-[var(--to-text-dim)]/60' />
+          )}
+          <span className='text-[8px] uppercase tracking-wider text-[var(--to-text-dim)]'>Entry</span>
+          <span className='font-semibold text-[var(--to-text-secondary)]'>
+            {formatSignalPrice(signal.symbol, entry)}
+          </span>
+        </span>
+        <span className='inline-flex items-center gap-1'>
+          <span className='rounded border border-[var(--to-short)]/15 bg-[var(--to-short)]/10 px-1.5 py-0.5 text-[var(--to-short)]/90'>
+            SL {formatSignalPrice(signal.symbol, sl)}
+          </span>
+          <span className='rounded border border-[var(--to-long)]/15 bg-[var(--to-long)]/10 px-1.5 py-0.5 text-[var(--to-long)]/90'>
+            TP {formatSignalPrice(signal.symbol, tp)}
+          </span>
+        </span>
+      </div>
+
+      <div className='flex justify-end'>
+        {shouldShowLivePnl ? (
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 rounded px-2 py-1 font-mono text-[11px] font-bold tabular-nums',
+              livePnl >= 0
+                ? 'bg-[var(--to-long)]/8 text-[var(--to-long)]'
+                : 'bg-[var(--to-short)]/8 text-[var(--to-short)]',
+            )}
+            title='Live broker P&L'
+          >
+            <span
+              className={cn(
+                'h-1.5 w-1.5 rounded-full animate-pulse',
+                livePnl >= 0 ? 'bg-[var(--to-long)]' : 'bg-[var(--to-short)]',
+              )}
+            />
+            {`${livePnl > 0 ? '+' : ''}${Number(livePnl).toFixed(2)}`}
+          </span>
+        ) : (
+          <PnLText value={dbPnl} variant='currency' size='sm' />
+        )}
+      </div>
+
+      <div className='flex justify-end'>
+        <span
+          className='inline-flex items-center gap-1 rounded border border-[var(--to-short)]/25 bg-[var(--to-short)]/10 px-2 py-1 font-mono text-[10px] font-bold tabular-nums text-[var(--to-short)] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]'
+          title={formatJournalRiskTitle(risk)}
+        >
+          <ShieldAlert className='h-3 w-3 opacity-70' strokeWidth={1.7} />
+          {formatJournalRisk(risk)}
+        </span>
+      </div>
+
+      <div className='flex justify-end'>
+        <SetupScoreBadge signal={signal} compact />
+      </div>
+
+      <div className='flex justify-end font-mono text-[11px] font-bold tabular-nums'>
+        <span className={cn(scoreColor)}>{score == null ? '—' : Math.round(score)}</span>
+      </div>
+
+      <div className='flex items-center justify-between gap-2'>
+        <CouncilBadge summary={council} suppressPending={isTerminalStatus(signal.status)} />
+        <StatusBadge status={signal.status} isStale={broker?.is_stale} />
+      </div>
+    </button>
+  );
 }
 
 function CouncilPlaceholder({ title }: { title?: string }) {
@@ -474,263 +624,6 @@ export function SignalTable({
     });
   }, [filtered, sortField, sortDir, maxRows]);
 
-  // Columns — computed inline so headers always reflect current sort state
-  const columns: DataTableColumn<TradingSignal>[] = [
-    {
-      id: 'created_at',
-      align: 'left',
-      width: 'w-[64px]',
-      header: <SortHeader field='created_at' label='Age' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
-      render: (signal) => (
-        <span
-          className='inline-flex items-center rounded border border-[var(--to-border)]/60 bg-[var(--to-surface-raised)]/35 px-1.5 py-1 font-mono text-[10px] tabular-nums text-[var(--to-text-primary)]'
-          style={{ fontFamily: 'var(--font-mono)' }}
-          title={new Date(signal.created_at).toLocaleString()}
-        >
-          {relativeTime(signal.created_at)}
-        </span>
-      ),
-    },
-    {
-      id: 'symbol',
-      align: 'left',
-      width: 'w-[136px]',
-      header: <SortHeader field='symbol' label='Market' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
-      render: (signal) => (
-        <div className='inline-flex min-w-0 flex-col gap-1'>
-          <Mono size='lg' bold className='text-text-primary tracking-wide'>
-            {signal.symbol}
-          </Mono>
-          <div className='inline-flex flex-wrap gap-1'>
-            {(signal as any).account_name && (
-              <span
-                style={{
-                  fontSize: 9,
-                  padding: '1px 5px',
-                  borderRadius: 3,
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text-muted)',
-                  fontFamily: 'var(--font-mono)',
-                  letterSpacing: '0.03em',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {(signal as any).account_name}
-              </span>
-            )}
-            {getSignalStrategyBadge(signal) && (
-              <span
-                style={{
-                  fontSize: 9,
-                  padding: '1px 5px',
-                  borderRadius: 3,
-                  background: 'color-mix(in srgb, var(--to-accent-blue) 12%, transparent)',
-                  border: '1px solid color-mix(in srgb, var(--to-accent-blue) 30%, var(--border))',
-                  color: 'var(--to-accent-blue)',
-                  fontFamily: 'var(--font-mono)',
-                  letterSpacing: '0.03em',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {getSignalStrategyBadge(signal)}
-              </span>
-            )}
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: 'side',
-      align: 'left',
-      width: 'w-[64px]',
-      header: <SortHeader field='side' label='Bias' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
-      render: (signal) => <SideBadge side={signal.side} />,
-    },
-    {
-      id: 'entry',
-      align: 'right',
-      isNumeric: true,
-      width: 'w-[176px]',
-      header: <SortHeader field='entry' label='Trade Plan' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
-      render: safeRender('entry', (signal) => {
-        const broker = brokerMap[String(signal.id)];
-        const entry = signal.entry ?? signal.price;
-        const currentPrice = broker?.current_price;
-        const sl = signal.sl ?? signal.stop_loss;
-        const tp = signal.tp ?? signal.take_profit;
-        const entryFormatted = formatSignalPrice(signal.symbol, entry);
-        const slStr = formatSignalPrice(signal.symbol, sl);
-        const tpStr = formatSignalPrice(signal.symbol, tp);
-        const currPriceNum = currentPrice != null ? Number(currentPrice) : null;
-        const titleText = currPriceNum != null && !isNaN(currPriceNum)
-          ? `Live: ${formatSignalPrice(signal.symbol, currPriceNum)}`
-          : `Entry: ${entryFormatted} · SL: ${slStr} · TP: ${tpStr}`;
-        return (
-          <div
-            className='inline-flex flex-col items-end gap-1 font-mono text-[10px] tabular-nums'
-            style={{ fontFamily: 'var(--font-mono)' }}
-            title={titleText}
-          >
-            <span className='inline-flex items-center gap-1 text-[var(--to-text-secondary)]'>
-              {currentPrice != null ? (
-                <Wifi className='h-[9px] w-[9px] shrink-0 text-[var(--to-long)]/60' />
-              ) : (
-                <Crosshair className='h-[9px] w-[9px] shrink-0 text-[var(--to-text-dim)]/60' />
-              )}
-              <span className='text-[8px] uppercase tracking-wider text-[var(--to-text-dim)]'>Entry</span>
-              <span className='font-semibold text-[var(--to-text-secondary)]'>{entryFormatted}</span>
-            </span>
-            <span className='inline-flex items-center gap-1'>
-              <span className='rounded bg-[var(--to-short)]/10 px-1 py-0.5 text-[var(--to-short)]/85'>
-                SL {slStr}
-              </span>
-              <span className='rounded bg-[var(--to-long)]/10 px-1 py-0.5 text-[var(--to-long)]/85'>
-                TP {tpStr}
-              </span>
-            </span>
-          </div>
-        );
-      }),
-    },
-    {
-      id: 'pnl',
-      align: 'right',
-      isNumeric: true,
-      width: 'w-[86px]',
-      header: <SortHeader field='pnl' label='Result' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
-      render: safeRender('pnl', (signal) => {
-        const broker = brokerMap[String(signal.id)];
-        const livePnl = broker?.live_pnl;
-        const dbPnl = getPnl(signal);
-        const shouldShowLivePnl = isOpenStatus(signal.status) && !hasRealizedClose(signal) && livePnl != null;
-
-        if (shouldShowLivePnl) {
-          const isPos = livePnl >= 0;
-          return (
-            <span
-              className={cn(
-                'inline-flex items-center gap-1 font-mono text-[10px] font-bold tabular-nums',
-                isPos ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]',
-              )}
-              style={{ fontFamily: 'var(--font-mono)' }}
-              title='Live broker P&L'
-            >
-              <span
-                className={cn(
-                  'h-1.5 w-1.5 rounded-full shrink-0 animate-pulse',
-                  isPos ? 'bg-[var(--to-long)]' : 'bg-[var(--to-short)]',
-                )}
-              />
-              {(() => {
-                const n = Number(livePnl);
-                return isNaN(n) ? '—' : `${n > 0 ? '+' : ''}${n.toFixed(2)}`;
-              })()}
-            </span>
-          );
-        }
-
-        return <PnLText value={dbPnl} variant='currency' size='sm' />;
-      }),
-    },
-    {
-      id: 'risk',
-      align: 'right',
-      isNumeric: true,
-      width: 'w-[92px]',
-      header: <SortHeader field='risk' label='At Risk' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
-      render: safeRender('risk', (signal) => {
-        const risk = calculateJournalRisk(signal);
-        return (
-          <span
-            className='inline-flex items-center justify-end gap-1 rounded border border-[var(--to-short)]/20 bg-[var(--to-short)]/8 px-1.5 py-1 font-mono text-[10px] font-bold tabular-nums text-[var(--to-short)]'
-            style={{ fontFamily: 'var(--font-mono)' }}
-            title={formatJournalRiskTitle(risk)}
-          >
-            <ShieldAlert className='h-3 w-3 opacity-70' strokeWidth={1.7} />
-            {formatJournalRisk(risk)}
-          </span>
-        );
-      }),
-    },
-    {
-      id: 'setup_score',
-      align: 'right',
-      isNumeric: true,
-      width: 'w-[76px]',
-      header: <SortHeader field='setup_score' label='Setup Q' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
-      render: (signal) => (
-        <div className='inline-flex w-full justify-end'>
-          <SetupScoreBadge signal={signal} compact />
-        </div>
-      ),
-    },
-    {
-      id: 'score',
-      align: 'right',
-      isNumeric: true,
-      width: 'w-[44px]',
-      header: (
-        <button
-          type='button'
-          className='inline-flex items-center justify-end gap-1 w-full'
-          onClick={() => handleSort('score')}
-        >
-          <TrendingUp className='h-2.5 w-2.5' strokeWidth={1.5} />
-          <span>AI Conv.</span>
-          {sortField === 'score' ? (
-            sortDir === 'asc' ? <ArrowUp className='h-2.5 w-2.5' /> : <ArrowDown className='h-2.5 w-2.5' />
-          ) : (
-            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
-          )}
-        </button>
-      ),
-      render: (signal) => {
-        const score = signal.score ?? signal.ai_confidence;
-        if (score == null)
-          return <span className='font-mono text-[10px] text-[var(--to-text-dim)]/40'>—</span>;
-        const color =
-          score >= 70 ? 'text-[var(--to-long)]' : score >= 50 ? 'text-[var(--to-warning)]' : 'text-[var(--to-short)]';
-        return (
-          <span
-            className={cn('font-mono text-[10px] font-bold tabular-nums', color)}
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            {Math.round(score)}
-          </span>
-        );
-      },
-    },
-    {
-      id: 'council',
-      align: 'right',
-      isNumeric: true,
-      width: 'w-[80px]',
-      header: (
-        <span className='inline-flex items-center justify-end gap-1 w-full'>
-          <Brain className='h-2.5 w-2.5 opacity-60' strokeWidth={1.5} />
-          <span>Council</span>
-        </span>
-      ),
-      render: safeRender('council', (signal) => (
-        <CouncilBadge
-          summary={councilMap[String(signal.id)]}
-          suppressPending={isTerminalStatus(signal.status)}
-        />
-      )),
-    },
-    {
-      id: 'status',
-      align: 'left',
-      width: 'w-[80px]',
-      header: <SortHeader field='status' label='State' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
-      render: (signal) => {
-        const broker = brokerMap[String(signal.id)];
-        return <StatusBadge status={signal.status} isStale={broker?.is_stale} />;
-      },
-    },
-  ];
-
   if (signals.length === 0) {
     return (
       <TableEmptyState
@@ -872,7 +765,7 @@ export function SignalTable({
         )}
       </div>
 
-      {/* Scrollable table */}
+      {/* Scrollable signal blotter */}
       <div className='flex-1 min-h-0 overflow-auto scrollbar-thin'>
         {sorted.length === 0 ? (
           <TableEmptyState
@@ -880,22 +773,24 @@ export function SignalTable({
             description='Try a different filter.'
           />
         ) : (
-          <DataTable
-            columns={columns}
-            data={sorted}
-            compact
-            stickyHeader
-            className='overflow-visible'
-            getRowId={(signal) => signal.id}
-            onRowClick={(signal) => onSelectSignal?.(signal)}
-            getRowClassName={(signal) => {
-              const broker = brokerMap[String(signal.id)];
-              const border = sideBorderColor(signal.side);
-              if (broker?.is_stale)      return cn('opacity-60 border-l-2', border);
-              if (isOpenStatus(signal.status)) return cn('bg-blue-950/20 border-l-2', border);
-              return cn('border-l-2', border);
-            }}
-          />
+          <div className='min-w-[1020px] overflow-hidden rounded-md border border-[var(--to-border)]/70 bg-[#0a0f15] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]'>
+            <SignalBlotterHeader
+              sortField={sortField}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+            <div>
+              {sorted.map((signal) => (
+                <SignalBlotterRow
+                  key={signal.id}
+                  signal={signal}
+                  broker={brokerMap[String(signal.id)]}
+                  council={councilMap[String(signal.id)]}
+                  onSelect={onSelectSignal}
+                />
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>
