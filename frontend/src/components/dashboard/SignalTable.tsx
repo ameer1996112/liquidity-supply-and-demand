@@ -9,7 +9,6 @@ import {
   TrendingUp,
   Wifi,
   AlertTriangle,
-  Crosshair,
   ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,10 +17,7 @@ import { getPnl } from '@/types/trading';
 import type { CouncilSummary } from '@/lib/api';
 import type { ActivePosition } from '@/hooks/usePositions';
 import { TableEmptyState } from '@/components/shared/TableStates';
-import {
-  Mono,
-  PnLText,
-} from '@/components/ui/typography';
+import { PnLText } from '@/components/ui/typography';
 import { SetupScoreBadge } from '@/components/shared/SetupScoreBadge';
 import { calculateJournalRisk, formatJournalRisk, formatJournalRiskTitle } from '@/components/journal/riskFormat';
 
@@ -258,8 +254,11 @@ function formatSignalPrice(symbol: string, value?: number | null): string {
 }
 
 const SIGNAL_GRID_STYLE = {
-  gridTemplateColumns: '56px minmax(118px,0.9fr) 58px minmax(214px,1.35fr) 88px 92px 70px 58px 78px',
+  gridTemplateColumns:
+    '64px minmax(150px,1.2fr) 64px minmax(92px,0.8fr) minmax(92px,0.8fr) minmax(92px,0.8fr) 96px 96px 76px 64px 92px',
 } as const;
+
+const SIGNAL_TABLE_MIN_WIDTH = 'min-w-[1120px]';
 
 interface SignalBlotterHeaderProps {
   sortField: SortField;
@@ -270,13 +269,18 @@ interface SignalBlotterHeaderProps {
 function SignalBlotterHeader({ sortField, sortDir, onSort }: SignalBlotterHeaderProps) {
   return (
     <div
-      className='sticky top-0 z-10 grid min-w-[880px] items-center border-b border-[var(--to-border)] bg-[#0d1219]/95 px-3 py-2 backdrop-blur'
+      className={cn(
+        'sticky top-0 z-10 grid items-center border-b border-[var(--to-border)] bg-[#0d1219]/95 px-3 py-2 backdrop-blur',
+        SIGNAL_TABLE_MIN_WIDTH,
+      )}
       style={SIGNAL_GRID_STYLE}
     >
       <SortHeader field='created_at' label='Time' sortField={sortField} sortDir={sortDir} onSort={onSort} />
       <SortHeader field='symbol' label='Symbol' sortField={sortField} sortDir={sortDir} onSort={onSort} />
       <SortHeader field='side' label='Side' sortField={sortField} sortDir={sortDir} onSort={onSort} />
-      <SortHeader field='entry' label='Entry / SL / TP' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='entry' label='Entry' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='entry' label='SL' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='entry' label='TP' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
       <SortHeader field='pnl' label='P&L' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
       <SortHeader field='risk' label='Risk' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
       <SortHeader field='setup_score' label='Setup' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
@@ -305,6 +309,29 @@ interface SignalBlotterRowProps {
   onSelect?: (signal: TradingSignal) => void;
 }
 
+function PriceCell({
+  symbol,
+  value,
+  tone = 'neutral',
+}: {
+  symbol: string;
+  value?: number | null;
+  tone?: 'neutral' | 'long' | 'short';
+}) {
+  const toneClass =
+    tone === 'long'
+      ? 'text-[var(--to-long)]'
+      : tone === 'short'
+        ? 'text-[var(--to-short)]'
+        : 'text-[var(--to-text-secondary)]';
+
+  return (
+    <span className={cn('block text-right font-mono text-[11px] font-medium tabular-nums', toneClass)}>
+      {formatSignalPrice(symbol, value)}
+    </span>
+  );
+}
+
 function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRowProps) {
   const entry = signal.entry ?? signal.price;
   const sl = signal.sl ?? signal.stop_loss;
@@ -327,35 +354,39 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
     <button
       type='button'
       className={cn(
-        'group grid min-w-[880px] items-center border-b border-[var(--to-border)]/45 px-3 py-2 text-left transition duration-150',
-        'bg-[#0e131a]/80 hover:bg-[#131922]',
+        'group grid items-center border-b border-[var(--to-border)]/40 px-3 py-2 text-left transition-colors duration-150',
+        SIGNAL_TABLE_MIN_WIDTH,
+        'bg-[#0d1218]/90 hover:bg-[#121821]',
         'border-l-2',
         sideBorderColor(signal.side),
-        broker?.is_stale && 'opacity-60',
-        isOpenStatus(signal.status) && 'bg-[#111a27]',
+        broker?.is_stale && 'opacity-70',
+        isOpenStatus(signal.status) && 'bg-[#101824]',
       )}
       style={SIGNAL_GRID_STYLE}
       onClick={() => onSelect?.(signal)}
     >
       <span
-        className='inline-flex w-fit items-center rounded border border-[var(--to-border)]/60 bg-black/15 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-[var(--to-text-secondary)]'
+        className='inline-flex w-fit items-center rounded border border-[var(--to-border)]/45 bg-black/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-[var(--to-text-secondary)]'
         title={new Date(signal.created_at).toLocaleString()}
       >
         {relativeTime(signal.created_at)}
       </span>
 
       <div className='flex min-w-0 flex-col gap-0.5'>
-        <Mono size='base' bold className='text-[var(--to-text-primary)]'>
+        <span className='truncate text-[13px] font-semibold text-[var(--to-text-primary)]'>
           {signal.symbol}
-        </Mono>
-        <div className='flex min-w-0 flex-wrap gap-1'>
+        </span>
+        <div className='flex min-w-0 items-center gap-1.5 text-[9px] text-[var(--to-text-dim)]'>
           {(signal as any).account_name && (
-            <span className='rounded border border-blue-400/15 bg-blue-400/8 px-1.5 py-0.5 text-[9px] uppercase text-blue-200/70'>
+            <span className='truncate'>
               {(signal as any).account_name}
             </span>
           )}
+          {(signal as any).account_name && getSignalStrategyBadge(signal) && (
+            <span className='text-[var(--to-border)]'>/</span>
+          )}
           {getSignalStrategyBadge(signal) && (
-            <span className='rounded border border-emerald-400/15 bg-emerald-400/8 px-1.5 py-0.5 text-[9px] uppercase text-emerald-200/70'>
+            <span className='truncate'>
               {getSignalStrategyBadge(signal)}
             </span>
           )}
@@ -364,29 +395,16 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
 
       <SideBadge side={signal.side} />
 
-      <div
-        className='flex flex-col items-end gap-1 font-mono text-[10px] tabular-nums'
-        title={`Entry: ${formatSignalPrice(signal.symbol, entry)} · SL: ${formatSignalPrice(signal.symbol, sl)} · TP: ${formatSignalPrice(signal.symbol, tp)}`}
-      >
-        <span className='inline-flex items-center gap-1 text-[var(--to-text-secondary)]'>
-          {broker?.current_price != null ? (
-            <Wifi className='h-[9px] w-[9px] shrink-0 text-[var(--to-long)]/65' />
-          ) : (
-            <Crosshair className='h-[9px] w-[9px] shrink-0 text-[var(--to-text-dim)]/60' />
-          )}
-          <span className='text-[8px] uppercase text-[var(--to-text-dim)]'>Entry</span>
-          <span className='font-semibold text-[var(--to-text-secondary)]'>
-            {formatSignalPrice(signal.symbol, entry)}
-          </span>
-        </span>
-        <span className='inline-flex items-center gap-1'>
-          <span className='rounded border border-[var(--to-short)]/15 bg-[var(--to-short)]/10 px-1 py-0.5 text-[var(--to-short)]/90'>
-            SL {formatSignalPrice(signal.symbol, sl)}
-          </span>
-          <span className='rounded border border-[var(--to-long)]/15 bg-[var(--to-long)]/10 px-1 py-0.5 text-[var(--to-long)]/90'>
-            TP {formatSignalPrice(signal.symbol, tp)}
-          </span>
-        </span>
+      <div title={`Entry: ${formatSignalPrice(signal.symbol, entry)}`}>
+        <PriceCell symbol={signal.symbol} value={entry} />
+      </div>
+
+      <div title={`Stop Loss: ${formatSignalPrice(signal.symbol, sl)}`}>
+        <PriceCell symbol={signal.symbol} value={sl} tone='short' />
+      </div>
+
+      <div title={`Take Profit: ${formatSignalPrice(signal.symbol, tp)}`}>
+        <PriceCell symbol={signal.symbol} value={tp} tone='long' />
       </div>
 
       <div className='flex justify-end'>
@@ -415,7 +433,7 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
 
       <div className='flex justify-end'>
         <span
-          className='inline-flex items-center gap-1 rounded border border-[var(--to-short)]/20 bg-[var(--to-short)]/8 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-[var(--to-short)]'
+          className='inline-flex items-center gap-1 rounded border border-[var(--to-short)]/15 bg-[var(--to-short)]/7 px-1.5 py-0.5 font-mono text-[10px] font-medium tabular-nums text-[var(--to-short)]'
           title={formatJournalRiskTitle(risk)}
         >
           <ShieldAlert className='h-2.5 w-2.5 opacity-65' strokeWidth={1.7} />
@@ -427,7 +445,7 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
         <SetupScoreBadge signal={signal} compact />
       </div>
 
-      <div className='flex justify-end font-mono text-[10px] font-semibold tabular-nums'>
+      <div className='flex justify-end font-mono text-[11px] font-medium tabular-nums'>
         <span className={cn(scoreColor)}>{score == null ? '—' : Math.round(score)}</span>
       </div>
 
@@ -776,7 +794,10 @@ export function SignalTable({
             description='Try a different filter.'
           />
         ) : (
-          <div className='min-w-[880px] overflow-hidden rounded-md border border-[var(--to-border)]/70 bg-[#0a0f15] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]'>
+          <div className={cn(
+            'overflow-hidden rounded-md border border-[var(--to-border)]/60 bg-[#090d13]',
+            SIGNAL_TABLE_MIN_WIDTH,
+          )}>
             <SignalBlotterHeader
               sortField={sortField}
               sortDir={sortDir}

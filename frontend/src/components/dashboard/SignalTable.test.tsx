@@ -83,6 +83,21 @@ describe('SignalTable', () => {
       root.render(<Harness />);
     });
 
+    expect(container.textContent).toContain('Time');
+    expect(container.textContent).toContain('Symbol');
+    expect(container.textContent).toContain('Side');
+    expect(container.textContent).toContain('Entry');
+    expect(container.textContent).toContain('SL');
+    expect(container.textContent).toContain('TP');
+    expect(container.textContent).toContain('P&L');
+    expect(container.textContent).toContain('Risk');
+    expect(container.textContent).toContain('Setup');
+    expect(container.textContent).toContain('AI');
+    expect(container.textContent).toContain('Status');
+    expect(container.textContent).not.toContain('Entry / SL / TP');
+    expect(container.textContent).not.toContain('Market');
+    expect(container.textContent).not.toContain('Bias');
+    expect(container.textContent).not.toContain('Plan');
     expect(container.textContent).toContain('liq_sd_v1@1');
     expect(container.textContent).toContain('Setup');
     expect(container.textContent).toContain('A+');

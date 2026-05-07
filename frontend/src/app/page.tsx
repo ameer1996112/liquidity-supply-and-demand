@@ -236,7 +236,7 @@ export default function DashboardPage() {
               </div>
               <ConnectionPill />
             </div>
-            <div className='h-0 flex-1 overflow-hidden p-2'>
+            <div className='h-0 flex-1 overflow-hidden p-1.5'>
               {signalsLoading && visibleSignals.length === 0 ? (
                 <TableSkeleton rowCount={8} columnCount={6} />
               ) : (
@@ -259,7 +259,7 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <aside className='flex min-h-0 w-full flex-col gap-2 xl:w-[320px]'>
+          <aside className='flex min-h-0 w-full flex-col gap-2 xl:w-[260px] 2xl:w-[300px]'>
             <button
               className='xl:hidden text-[11px] text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)] transition-colors py-1 px-0.5 text-left'
               onClick={() => setShowLog((prev) => !prev)}
