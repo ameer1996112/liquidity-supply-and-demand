@@ -42,6 +42,7 @@ def test_capture_setup_evidence_updates_signal_with_zone_screenshot() -> None:
         assert kwargs["symbol"] == "GBPJPY"
         assert kwargs["timeframe"] == "5m"
         assert kwargs["zone_id"] == 17733
+        assert kwargs["timeout_seconds"] >= 20
         return {
             "status": "ok",
             "structured": {
@@ -84,3 +85,32 @@ def test_capture_setup_evidence_skips_payload_without_zone_id() -> None:
 
     assert updated is False
     assert client.recorder == {}
+
+
+def test_capture_setup_evidence_accepts_prefixed_zone_id() -> None:
+    client = _FakeSupabase()
+
+    def _provider(**kwargs: Any) -> dict[str, Any]:
+        assert kwargs["zone_id"] == 18429
+        return {
+            "status": "ok",
+            "structured": {
+                "setup_evidence": {
+                    "status": "ok",
+                    "focus_zone": {"id": 18429, "high": 2.282, "low": 2.281},
+                    "focus_image": {"url": "http://provider.test/provider-artifacts/gbpnzd.png"},
+                    "reason": "",
+                }
+            },
+        }
+
+    updated = capture_setup_evidence_for_signal(
+        client,
+        signal_id=573,
+        payload={"symbol": "GBPNZD", "timeframe": "5m", "F:zone_id": 18429},
+        provider=_provider,
+    )
+
+    assert updated is True
+    assert client.recorder["payload"]["setup_evidence"]["focus_zone"]["id"] == 18429
+    assert client.recorder["payload"]["image_url"] == "http://provider.test/provider-artifacts/gbpnzd.png"

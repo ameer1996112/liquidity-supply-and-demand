@@ -1,4 +1,5 @@
 import base64
+import subprocess
 from pathlib import Path
 
 from src.local_chart_provider_service import (
@@ -243,6 +244,18 @@ def test_run_mcp_command_returns_failure_payload_on_bad_exit(monkeypatch) -> Non
     assert "CDP connection failed" in payload["error"]
 
 
+def test_run_mcp_command_returns_failure_payload_on_timeout(monkeypatch) -> None:
+    def _timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=["node"], timeout=10)
+
+    monkeypatch.setattr("src.local_chart_provider_service.subprocess.run", _timeout)
+
+    payload = run_mcp_command(["node", "src/cli/index.js", "symbol", "GBPNZD"])
+
+    assert payload["success"] is False
+    assert "timed out" in payload["error"]
+
+
 def test_fetch_live_chart_context_short_circuits_when_compatibility_is_disabled(monkeypatch) -> None:
     monkeypatch.setattr(
         "src.local_chart_provider_service.get_chart_provider_compatibility_status",
@@ -295,6 +308,14 @@ def test_fetch_live_chart_context_runs_mcp_sequence_when_compatibility_is_suppor
                 "chart_symbol": "VANTAGE:XAUUSD",
                 "chart_resolution": "5",
             },
+            ("node", "src/cli/index.js", "symbol", "XAUUSD"): {
+                "success": True,
+                "chart_symbol": "VANTAGE:XAUUSD",
+            },
+            ("node", "src/cli/index.js", "timeframe", "5m"): {
+                "success": True,
+                "chart_resolution": "5",
+            },
             ("node", "src/cli/index.js", "values"): {
                 "success": True,
                 "studies": [{"name": "EMA", "values": {"EMA": "3250.1"}}],
@@ -324,6 +345,8 @@ def test_fetch_live_chart_context_runs_mcp_sequence_when_compatibility_is_suppor
 
     assert seen_commands == [
         ["node", "src/cli/index.js", "status"],
+        ["node", "src/cli/index.js", "symbol", "XAUUSD"],
+        ["node", "src/cli/index.js", "timeframe", "5m"],
         ["node", "src/cli/index.js", "values"],
         ["node", "src/cli/index.js", "data", "lines"],
         ["node", "src/cli/index.js", "data", "labels"],

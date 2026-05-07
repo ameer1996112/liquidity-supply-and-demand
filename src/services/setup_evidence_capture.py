@@ -21,6 +21,14 @@ def _to_int(value: Any) -> Optional[int]:
         return None
 
 
+def _payload_zone_id(payload: Dict[str, Any]) -> Optional[int]:
+    for key in ("zone_id", "F:zone_id", "zoneId", "zone"):
+        zone_id = _to_int(payload.get(key))
+        if zone_id is not None:
+            return zone_id
+    return None
+
+
 def _extract_setup_evidence(chart_context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     structured = chart_context.get("structured")
     if not isinstance(structured, dict):
@@ -53,7 +61,7 @@ def capture_setup_evidence_for_signal(
     payload: Dict[str, Any],
     provider: ChartContextProvider = fetch_and_normalize_chart_context,
 ) -> bool:
-    zone_id = _to_int(payload.get("zone_id"))
+    zone_id = _payload_zone_id(payload)
     symbol = str(payload.get("symbol") or "").strip()
     timeframe = str(payload.get("timeframe") or "5m").strip() or "5m"
     if not supabase_client or not signal_id or not zone_id or not symbol:
@@ -69,7 +77,7 @@ def capture_setup_evidence_for_signal(
             base_url=base_url,
             symbol=symbol,
             timeframe=timeframe,
-            timeout_seconds=8.0,
+            timeout_seconds=25.0,
             retry_count=0,
             zone_id=zone_id,
         )
@@ -100,7 +108,7 @@ def schedule_setup_evidence_capture(
     signal_id: int,
     payload: Dict[str, Any],
 ) -> None:
-    if _to_int(payload.get("zone_id")) is None:
+    if _payload_zone_id(payload) is None:
         return
 
     thread = threading.Thread(

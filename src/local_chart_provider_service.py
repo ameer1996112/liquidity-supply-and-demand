@@ -255,14 +255,20 @@ def build_chart_context_payload(
 
 
 def run_mcp_command(command: Sequence[str]) -> Dict[str, Any]:
-    completed = subprocess.run(
-        command,
-        cwd=MCP_REPO_PATH,
-        capture_output=True,
-        text=True,
-        timeout=10,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=MCP_REPO_PATH,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "success": False,
+            "error": f"MCP command timed out after {exc.timeout} seconds: {' '.join(command)}",
+        }
     if completed.returncode != 0:
         return {
             "success": False,
@@ -318,6 +324,8 @@ def fetch_live_chart_context(
         )
 
     screenshot_name = f"setup_{requested_symbol}_{requested_timeframe}_{_now_iso()}".replace(":", "-")
+    symbol_payload = run_mcp_command(["node", "src/cli/index.js", "symbol", requested_symbol])
+    timeframe_payload = run_mcp_command(["node", "src/cli/index.js", "timeframe", requested_timeframe])
     values_payload = run_mcp_command(["node", "src/cli/index.js", "values"])
     lines_payload = run_mcp_command(["node", "src/cli/index.js", "data", "lines"])
     labels_payload = run_mcp_command(["node", "src/cli/index.js", "data", "labels"])
@@ -326,14 +334,24 @@ def fetch_live_chart_context(
         ["node", "src/cli/index.js", "screenshot", "--region", "chart", "--output", screenshot_name]
     )
 
-    return build_chart_context_payload(
+    payload = build_chart_context_payload(
         requested_symbol=requested_symbol,
         requested_timeframe=requested_timeframe,
         requested_zone_id=zone_id,
-        status_payload=status_payload,
+        status_payload={
+            **status_payload,
+            **{k: v for k, v in symbol_payload.items() if k.startswith("chart_")},
+            **{k: v for k, v in timeframe_payload.items() if k.startswith("chart_")},
+        },
         values_payload=values_payload,
         lines_payload=lines_payload,
         labels_payload=labels_payload,
         boxes_payload=boxes_payload,
         screenshot_payload=screenshot_payload,
     )
+    partial_failures = payload["metadata"].setdefault("partial_failures", [])
+    if not symbol_payload.get("success"):
+        partial_failures.append(symbol_payload.get("error", "symbol switch failed"))
+    if not timeframe_payload.get("success"):
+        partial_failures.append(timeframe_payload.get("error", "timeframe switch failed"))
+    return payload
