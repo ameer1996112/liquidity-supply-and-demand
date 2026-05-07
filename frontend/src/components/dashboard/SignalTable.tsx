@@ -258,8 +258,11 @@ function formatSignalPrice(symbol: string, value?: number | null): string {
 }
 
 const SIGNAL_GRID_STYLE = {
-  gridTemplateColumns: '56px minmax(118px,0.9fr) 58px minmax(214px,1.35fr) 88px 92px 70px 58px 78px',
+  gridTemplateColumns:
+    '64px minmax(150px,1.2fr) 64px minmax(92px,0.8fr) minmax(92px,0.8fr) minmax(92px,0.8fr) 96px 96px 76px 64px 92px',
 } as const;
+
+const SIGNAL_TABLE_MIN_WIDTH = 'min-w-[1120px]';
 
 interface SignalBlotterHeaderProps {
   sortField: SortField;
@@ -270,13 +273,18 @@ interface SignalBlotterHeaderProps {
 function SignalBlotterHeader({ sortField, sortDir, onSort }: SignalBlotterHeaderProps) {
   return (
     <div
-      className='sticky top-0 z-10 grid min-w-[880px] items-center border-b border-[var(--to-border)] bg-[#0d1219]/95 px-3 py-2 backdrop-blur'
+      className={cn(
+        'sticky top-0 z-10 grid items-center border-b border-[var(--to-border)] bg-[#0d1219]/95 px-3 py-2 backdrop-blur',
+        SIGNAL_TABLE_MIN_WIDTH,
+      )}
       style={SIGNAL_GRID_STYLE}
     >
       <SortHeader field='created_at' label='Time' sortField={sortField} sortDir={sortDir} onSort={onSort} />
       <SortHeader field='symbol' label='Symbol' sortField={sortField} sortDir={sortDir} onSort={onSort} />
       <SortHeader field='side' label='Side' sortField={sortField} sortDir={sortDir} onSort={onSort} />
-      <SortHeader field='entry' label='Entry / SL / TP' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='entry' label='Entry' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='entry' label='SL' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='entry' label='TP' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
       <SortHeader field='pnl' label='P&L' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
       <SortHeader field='risk' label='Risk' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
       <SortHeader field='setup_score' label='Setup' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
@@ -327,12 +335,13 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
     <button
       type='button'
       className={cn(
-        'group grid min-w-[880px] items-center border-b border-[var(--to-border)]/45 px-3 py-2 text-left transition duration-150',
-        'bg-[#0e131a]/80 hover:bg-[#131922]',
+        'group grid items-center border-b border-[var(--to-border)]/40 px-3 py-2 text-left transition-colors duration-150',
+        SIGNAL_TABLE_MIN_WIDTH,
+        'bg-[#0d1218]/90 hover:bg-[#121821]',
         'border-l-2',
         sideBorderColor(signal.side),
-        broker?.is_stale && 'opacity-60',
-        isOpenStatus(signal.status) && 'bg-[#111a27]',
+        broker?.is_stale && 'opacity-70',
+        isOpenStatus(signal.status) && 'bg-[#101824]',
       )}
       style={SIGNAL_GRID_STYLE}
       onClick={() => onSelect?.(signal)}
@@ -776,7 +785,10 @@ export function SignalTable({
             description='Try a different filter.'
           />
         ) : (
-          <div className='min-w-[880px] overflow-hidden rounded-md border border-[var(--to-border)]/70 bg-[#0a0f15] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]'>
+          <div className={cn(
+            'overflow-hidden rounded-md border border-[var(--to-border)]/60 bg-[#090d13]',
+            SIGNAL_TABLE_MIN_WIDTH,
+          )}>
             <SignalBlotterHeader
               sortField={sortField}
               sortDir={sortDir}
