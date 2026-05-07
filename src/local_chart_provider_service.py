@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import subprocess
+import time
 from typing import Any, Dict, List, Optional, Sequence
 
 from src.services.tradingview_mcp_compatibility import get_tradingview_mcp_compatibility_service
@@ -14,6 +15,13 @@ MCP_REPO_PATH = Path(__file__).resolve().parents[1] / "mcp" / "tradingview-mcp"
 
 def _normalize_timeframe(raw_resolution: str) -> str:
     return f"{raw_resolution}m" if raw_resolution.isdigit() else raw_resolution
+
+
+def _mcp_timeframe(requested_timeframe: str) -> str:
+    raw = str(requested_timeframe or "").strip()
+    if raw.lower().endswith("m") and raw[:-1].isdigit():
+        return raw[:-1]
+    return raw
 
 
 def _normalize_indicator_values(values_payload: Optional[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
@@ -119,9 +127,35 @@ def _setup_date(value: str) -> str:
     return normalized[:10]
 
 
+def _should_use_replay(setup_time: Optional[str], now_iso: Optional[str] = None) -> bool:
+    normalized = _normalize_setup_time(setup_time)
+    if not normalized:
+        return False
+    now_normalized = _normalize_setup_time(now_iso or _now_iso()) or _now_iso()
+    return _setup_date(normalized) < _setup_date(now_normalized)
+
+
+def _replay_start_date(setup_time: str) -> str:
+    normalized = _normalize_setup_time(setup_time) or setup_time
+    try:
+        dt = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+    except ValueError:
+        return _setup_date(normalized)
+    return (dt - timedelta(days=1)).date().isoformat()
+
+
 def _safe_name_token(value: Any) -> str:
     token = str(value or "").strip()
     return "".join(ch if ch.isalnum() or ch in ("-", "_") else "-" for ch in token).strip("-")
+
+
+def _to_float(value: Any) -> Optional[float]:
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _symbol_matches(actual: Any, requested: str) -> bool:
@@ -178,6 +212,23 @@ def _pick_primary_zone(
     return None
 
 
+def _zone_matches_requested_focus(
+    zone: Optional[Dict[str, Any]],
+    requested_focus_zone: Optional[Dict[str, Any]],
+) -> bool:
+    if not zone or not requested_focus_zone:
+        return True
+    requested_high = _to_float(requested_focus_zone.get("high"))
+    requested_low = _to_float(requested_focus_zone.get("low"))
+    actual_high = _to_float(zone.get("high"))
+    actual_low = _to_float(zone.get("low"))
+    if requested_high is None or requested_low is None:
+        return True
+    if actual_high is None or actual_low is None:
+        return False
+    return abs(actual_high - requested_high) <= 0.00001 and abs(actual_low - requested_low) <= 0.00001
+
+
 def _crop_focus_image(source_path: str, focus_zone: Optional[Dict[str, Any]]) -> Optional[str]:
     if not source_path or not focus_zone:
         return source_path
@@ -204,6 +255,23 @@ def _crop_focus_image(source_path: str, focus_zone: Optional[Dict[str, Any]]) ->
         return target
     except Exception:
         return source_path
+
+
+def _screenshot_has_chart_content(screenshot_payload: Optional[Dict[str, Any]]) -> bool:
+    path = (screenshot_payload or {}).get("file_path")
+    if not path or not Path(str(path)).exists():
+        return True
+    try:
+        from PIL import Image, ImageStat
+
+        image = Image.open(str(path)).convert("L")
+        stat = ImageStat.Stat(image)
+        mean = float(stat.mean[0])
+        stddev = float(stat.stddev[0])
+        image.close()
+        return mean > 30 and stddev > 8
+    except Exception:
+        return True
 
 
 def _build_setup_evidence(
@@ -299,6 +367,8 @@ def build_chart_context_payload(
         or requested_focus_zone
         or (normalized_line_zones[0] if requested_zone_id is None and normalized_line_zones else None)
     )
+    if requested_focus_zone and not _zone_matches_requested_focus(focus_zone, requested_focus_zone):
+        focus_zone = requested_focus_zone
     if focus_zone and requested_zone_id is not None:
         focus_zone = {**focus_zone, "requested_zone_id": requested_zone_id}
 
@@ -415,26 +485,44 @@ def fetch_live_chart_context(
         screenshot_parts.append(str(zone_id))
     screenshot_parts.append(screenshot_time)
     screenshot_name = "_".join(_safe_name_token(part) for part in screenshot_parts if part)
-    symbol_payload = run_mcp_command(["node", "src/cli/index.js", "symbol", requested_symbol])
-    timeframe_payload = run_mcp_command(["node", "src/cli/index.js", "timeframe", requested_timeframe])
-    replay_payload: Optional[Dict[str, Any]] = None
-    scroll_payload: Optional[Dict[str, Any]] = None
+    replay_stop_payload: Optional[Dict[str, Any]] = None
     if normalized_setup_time:
         replay_stop_payload = run_mcp_command(["node", "src/cli/index.js", "replay", "stop"])
+    symbol_payload = run_mcp_command(["node", "src/cli/index.js", "symbol", requested_symbol])
+    timeframe_payload = run_mcp_command(["node", "src/cli/index.js", "timeframe", _mcp_timeframe(requested_timeframe)])
+    replay_payload: Optional[Dict[str, Any]] = None
+    scroll_payload: Optional[Dict[str, Any]] = None
+    if normalized_setup_time and _should_use_replay(normalized_setup_time):
         replay_payload = run_mcp_command(
-            ["node", "src/cli/index.js", "replay", "start", "--date", _setup_date(normalized_setup_time)]
+            ["node", "src/cli/index.js", "replay", "start", "--date", _replay_start_date(normalized_setup_time)]
         )
+    if normalized_setup_time:
         scroll_payload = run_mcp_command(["node", "src/cli/index.js", "scroll", normalized_setup_time])
-    else:
-        replay_stop_payload = None
     final_status_payload = run_mcp_command(["node", "src/cli/index.js", "status"])
     values_payload = run_mcp_command(["node", "src/cli/index.js", "values"])
     lines_payload = run_mcp_command(["node", "src/cli/index.js", "data", "lines"])
     labels_payload = run_mcp_command(["node", "src/cli/index.js", "data", "labels"])
     boxes_payload = run_mcp_command(["node", "src/cli/index.js", "data", "boxes", "--verbose"])
-    screenshot_payload = run_mcp_command(
-        ["node", "src/cli/index.js", "screenshot", "--region", "chart", "--output", screenshot_name]
-    )
+    visual_ready = symbol_payload.get("chart_ready") is not False and timeframe_payload.get("chart_ready") is not False
+    if visual_ready:
+        screenshot_payload = run_mcp_command(
+            ["node", "src/cli/index.js", "screenshot", "--region", "chart", "--output", screenshot_name]
+        )
+        if screenshot_payload.get("success") and not _screenshot_has_chart_content(screenshot_payload):
+            time.sleep(2)
+            screenshot_payload = run_mcp_command(
+                ["node", "src/cli/index.js", "screenshot", "--region", "chart", "--output", screenshot_name]
+            )
+        if screenshot_payload.get("success") and not _screenshot_has_chart_content(screenshot_payload):
+            screenshot_payload = {
+                "success": False,
+                "error": "visual chart screenshot was blank or still loading",
+            }
+    else:
+        screenshot_payload = {
+            "success": False,
+            "error": "visual chart did not confirm requested symbol/timeframe; screenshot skipped",
+        }
 
     payload = build_chart_context_payload(
         requested_symbol=requested_symbol,
@@ -457,8 +545,12 @@ def fetch_live_chart_context(
     partial_failures = payload["metadata"].setdefault("partial_failures", [])
     if not symbol_payload.get("success"):
         partial_failures.append(symbol_payload.get("error", "symbol switch failed"))
+    elif symbol_payload.get("chart_ready") is False:
+        partial_failures.append("visual chart did not confirm requested symbol after switch")
     if not timeframe_payload.get("success"):
         partial_failures.append(timeframe_payload.get("error", "timeframe switch failed"))
+    elif timeframe_payload.get("chart_ready") is False:
+        partial_failures.append("visual chart did not confirm requested timeframe after switch")
     if not final_status_payload.get("success"):
         partial_failures.append(final_status_payload.get("error", "post-navigation status failed"))
     elif not _symbol_matches(final_status_payload.get("chart_symbol"), requested_symbol):

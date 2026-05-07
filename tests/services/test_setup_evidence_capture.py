@@ -132,6 +132,40 @@ def test_capture_setup_evidence_accepts_prefixed_zone_id() -> None:
     assert client.recorder["payload"]["image_url"] == "http://provider.test/provider-artifacts/gbpnzd.png"
 
 
+def test_capture_setup_evidence_clears_stale_image_url_when_image_is_invalid() -> None:
+    client = _FakeSupabase()
+
+    def _provider(**_kwargs: Any) -> dict[str, Any]:
+        return {
+            "status": "degraded",
+            "structured": {
+                "setup_evidence": {
+                    "status": "degraded",
+                    "focus_zone": {
+                        "type": "supply",
+                        "source": "signal",
+                        "id": 18981,
+                        "high": 4750.34,
+                        "low": 4743.55,
+                    },
+                    "focus_image": None,
+                    "reason": "visual chart screenshot was blank or still loading",
+                }
+            },
+        }
+
+    updated = capture_setup_evidence_for_signal(
+        client,
+        signal_id=575,
+        payload={"symbol": "XAUUSD", "timeframe": "5m", "zone_id": 18981},
+        provider=_provider,
+    )
+
+    assert updated is True
+    assert client.recorder["payload"]["setup_evidence"]["status"] == "degraded"
+    assert client.recorder["payload"]["image_url"] is None
+
+
 def test_setup_evidence_matches_exact_signal_zone() -> None:
     payload = {
         "zone_id": 18429,

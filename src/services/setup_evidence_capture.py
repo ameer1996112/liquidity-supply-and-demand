@@ -162,8 +162,7 @@ def capture_setup_evidence_for_signal(
 
         update_payload: Dict[str, Any] = {"setup_evidence": setup_evidence}
         image_url = _focus_image_url(setup_evidence)
-        if image_url:
-            update_payload["image_url"] = image_url
+        update_payload["image_url"] = image_url
 
         supabase_client.table("trading_signals").update(update_payload).eq("id", signal_id).execute()
         logger.info("Setup evidence captured for signal_id=%s zone_id=%s", signal_id, zone_id)
