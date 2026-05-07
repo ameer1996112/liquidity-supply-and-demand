@@ -19,6 +19,7 @@ import { formatDuration } from './TradeTable';
 import { SetupEvidenceCell } from './SetupEvidenceCell';
 import { SetupEvidenceDetail } from './SetupEvidenceDetail';
 import { SetupScoreBadge } from '@/components/shared/SetupScoreBadge';
+import { formatJournalPrice } from './priceFormat';
 
 interface ExpandableTradeRowProps {
   signal: TradingSignal;
@@ -221,26 +222,10 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
 
         {/* Entry / Exit */}
         <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--to-text-dim)]">
-          {entry != null
-            ? entry.toFixed(
-                symbol.includes('JPY')
-                  ? 3
-                  : symbol.includes('BTC') || symbol.includes('XAU')
-                    ? 2
-                    : 5,
-              )
-            : '--'}
+          {formatJournalPrice(entry, symbol)}
         </td>
         <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--to-text-dim)]">
-          {signal.exit_price != null
-            ? signal.exit_price.toFixed(
-                symbol.includes('JPY')
-                  ? 3
-                  : symbol.includes('BTC') || symbol.includes('XAU')
-                    ? 2
-                    : 5,
-              )
-            : '--'}
+          {formatJournalPrice(signal.exit_price, symbol)}
         </td>
 
         {/* Size */}
@@ -380,19 +365,19 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                   <div className="flex justify-between">
                     <span className="text-[var(--to-text-dim)]">Entry</span>
                     <span className="font-mono text-[var(--to-text-secondary)]">
-                      <PnLText value={entry ?? null} variant="currency" size="sm" />
+                      {formatJournalPrice(entry, symbol)}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[var(--to-text-dim)]">Stop Loss</span>
                     <span className="font-mono text-short">
-                      <PnLText value={sl ?? null} variant="currency" size="sm" />
+                      {formatJournalPrice(sl, symbol)}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[var(--to-text-dim)]">Take Profit</span>
                     <span className="font-mono text-long">
-                      <PnLText value={tp ?? null} variant="currency" size="sm" />
+                      {formatJournalPrice(tp, symbol)}
                     </span>
                   </div>
                   <div className="flex justify-between">

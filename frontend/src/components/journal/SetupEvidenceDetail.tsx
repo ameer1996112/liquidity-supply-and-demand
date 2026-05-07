@@ -5,6 +5,7 @@ import { SetupEvidence } from '@/types/trading';
 import { cn } from '@/lib/utils';
 import { Expand } from 'lucide-react';
 import { SetupEvidenceModal } from './SetupEvidenceModal';
+import { formatJournalPrice } from './priceFormat';
 
 interface SetupEvidenceDetailProps {
   evidence?: SetupEvidence | null;
@@ -29,14 +30,14 @@ function getEvidenceStatus(evidence?: SetupEvidence | null): 'ok' | 'degraded' |
   return evidence?.status || (evidence?.focus_image?.url ? 'ok' : 'missing');
 }
 
-function formatZoneSummary(evidence?: SetupEvidence | null): string {
+function formatZoneSummary(evidence?: SetupEvidence | null, symbol?: string | null): string {
   const zone = evidence?.focus_zone;
   if (!zone) return 'No focus zone';
   if (zone.high != null && zone.low != null) {
-    return `${zone.label || 'Zone'} ${zone.low.toFixed(4)} - ${zone.high.toFixed(4)}`;
+    return `${zone.label || 'Zone'} ${formatJournalPrice(zone.low, symbol)} - ${formatJournalPrice(zone.high, symbol)}`;
   }
   if (zone.price != null) {
-    return `${zone.label || 'Zone'} @ ${zone.price.toFixed(4)}`;
+    return `${zone.label || 'Zone'} @ ${formatJournalPrice(zone.price, symbol)}`;
   }
   return zone.label || 'No focus zone';
 }
@@ -58,11 +59,6 @@ function hasFallbackSetup(fallback?: SetupEvidenceFallback | null): boolean {
       fallback?.takeProfit != null ||
       fallback?.score != null,
   );
-}
-
-function formatPrice(value?: number | null): string {
-  if (value == null) return '--';
-  return value.toFixed(Math.abs(value) >= 100 ? 2 : 5);
 }
 
 export function SetupEvidenceDetail({ evidence, fallback }: SetupEvidenceDetailProps) {
@@ -125,8 +121,9 @@ export function SetupEvidenceDetail({ evidence, fallback }: SetupEvidenceDetailP
           <div>
             <span className='text-[var(--to-text-dim)]'>Entry / SL / TP</span>
             <span className='ml-2 font-mono text-[var(--to-text-secondary)]'>
-              {formatPrice(fallback.entry)} / {formatPrice(fallback.stopLoss)} /{' '}
-              {formatPrice(fallback.takeProfit)}
+              {formatJournalPrice(fallback.entry, fallback.symbol)} /{' '}
+              {formatJournalPrice(fallback.stopLoss, fallback.symbol)} /{' '}
+              {formatJournalPrice(fallback.takeProfit, fallback.symbol)}
             </span>
           </div>
           <div>
@@ -173,7 +170,7 @@ export function SetupEvidenceDetail({ evidence, fallback }: SetupEvidenceDetailP
           {status}
         </span>
         <span className='text-[11px] font-mono text-[var(--to-text-secondary)]'>
-          {formatZoneSummary(evidence)}
+          {formatZoneSummary(evidence, fallback?.symbol)}
         </span>
       </div>
 
@@ -215,7 +212,7 @@ export function SetupEvidenceDetail({ evidence, fallback }: SetupEvidenceDetailP
         <div>
           <span className='text-[var(--to-text-dim)]'>Focus Zone</span>
           <span className='ml-2 font-mono text-[var(--to-text-secondary)]'>
-            {formatZoneSummary(evidence)}
+            {formatZoneSummary(evidence, fallback?.symbol)}
           </span>
         </div>
         <div>
