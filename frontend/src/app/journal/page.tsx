@@ -14,7 +14,6 @@ import {
 import { JournalFilters } from '@/components/journal/JournalFilters';
 import { JournalStats } from '@/components/journal/JournalStats';
 import { JournalEquityCurve } from '@/components/journal/JournalEquityCurve';
-import { AccountBreakdown } from '@/components/journal/AccountBreakdown';
 import { SymbolBreakdown } from '@/components/journal/SymbolBreakdown';
 import { DrawdownChart } from '@/components/journal/DrawdownChart';
 import { TradeTable } from '@/components/journal/TradeTable';
@@ -31,6 +30,14 @@ import { cn } from '@/lib/utils';
 
 type StatusFilter = 'ALL' | SignalStatus;
 type ModeFilter = 'ALL' | TradingMode;
+const UNASSIGNED_ACCOUNT = '__unassigned__';
+
+interface AccountTab {
+  value: string | null;
+  label: string;
+  count: number;
+  totalPnl: number;
+}
 
 export default function JournalPage() {
   const [search, setSearch] = useState('');
@@ -45,21 +52,69 @@ export default function JournalPage() {
   const queryMode = modeFilter === 'ALL' ? undefined : modeFilter;
   const { data: signals, isLoading } = useJournalSignals(queryMode, period);
 
-  // Derive unique accounts from all signals
-  const availableAccounts = useMemo(() => {
-    if (!signals) return [];
-    const accounts = new Set<string>();
-    for (const s of signals) {
-      if (s.account_name) accounts.add(s.account_name);
+  const accountTabs = useMemo<AccountTab[]>(() => {
+    if (!signals || signals.length === 0) return [];
+
+    const map = new Map<string, AccountTab>();
+    let unassignedCount = 0;
+    let unassignedPnl = 0;
+    let allPnl = 0;
+
+    for (const signal of signals) {
+      const pnl = getPnl(signal) ?? 0;
+      allPnl += pnl;
+
+      if (!signal.account_name) {
+        unassignedCount++;
+        unassignedPnl += pnl;
+        continue;
+      }
+
+      const current = map.get(signal.account_name) ?? {
+        value: signal.account_name,
+        label: signal.account_name,
+        count: 0,
+        totalPnl: 0,
+      };
+      current.count++;
+      current.totalPnl += pnl;
+      map.set(signal.account_name, current);
     }
-    return Array.from(accounts).sort();
+
+    const tabs: AccountTab[] = [
+      {
+        value: null,
+        label: 'All',
+        count: signals.length,
+        totalPnl: allPnl,
+      },
+      ...Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label)),
+    ];
+
+    if (unassignedCount > 0) {
+      tabs.push({
+        value: UNASSIGNED_ACCOUNT,
+        label: 'Unassigned',
+        count: unassignedCount,
+        totalPnl: unassignedPnl,
+      });
+    }
+
+    return tabs;
   }, [signals]);
 
   const filtered = useMemo(() => {
     if (!signals) return [];
     return signals.filter((s) => {
       // Account filter
-      if (accountFilter && s.account_name !== accountFilter) return false;
+      if (accountFilter === UNASSIGNED_ACCOUNT && s.account_name) return false;
+      if (
+        accountFilter &&
+        accountFilter !== UNASSIGNED_ACCOUNT &&
+        s.account_name !== accountFilter
+      ) {
+        return false;
+      }
       // Status filter
       if (statusFilter !== 'ALL' && s.status?.toLowerCase() !== statusFilter)
         return false;
@@ -201,34 +256,74 @@ export default function JournalPage() {
         onPeriodChange={setPeriod}
         accountFilter={accountFilter}
         onAccountChange={setAccountFilter}
-        availableAccounts={availableAccounts}
+        availableAccounts={[]}
         onExport={handleExport}
         resultCount={filtered.length}
       />
 
+      {accountTabs.length > 1 && (
+        <div className='rounded-xl border border-[#2a2e39] bg-[#0d1117] p-2'>
+          <div className='flex gap-1 overflow-x-auto'>
+            {accountTabs.map((tab) => {
+              const isActive = accountFilter === tab.value;
+              const pnlPos = tab.totalPnl >= 0;
+
+              return (
+                <button
+                  key={tab.value ?? 'all'}
+                  onClick={() => setAccountFilter(tab.value)}
+                  className={cn(
+                    'min-w-[132px] rounded-lg border px-3 py-2 text-left transition-colors',
+                    isActive
+                      ? 'border-[var(--to-long)]/40 bg-[var(--to-long)]/10'
+                      : 'border-transparent bg-[#151821] hover:border-[#2a2e39] hover:bg-[#1e222d]',
+                  )}
+                >
+                  <span className='block truncate font-mono text-[11px] font-semibold text-[var(--to-text-primary)]'>
+                    {tab.label}
+                  </span>
+                  <span className='mt-1 flex items-center justify-between gap-3 font-mono text-[10px]'>
+                    <span className='text-[var(--to-text-dim)]'>
+                      {tab.count} row{tab.count !== 1 ? 's' : ''}
+                    </span>
+                    <span
+                      className={cn(
+                        'font-semibold',
+                        pnlPos ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]',
+                      )}
+                    >
+                      {pnlPos ? '+' : ''}${tab.totalPnl.toFixed(0)}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Calendar view */}
       {viewMode === 'calendar' ? (
-        signals && signals.length > 0 ? (
-          <CalendarPnlView signals={signals} />
+        filtered.length > 0 ? (
+          <CalendarPnlView signals={filtered} />
         ) : (
           <div className='glow-card p-4'>
             <PanelEmptyState
-              title='No trade data'
-              description='Trades will appear here after execution.'
+              title={
+                signals && signals.length > 0
+                  ? 'No matching trades'
+                  : 'No trade data'
+              }
+              description={
+                signals && signals.length > 0
+                  ? 'Adjust filters to see results.'
+                  : 'Trades will appear here after execution.'
+              }
             />
           </div>
         )
       ) : (
         <>
-          {/* Account Breakdown — when multiple accounts exist */}
-          {availableAccounts.length > 1 && signals && (
-            <AccountBreakdown
-              signals={signals}
-              activeAccount={accountFilter}
-              onAccountSelect={setAccountFilter}
-            />
-          )}
-
           {/* Symbol Breakdown */}
           {signals && signals.length >= 3 && (
             <SymbolBreakdown
