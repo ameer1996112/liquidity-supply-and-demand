@@ -55,4 +55,37 @@ describe('SetupEvidenceDetail', () => {
     expect(container.querySelector('button[aria-label="Open setup evidence"]')).toBeNull();
     root.unmount();
   });
+
+  test('renders zone setup fallback when mcp image evidence is missing', () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <SetupEvidenceDetail
+          evidence={null}
+          fallback={{
+            symbol: 'GBPNZD',
+            zoneType: 'supply',
+            zoneGrade: 'A+',
+            entryModel: 'dir_close',
+            session: 1,
+            entry: 2.28128,
+            stopLoss: 2.28216,
+            takeProfit: 2.27908,
+            slPips: 8.8,
+            score: 70,
+            rrRatio: 2.5,
+          }}
+        />
+      );
+    });
+
+    expect(container.textContent).toContain('zone setup');
+    expect(container.textContent).toContain('SUPPLY A+');
+    expect(container.textContent).toContain('DIR_CLOSE');
+    expect(container.textContent).toContain('London');
+    expect(container.textContent).not.toContain('Setup evidence unavailable');
+    root.unmount();
+  });
 });

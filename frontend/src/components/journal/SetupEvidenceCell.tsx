@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 
 interface SetupEvidenceCellProps {
   evidence?: SetupEvidence | null;
+  hasZoneSetup?: boolean;
 }
 
 const STATE_STYLES: Record<string, { label: string; className: string }> = {
@@ -19,6 +20,11 @@ const STATE_STYLES: Record<string, { label: string; className: string }> = {
     className:
       'border-amber-500/30 bg-amber-500/10 text-amber-400',
   },
+  zone_setup: {
+    label: 'Zone setup available',
+    className:
+      'border-amber-500/30 bg-amber-500/10 text-amber-400',
+  },
   missing: {
     label: 'Setup evidence missing',
     className:
@@ -26,9 +32,9 @@ const STATE_STYLES: Record<string, { label: string; className: string }> = {
   },
 };
 
-export function SetupEvidenceCell({ evidence }: SetupEvidenceCellProps) {
+export function SetupEvidenceCell({ evidence, hasZoneSetup = false }: SetupEvidenceCellProps) {
   const status =
-    evidence?.status || (evidence?.focus_image?.url ? 'ok' : 'missing');
+    evidence?.status || (evidence?.focus_image?.url ? 'ok' : hasZoneSetup ? 'zone_setup' : 'missing');
   const style = STATE_STYLES[status] || STATE_STYLES.missing;
 
   return (

@@ -90,6 +90,15 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
   const session = signal.session ?? ai?.session;
   const slPips = signal.sl_pips;
   const trend = signal.trend ?? ai?.trend;
+  const hasZoneSetup = Boolean(
+    zoneType ||
+      zoneGrade ||
+      entryModel ||
+      entry != null ||
+      sl != null ||
+      tp != null ||
+      score != null,
+  );
 
   return (
     <>
@@ -159,7 +168,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
         {/* Setup */}
         <td className="py-2.5 px-3">
           <div className="flex items-center gap-1.5">
-            <SetupEvidenceCell evidence={signal.setup_evidence} />
+            <SetupEvidenceCell evidence={signal.setup_evidence} hasZoneSetup={hasZoneSetup} />
             <SetupScoreBadge signal={signal} compact />
           </div>
         </td>
@@ -304,7 +313,22 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                 <span className="text-[10px] text-text-dim uppercase tracking-wider font-medium">
                   Setup Evidence
                 </span>
-                <SetupEvidenceDetail evidence={signal.setup_evidence} />
+                <SetupEvidenceDetail
+                  evidence={signal.setup_evidence}
+                  fallback={{
+                    symbol,
+                    zoneType,
+                    zoneGrade,
+                    entryModel,
+                    session,
+                    entry,
+                    stopLoss: sl,
+                    takeProfit: tp,
+                    slPips,
+                    score,
+                    rrRatio: signal.rr_ratio,
+                  }}
+                />
                 {signal.setup_score != null && (
                   <div className="space-y-1.5 border-t border-[var(--to-border)]/60 pt-2 text-[11px]">
                     <div className="flex justify-between">

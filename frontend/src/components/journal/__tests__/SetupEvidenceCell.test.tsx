@@ -61,4 +61,18 @@ describe('SetupEvidenceCell', () => {
     expect(icon?.className).toContain('text-[var(--to-text-dim)]');
     root.unmount();
   });
+
+  test('shows a warning icon when zone setup exists without mcp image evidence', () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(<SetupEvidenceCell evidence={null} hasZoneSetup />);
+    });
+
+    const icon = container.querySelector('[data-testid="setup-evidence-icon"]');
+    expect(icon?.getAttribute('aria-label')).toBe('Zone setup available');
+    expect(icon?.className).toContain('text-amber-400');
+    root.unmount();
+  });
 });
