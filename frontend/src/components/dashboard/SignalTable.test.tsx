@@ -84,10 +84,10 @@ describe('SignalTable', () => {
     });
 
     expect(container.textContent).toContain('liq_sd_v1@1');
-    expect(container.textContent).toContain('Setup Q');
+    expect(container.textContent).toContain('Setup');
     expect(container.textContent).toContain('A+');
     expect(container.textContent).toContain('88');
-    expect(container.textContent).toContain('AI Conv.');
+    expect(container.textContent).toContain('AI');
     expect(container.textContent).toContain('breakout_v1@2');
 
     const breakoutButton = Array.from(container.querySelectorAll('button')).find(
@@ -272,7 +272,7 @@ describe('SignalTable', () => {
       root.render(<SignalTable signals={[signal]} />);
     });
 
-    expect(container.textContent).toContain('At Risk');
+    expect(container.textContent).toContain('Risk');
     expect(container.textContent).toContain('$30.44');
   });
 });

@@ -182,7 +182,10 @@ function SortHeader({ field, label, align = 'left', sortField, sortDir, onSort }
   return (
     <button
       type='button'
-      className={cn('inline-flex items-center gap-1 w-full', align === 'right' && 'justify-end')}
+      className={cn(
+        'inline-flex w-full items-center gap-1 text-[10px] font-semibold uppercase text-[var(--to-text-dim)]',
+        align === 'right' && 'justify-end',
+      )}
       onClick={() => onSort(field)}
     >
       <span>{label}</span>
@@ -231,7 +234,7 @@ function SideBadge({ side }: { side: string }) {
   return (
     <span
       className={cn(
-        'inline-flex min-w-[54px] justify-center rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
+        'inline-flex min-w-[46px] justify-center rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase',
         isBuy
           ? 'border-[var(--to-long)]/25 bg-[var(--to-long)]/12 text-[var(--to-long)]'
           : 'border-[var(--to-short)]/25 bg-[var(--to-short)]/12 text-[var(--to-short)]',
@@ -255,7 +258,7 @@ function formatSignalPrice(symbol: string, value?: number | null): string {
 }
 
 const SIGNAL_GRID_STYLE = {
-  gridTemplateColumns: '64px minmax(132px,1.05fr) 74px minmax(236px,1.5fr) 100px 112px 82px 92px 92px',
+  gridTemplateColumns: '56px minmax(118px,0.9fr) 58px minmax(214px,1.35fr) 88px 92px 70px 58px 78px',
 } as const;
 
 interface SignalBlotterHeaderProps {
@@ -267,30 +270,30 @@ interface SignalBlotterHeaderProps {
 function SignalBlotterHeader({ sortField, sortDir, onSort }: SignalBlotterHeaderProps) {
   return (
     <div
-      className='sticky top-0 z-10 grid min-w-[1020px] items-center border-b border-[var(--to-border)] bg-[#0b1017]/95 px-3 py-2 backdrop-blur'
+      className='sticky top-0 z-10 grid min-w-[880px] items-center border-b border-[var(--to-border)] bg-[#0d1219]/95 px-3 py-2 backdrop-blur'
       style={SIGNAL_GRID_STYLE}
     >
-      <SortHeader field='created_at' label='Age' sortField={sortField} sortDir={sortDir} onSort={onSort} />
-      <SortHeader field='symbol' label='Market' sortField={sortField} sortDir={sortDir} onSort={onSort} />
-      <SortHeader field='side' label='Bias' sortField={sortField} sortDir={sortDir} onSort={onSort} />
-      <SortHeader field='entry' label='Plan' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
-      <SortHeader field='pnl' label='Result' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
-      <SortHeader field='risk' label='At Risk' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
-      <SortHeader field='setup_score' label='Setup Q' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='created_at' label='Time' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='symbol' label='Symbol' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='side' label='Side' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='entry' label='Entry / SL / TP' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='pnl' label='P&L' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='risk' label='Risk' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='setup_score' label='Setup' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
       <button
         type='button'
-        className='inline-flex w-full items-center justify-end gap-1 font-mono text-[10px] uppercase tracking-wider text-[var(--to-text-dim)]'
+        className='inline-flex w-full items-center justify-end gap-1 text-[10px] font-semibold uppercase text-[var(--to-text-dim)]'
         onClick={() => onSort('score')}
       >
         <TrendingUp className='h-2.5 w-2.5' strokeWidth={1.5} />
-        <span>AI Conv.</span>
+        <span>AI</span>
         {sortField === 'score' ? (
           sortDir === 'asc' ? <ArrowUp className='h-2.5 w-2.5' /> : <ArrowDown className='h-2.5 w-2.5' />
         ) : (
           <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
         )}
       </button>
-      <SortHeader field='status' label='State' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='status' label='Status' sortField={sortField} sortDir={sortDir} onSort={onSort} />
     </div>
   );
 }
@@ -324,8 +327,8 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
     <button
       type='button'
       className={cn(
-        'group grid min-w-[1020px] items-center border-b border-[var(--to-border)]/45 px-3 py-2.5 text-left transition duration-150',
-        'bg-[#0f141b]/70 hover:bg-[#141b25] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]',
+        'group grid min-w-[880px] items-center border-b border-[var(--to-border)]/45 px-3 py-2 text-left transition duration-150',
+        'bg-[#0e131a]/80 hover:bg-[#131922]',
         'border-l-2',
         sideBorderColor(signal.side),
         broker?.is_stale && 'opacity-60',
@@ -335,24 +338,24 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
       onClick={() => onSelect?.(signal)}
     >
       <span
-        className='inline-flex w-fit items-center rounded border border-[var(--to-border)]/70 bg-black/20 px-2 py-1 font-mono text-[10px] tabular-nums text-[var(--to-text-secondary)]'
+        className='inline-flex w-fit items-center rounded border border-[var(--to-border)]/60 bg-black/15 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-[var(--to-text-secondary)]'
         title={new Date(signal.created_at).toLocaleString()}
       >
         {relativeTime(signal.created_at)}
       </span>
 
-      <div className='flex min-w-0 flex-col gap-1'>
-        <Mono size='lg' bold className='text-[var(--to-text-primary)] tracking-wide'>
+      <div className='flex min-w-0 flex-col gap-0.5'>
+        <Mono size='base' bold className='text-[var(--to-text-primary)]'>
           {signal.symbol}
         </Mono>
         <div className='flex min-w-0 flex-wrap gap-1'>
           {(signal as any).account_name && (
-            <span className='rounded border border-blue-400/15 bg-blue-400/8 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-blue-200/70'>
+            <span className='rounded border border-blue-400/15 bg-blue-400/8 px-1.5 py-0.5 text-[9px] uppercase text-blue-200/70'>
               {(signal as any).account_name}
             </span>
           )}
           {getSignalStrategyBadge(signal) && (
-            <span className='rounded border border-emerald-400/15 bg-emerald-400/8 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-emerald-200/70'>
+            <span className='rounded border border-emerald-400/15 bg-emerald-400/8 px-1.5 py-0.5 text-[9px] uppercase text-emerald-200/70'>
               {getSignalStrategyBadge(signal)}
             </span>
           )}
@@ -371,16 +374,16 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
           ) : (
             <Crosshair className='h-[9px] w-[9px] shrink-0 text-[var(--to-text-dim)]/60' />
           )}
-          <span className='text-[8px] uppercase tracking-wider text-[var(--to-text-dim)]'>Entry</span>
+          <span className='text-[8px] uppercase text-[var(--to-text-dim)]'>Entry</span>
           <span className='font-semibold text-[var(--to-text-secondary)]'>
             {formatSignalPrice(signal.symbol, entry)}
           </span>
         </span>
         <span className='inline-flex items-center gap-1'>
-          <span className='rounded border border-[var(--to-short)]/15 bg-[var(--to-short)]/10 px-1.5 py-0.5 text-[var(--to-short)]/90'>
+          <span className='rounded border border-[var(--to-short)]/15 bg-[var(--to-short)]/10 px-1 py-0.5 text-[var(--to-short)]/90'>
             SL {formatSignalPrice(signal.symbol, sl)}
           </span>
-          <span className='rounded border border-[var(--to-long)]/15 bg-[var(--to-long)]/10 px-1.5 py-0.5 text-[var(--to-long)]/90'>
+          <span className='rounded border border-[var(--to-long)]/15 bg-[var(--to-long)]/10 px-1 py-0.5 text-[var(--to-long)]/90'>
             TP {formatSignalPrice(signal.symbol, tp)}
           </span>
         </span>
@@ -390,7 +393,7 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
         {shouldShowLivePnl ? (
           <span
             className={cn(
-              'inline-flex items-center gap-1 rounded px-2 py-1 font-mono text-[11px] font-bold tabular-nums',
+              'inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums',
               livePnl >= 0
                 ? 'bg-[var(--to-long)]/8 text-[var(--to-long)]'
                 : 'bg-[var(--to-short)]/8 text-[var(--to-short)]',
@@ -412,10 +415,10 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
 
       <div className='flex justify-end'>
         <span
-          className='inline-flex items-center gap-1 rounded border border-[var(--to-short)]/25 bg-[var(--to-short)]/10 px-2 py-1 font-mono text-[10px] font-bold tabular-nums text-[var(--to-short)] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]'
+          className='inline-flex items-center gap-1 rounded border border-[var(--to-short)]/20 bg-[var(--to-short)]/8 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-[var(--to-short)]'
           title={formatJournalRiskTitle(risk)}
         >
-          <ShieldAlert className='h-3 w-3 opacity-70' strokeWidth={1.7} />
+          <ShieldAlert className='h-2.5 w-2.5 opacity-65' strokeWidth={1.7} />
           {formatJournalRisk(risk)}
         </span>
       </div>
@@ -424,7 +427,7 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
         <SetupScoreBadge signal={signal} compact />
       </div>
 
-      <div className='flex justify-end font-mono text-[11px] font-bold tabular-nums'>
+      <div className='flex justify-end font-mono text-[10px] font-semibold tabular-nums'>
         <span className={cn(scoreColor)}>{score == null ? '—' : Math.round(score)}</span>
       </div>
 
@@ -773,7 +776,7 @@ export function SignalTable({
             description='Try a different filter.'
           />
         ) : (
-          <div className='min-w-[1020px] overflow-hidden rounded-md border border-[var(--to-border)]/70 bg-[#0a0f15] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]'>
+          <div className='min-w-[880px] overflow-hidden rounded-md border border-[var(--to-border)]/70 bg-[#0a0f15] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]'>
             <SignalBlotterHeader
               sortField={sortField}
               sortDir={sortDir}
