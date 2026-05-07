@@ -256,6 +256,7 @@ class AccountStatusAggregationTests(unittest.TestCase):
         app = FastAPI()
         app.include_router(mod.router)
         client = TestClient(app)
+        mod._last_account_status_response = None
         return client, sb, mod
 
     def test_account_status_aggregates_multiple_live_profiles(self):
@@ -318,6 +319,47 @@ class AccountStatusAggregationTests(unittest.TestCase):
         aggregator.aggregate_account_status.assert_called_once_with(
             aggregator.load_eligible_profiles.return_value
         )
+
+    def test_account_status_profile_load_failure_returns_degraded_status(self):
+        client, sb, mod = self._app_client()
+        aggregator = MagicMock()
+        aggregator.load_eligible_profiles.side_effect = ConnectionError("Server disconnected")
+
+        with patch.object(mod, "_get_supabase", return_value=sb):
+            with patch.object(mod, "LivePositionsAggregator", return_value=aggregator):
+                resp = client.get("/positions/account")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            resp.json(),
+            {
+                "balance": 0.0,
+                "equity": 0.0,
+                "free_margin": 0.0,
+                "margin_used": 0.0,
+                "margin_level_pct": 0.0,
+                "active_positions_count": 0,
+            },
+        )
+        aggregator.aggregate_account_status.assert_not_called()
+
+    def test_account_status_aggregate_failure_returns_degraded_status(self):
+        client, sb, mod = self._app_client()
+        aggregator = MagicMock()
+        aggregator.load_eligible_profiles.return_value = [
+            SimpleNamespace(id=101, name="Meta Live"),
+        ]
+        aggregator.aggregate_account_status.side_effect = ConnectionError(
+            "ConnectionTerminated"
+        )
+
+        with patch.object(mod, "_get_supabase", return_value=sb):
+            with patch.object(mod, "LivePositionsAggregator", return_value=aggregator):
+                resp = client.get("/positions/account")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["active_positions_count"], 0)
+        self.assertEqual(resp.json()["balance"], 0.0)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

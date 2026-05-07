@@ -174,6 +174,53 @@ class AccountStatusResponse(BaseModel):
     active_positions_count: int
 
 
+_last_account_status_response: Optional[AccountStatusResponse] = None
+
+
+def _empty_account_status_response() -> AccountStatusResponse:
+    return AccountStatusResponse(
+        balance=0.0,
+        equity=0.0,
+        free_margin=0.0,
+        margin_used=0.0,
+        margin_level_pct=0.0,
+        active_positions_count=0,
+    )
+
+
+def _degraded_account_status_response(reason: str) -> AccountStatusResponse:
+    if _last_account_status_response is not None:
+        logger.warning(
+            "Returning cached account status because live account status is unavailable: %s",
+            reason,
+        )
+        return _last_account_status_response
+
+    logger.warning(
+        "Returning empty account status because live account status is unavailable: %s",
+        reason,
+    )
+    return _empty_account_status_response()
+
+
+def _account_status_response_from_totals(totals: Dict[str, Any]) -> AccountStatusResponse:
+    balance = float(totals.get("balance") or 0.0)
+    equity = float(totals.get("equity") or 0.0)
+    margin = float(totals.get("margin") or 0.0)
+    free_margin = float(totals.get("free_margin") or 0.0)
+    active_count = int(round(float(totals.get("open_positions") or 0.0)))
+    margin_level = (equity / margin * 100.0) if margin > 0 else 0.0
+
+    return AccountStatusResponse(
+        balance=round(balance, 2),
+        equity=round(equity, 2),
+        free_margin=round(free_margin, 2),
+        margin_used=round(margin, 2),
+        margin_level_pct=round(margin_level, 2),
+        active_positions_count=active_count,
+    )
+
+
 # ── Endpoints ────────────────────────────────────────────────
 
 
@@ -831,55 +878,37 @@ def backfill_missing_pnl(
 @router.get("/account", response_model=AccountStatusResponse)
 def get_account_status():
     """Fetch live account information from broker."""
+    global _last_account_status_response
+
     sb = _get_supabase()
     try:
         aggregator = LivePositionsAggregator(sb)
         eligible_profiles = aggregator.load_eligible_profiles()
     except Exception as exc:
-        logger.error("Failed to load live broker profiles for account status: %s", exc)
-        raise HTTPException(
-            status_code=503,
-            detail="Failed to load live broker accounts.",
-        ) from exc
+        logger.warning("Failed to load live broker profiles for account status: %s", exc)
+        return _degraded_account_status_response(str(exc))
 
     if not eligible_profiles:
-        raise HTTPException(
-            status_code=503,
-            detail="No active broker account configured. Please add and activate a broker profile.",
+        return _degraded_account_status_response(
+            "No active broker account configured. Please add and activate a broker profile."
         )
 
     try:
         account_status_result = aggregator.aggregate_account_status(eligible_profiles)
     except Exception as exc:
-        logger.error("Failed to aggregate live account status: %s", exc)
-        raise HTTPException(
-            status_code=503,
-            detail="Failed to fetch live broker account information.",
-        ) from exc
+        logger.warning("Failed to aggregate live account status: %s", exc)
+        return _degraded_account_status_response(str(exc))
 
     if account_status_result.healthy_profiles == 0:
-        logger.error(
+        logger.warning(
             "No healthy live broker profiles available for account status: %s",
             [error.message for error in account_status_result.errors],
         )
-        raise HTTPException(
-            status_code=503,
-            detail="Failed to fetch live broker account information.",
+        return _degraded_account_status_response(
+            "Failed to fetch live broker account information."
         )
 
-    totals = account_status_result.totals or {}
-    balance = float(totals.get("balance") or 0.0)
-    equity = float(totals.get("equity") or 0.0)
-    margin = float(totals.get("margin") or 0.0)
-    free_margin = float(totals.get("free_margin") or 0.0)
-    active_count = int(round(float(totals.get("open_positions") or 0.0)))
-    margin_level = (equity / margin * 100.0) if margin > 0 else 0.0
-
-    return AccountStatusResponse(
-        balance=round(balance, 2),
-        equity=round(equity, 2),
-        free_margin=round(free_margin, 2),
-        margin_used=round(margin, 2),
-        margin_level_pct=round(margin_level, 2),
-        active_positions_count=active_count,
+    _last_account_status_response = _account_status_response_from_totals(
+        account_status_result.totals or {}
     )
+    return _last_account_status_response
