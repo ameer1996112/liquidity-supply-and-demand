@@ -78,6 +78,10 @@ dump.rdb
 # ------------------------------
 data/transcripts/
 
+# RD Concepts local data lake
+data/rd_concepts/
+scripts/rd_concepts_pipeline/.env
+
 # Optional: uncomment if these are local/generated and should not be tracked
 # data/raw/
 # data/historical/
