@@ -1667,7 +1667,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             label idLbl = na
             if draw_zone_labels
                 idLbl := label.new(x = baseBarIdx + extend_bars, y = mid, text = id_text,
-                     style = label.style_label_left, textcolor = col_label_text, color = lbl_bg_color,
+                     style = label.style_label_right, textcolor = col_label_text, color = lbl_bg_color,
                      size = size.tiny,
                      textalign = text.align_center, xloc = xloc.bar_index)
 
@@ -2928,7 +2928,7 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
                         string demandMetrics = zone_label_show_metrics ? ("  " + str.tostring(z.score, "#")) : ""
                         string demandText = zone_label_style == "Detailed" ? (demandDetailed + demandMetrics) : demandCompact
                         label.set_text(z.idLabel, " " + demandText + " ")
-                        label.set_style(z.idLabel, label.style_label_left)
+                        label.set_style(z.idLabel, label.style_label_right)
                         label.set_textcolor(z.idLabel, col_label_text)
                         label.set_color(z.idLabel, z.isAccuracy ? col_label_acc_demand_bg : col_label_demand_bg)
                         label.set_size(z.idLabel, size.tiny)
@@ -2965,7 +2965,7 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
                         string supplyMetrics = zone_label_show_metrics ? ("  " + str.tostring(z.score, "#")) : ""
                         string supplyText = zone_label_style == "Detailed" ? (supplyDetailed + supplyMetrics) : supplyCompact
                         label.set_text(z.idLabel, " " + supplyText + " ")
-                        label.set_style(z.idLabel, label.style_label_left)
+                        label.set_style(z.idLabel, label.style_label_right)
                         label.set_textcolor(z.idLabel, col_label_text)
                         label.set_color(z.idLabel, z.isAccuracy ? col_label_acc_supply_bg : col_label_supply_bg)
                         label.set_size(z.idLabel, size.tiny)
