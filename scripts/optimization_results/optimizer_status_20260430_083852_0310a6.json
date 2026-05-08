@@ -1,0 +1,47 @@
+{
+  "run_id": "20260430_083852_0310a6",
+  "state": "running",
+  "started_at": "2026-04-30T08:38:52.635388+03:00",
+  "last_progress_at": "2026-04-30T08:44:06.698884+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 83988,
+  "desktop_cdp_pid": 83536,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
+  "mode": "bayesian",
+  "workers": 1,
+  "args": [
+    "--parallel",
+    "--workers",
+    "1",
+    "--mode",
+    "bayesian",
+    "--trials",
+    "10",
+    "--dd-limit",
+    "9.0",
+    "--pairs",
+    "EURUSD",
+    "--broker",
+    "vantage",
+    "--backtest-range",
+    "90d",
+    "--results-label",
+    "70c4bc00-ea4e-45c2-820c-cf8c4570441f"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "EURUSD",
+      "trial": 1,
+      "last_event_at": "2026-04-30T08:44:54.762180+03:00",
+      "status": "running"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "warning",
+      "stale_reads": 11,
+      "last_results_hash": ""
+    }
+  }
+}

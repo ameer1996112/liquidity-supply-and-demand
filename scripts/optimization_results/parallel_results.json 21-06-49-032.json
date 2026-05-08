@@ -1,0 +1,44 @@
+{
+  "USDJPY": {
+    "status": "skipped",
+    "params": {
+      "rr_mode": "fixed_4.0"
+    },
+    "source_run_id": "source-run",
+    "timestamp": "2026-05-04T17:56:49.056888",
+    "run_context": {
+      "mode": "validate",
+      "broker": "vantage",
+      "brokers": [
+        "vantage"
+      ],
+      "backtest_range": "365d",
+      "custom_start_date": "2025-01-26",
+      "custom_end_date": "2025-04-25",
+      "source_run_id": "source-run",
+      "source_params_digest": "53fa9331e9f9207a"
+    },
+    "skip_reason": "no data available before 2025-01-26 for USDJPY"
+  },
+  "XAUUSD": {
+    "status": "skipped",
+    "params": {
+      "rr_mode": "fixed_4.0"
+    },
+    "source_run_id": "source-run",
+    "timestamp": "2026-05-04T17:56:49.058001",
+    "run_context": {
+      "mode": "validate",
+      "broker": "vantage",
+      "brokers": [
+        "vantage"
+      ],
+      "backtest_range": "365d",
+      "custom_start_date": "2025-01-26",
+      "custom_end_date": "2025-04-25",
+      "source_run_id": "source-run",
+      "source_params_digest": "53fa9331e9f9207a"
+    },
+    "skip_reason": "no data available before 2025-01-26 for XAUUSD"
+  }
+}

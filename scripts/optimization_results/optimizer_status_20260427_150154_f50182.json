@@ -1,0 +1,55 @@
+{
+  "run_id": "20260427_150154_f50182",
+  "state": "completed",
+  "started_at": "2026-04-27T15:01:54.879410+03:00",
+  "last_progress_at": "2026-04-27T15:04:07.639064+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 68915,
+  "desktop_cdp_pid": 2592,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
+  "mode": "validate",
+  "workers": 1,
+  "args": [
+    "--parallel",
+    "--workers",
+    "1",
+    "--mode",
+    "validate",
+    "--trials",
+    "1",
+    "--dd-limit",
+    "8.0",
+    "--pairs",
+    "XAUUSD",
+    "--broker",
+    "vantage",
+    "--backtest-range",
+    "custom",
+    "--results-label",
+    "smoke_validate_single_debug3_20260427150154",
+    "--source-run-id",
+    "176ef790-d1bb-4e74-8f80-6f583524e0d1",
+    "--source-params-file",
+    "scripts/optimizer/tmp/validate_source_smoke_176ef790-d1bb-4e74-8f80-6f583524e0d1_1777280712.json",
+    "--custom-start-date",
+    "2024-04-26",
+    "--custom-end-date",
+    "2025-04-26"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "XAUUSD",
+      "trial": 0,
+      "last_event_at": "2026-04-27T15:04:07.635307+03:00",
+      "status": "completed"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    }
+  }
+}

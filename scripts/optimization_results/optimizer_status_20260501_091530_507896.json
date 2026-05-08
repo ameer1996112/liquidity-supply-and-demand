@@ -1,0 +1,85 @@
+{
+  "run_id": "20260501_091530_507896",
+  "state": "completed",
+  "started_at": "2026-05-01T09:15:30.792701+03:00",
+  "last_progress_at": "2026-05-01T09:25:14.890025+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 58579,
+  "desktop_cdp_pid": 83536,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
+  "mode": "validate",
+  "workers": 4,
+  "args": [
+    "--parallel",
+    "--workers",
+    "4",
+    "--mode",
+    "validate",
+    "--dd-limit",
+    "9.0",
+    "--pairs",
+    "XAUUSD,XAGUSD,NAS100,USDJPY,EURUSD,GBPUSD,AUDCHF,USDCAD,EURJPY,EURNZD,NZDUSD,EURCAD",
+    "--broker",
+    "vantage",
+    "--backtest-range",
+    "custom",
+    "--custom-start-date",
+    "2025-04-30",
+    "--custom-end-date",
+    "2026-04-30",
+    "--source-params-file",
+    "scripts/optimization_results/parallel_results_vantage_e1666e55-362c-4f0b-aba2-018ceb818a1b.json",
+    "--results-label",
+    "validate-e1666e55-original-window-verified",
+    "--reset"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "EURJPY",
+      "trial": 0,
+      "last_event_at": "2026-05-01T09:23:55.789839+03:00",
+      "status": "completed"
+    },
+    "worker-1": {
+      "symbol": "NZDUSD",
+      "trial": 0,
+      "last_event_at": "2026-05-01T09:25:06.939351+03:00",
+      "status": "completed"
+    },
+    "worker-2": {
+      "symbol": "EURCAD",
+      "trial": 0,
+      "last_event_at": "2026-05-01T09:25:14.886866+03:00",
+      "status": "completed"
+    },
+    "worker-3": {
+      "symbol": "EURNZD",
+      "trial": 0,
+      "last_event_at": "2026-05-01T09:24:07.878707+03:00",
+      "status": "completed"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    },
+    "worker-1": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    },
+    "worker-2": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    },
+    "worker-3": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    }
+  }
+}

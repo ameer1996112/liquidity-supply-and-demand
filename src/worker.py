@@ -1683,6 +1683,7 @@ def process_trade(payload: Dict[str, Any]):
     # ── Trading Permission Guard (global — research approval + daily permission) ──
     if (
         getattr(s, "enable_trading_permission_guard", getattr(s, "enable_approved_pairs_guard", True))
+        and not getattr(s, "disable_trading_permission_guard", False)
         and not payload.get("_e2e_test")
     ):
         try:

@@ -1,0 +1,77 @@
+{
+  "run_id": "20260427_124314_04c572",
+  "state": "failed",
+  "started_at": "2026-04-27T12:43:14.906897+03:00",
+  "last_progress_at": "2026-04-27T12:44:07.100013+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 62463,
+  "desktop_cdp_pid": 2592,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
+  "mode": "validate",
+  "workers": 3,
+  "args": [
+    "--parallel",
+    "--workers",
+    "3",
+    "--mode",
+    "validate",
+    "--trials",
+    "1",
+    "--dd-limit",
+    "8.0",
+    "--pairs",
+    "XAUUSD,NAS100,USDJPY",
+    "--broker",
+    "vantage",
+    "--backtest-range",
+    "custom",
+    "--results-label",
+    "smoke_validate_20260427124314",
+    "--source-run-id",
+    "176ef790-d1bb-4e74-8f80-6f583524e0d1",
+    "--source-params-file",
+    "scripts/optimizer/tmp/validate_source_smoke_176ef790-d1bb-4e74-8f80-6f583524e0d1_1777280712.json",
+    "--custom-start-date",
+    "2024-04-26",
+    "--custom-end-date",
+    "2025-04-26"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "XAUUSD",
+      "trial": 0,
+      "last_event_at": "2026-04-27T12:43:52.081723+03:00",
+      "status": "running"
+    },
+    "worker-1": {
+      "symbol": "NAS100",
+      "trial": 0,
+      "last_event_at": "2026-04-27T12:44:03.561996+03:00",
+      "status": "running"
+    },
+    "worker-2": {
+      "symbol": "USDJPY",
+      "trial": 0,
+      "last_event_at": "2026-04-27T12:44:02.287830+03:00",
+      "status": "running"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    },
+    "worker-1": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    },
+    "worker-2": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    }
+  }
+}

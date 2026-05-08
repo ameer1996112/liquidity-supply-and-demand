@@ -1,0 +1,31 @@
+{
+  "EURUSD": {
+    "status": "failed",
+    "params": {
+      "pvtMax": 12,
+      "rr_mode": "fixed_4.0",
+      "max_zones": 12,
+      "liq_pivot_len": 10,
+      "max_bars_held": 88,
+      "min_body_perc": 52,
+      "use_break_even": false,
+      "enable_double_tp": false,
+      "trading_end_hour": 24,
+      "liq_entry_max_dist": 8.7,
+      "max_daily_loss_pct": 4.5,
+      "max_trades_per_day": 2,
+      "trading_start_hour": 0,
+      "ai_quality_threshold": 70,
+      "max_daily_profit_pct": 7.5,
+      "min_tp_distance_pips": 11.0,
+      "stop_loss_buffer_pips": 1.4,
+      "max_peak_to_touch_bars": 20,
+      "max_sweep_to_touch_bars": 25,
+      "enable_ai_quality_filter": true,
+      "liq_max_distance_pips_forex": 33.9
+    },
+    "source_run_id": "176ef790-d1bb-4e74-8f80-6f583524e0d1",
+    "timestamp": "2026-04-29T23:33:51.677940",
+    "error_message": "PARTIAL_DATA: could not find enough Strategy Tester trade timestamps for EURUSD (0 dates from 12 orders, total_trades=39)"
+  }
+}

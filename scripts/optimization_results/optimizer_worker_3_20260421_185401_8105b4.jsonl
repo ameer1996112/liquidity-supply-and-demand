@@ -1,0 +1,2 @@
+{"ts": "2026-04-21T19:03:18.727177+03:00", "run_id": "20260421_185401_8105b4", "worker_id": 3, "symbol": "XAUUSD", "trial": 1, "outcome": "stale", "params_hash": "d16f3e8d", "results_hash_before": "d41d8cd9", "results_hash_after": "d41d8cd9", "metrics": {}}
+{"ts": "2026-04-21T19:07:02.023531+03:00", "run_id": "20260421_185401_8105b4", "worker_id": 3, "symbol": "XAUUSD", "trial": 2, "outcome": "stale", "params_hash": "371a4e38", "results_hash_before": "d41d8cd9", "results_hash_after": "d41d8cd9", "metrics": {}}

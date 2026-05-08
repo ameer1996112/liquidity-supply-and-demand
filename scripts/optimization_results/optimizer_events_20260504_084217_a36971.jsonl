@@ -1,0 +1,2 @@
+{"ts": "2026-05-04T08:42:17.957154+03:00", "run_id": "20260504_084217_a36971", "event_type": "run_started", "mode": "bayesian", "workers": 3, "pairs": ["USDCAD", "XAUUSD", "NAS100", "EURUSD", "USDJPY"], "dry_run": false, "broker": "vantage", "backtest_range": "Custom range"}
+{"ts": "2026-05-04T08:42:18.454350+03:00", "run_id": "20260504_084217_a36971", "event_type": "pair_started", "worker_id": 0, "symbol": "USDCAD", "broker": "vantage", "attempt": 1}

@@ -1,0 +1,65 @@
+{
+  "EURUSD": {
+    "status": "failed",
+    "params": {},
+    "source_run_id": null,
+    "timestamp": "2026-04-30T12:44:51.114373",
+    "error_message": "Symbol switch failed: expected EURUSD, observed USDCAD"
+  },
+  "NAS100": {
+    "status": "failed",
+    "params": {},
+    "source_run_id": null,
+    "timestamp": "2026-04-30T12:45:03.280285",
+    "error_message": "Symbol switch failed: expected NAS100, observed AUDCHF"
+  },
+  "USDJPY": {
+    "status": "failed",
+    "params": {},
+    "source_run_id": null,
+    "timestamp": "2026-04-30T12:45:16.163862",
+    "error_message": "Symbol switch failed: expected USDJPY, observed NZDUSD"
+  },
+  "AUDCHF": {
+    "status": "failed",
+    "params": {},
+    "source_run_id": null,
+    "timestamp": "2026-04-30T12:45:27.736360",
+    "error_message": "Symbol switch failed: expected AUDCHF, observed USDCAD"
+  },
+  "USDCAD": {
+    "status": "failed",
+    "params": {},
+    "source_run_id": null,
+    "timestamp": "2026-04-30T12:45:50.610552",
+    "error_message": "Symbol switch failed: expected USDCAD, observed EURCAD"
+  },
+  "GBPUSD": {
+    "status": "failed",
+    "params": {},
+    "source_run_id": null,
+    "timestamp": "2026-04-30T12:45:50.978109",
+    "error_message": "Could not confirm backtest range is Last 365 days"
+  },
+  "EURJPY": {
+    "status": "failed",
+    "params": {},
+    "source_run_id": null,
+    "timestamp": "2026-04-30T12:46:09.270471",
+    "error_message": "Symbol switch failed: expected EURJPY, observed EURNZD"
+  },
+  "EURNZD": {
+    "status": "failed",
+    "params": {},
+    "source_run_id": null,
+    "timestamp": "2026-04-30T12:46:15.248822",
+    "error_message": "Symbol switch failed: expected EURNZD, observed NZDUSD"
+  },
+  "NZDUSD": {
+    "status": "failed",
+    "params": {},
+    "source_run_id": null,
+    "timestamp": "2026-04-30T12:46:21.183323",
+    "error_message": "Symbol switch failed: expected NZDUSD, observed EURCAD"
+  }
+}

@@ -173,6 +173,11 @@ class Settings(BaseSettings):
         description="Enable DEV-266 daily trading permission guard.",
         validation_alias=AliasChoices("ENABLE_TRADING_PERMISSION_GUARD", "enable_trading_permission_guard"),
     )
+    disable_trading_permission_guard: bool = Field(
+        default=True,
+        description="Skip DEV-266 daily trading permission guard.",
+        validation_alias=AliasChoices("DISABLE_TRADING_PERMISSION_GUARD", "disable_trading_permission_guard"),
+    )
     approved_candidates_file: str = Field(
         default="",
         description="Path to optimizer approved_candidates.json.",

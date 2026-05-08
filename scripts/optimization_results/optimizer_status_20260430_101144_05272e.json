@@ -1,0 +1,47 @@
+{
+  "run_id": "20260430_101144_05272e",
+  "state": "completed",
+  "started_at": "2026-04-30T10:11:44.274845+03:00",
+  "last_progress_at": "2026-04-30T10:28:34.657827+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 19009,
+  "desktop_cdp_pid": 83536,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
+  "mode": "bayesian",
+  "workers": 1,
+  "args": [
+    "--parallel",
+    "--workers",
+    "1",
+    "--mode",
+    "bayesian",
+    "--trials",
+    "10",
+    "--dd-limit",
+    "9.0",
+    "--pairs",
+    "EURUSD,GBPUSD",
+    "--broker",
+    "vantage",
+    "--backtest-range",
+    "90d",
+    "--results-label",
+    "manual-repro-2pairs"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "GBPUSD",
+      "trial": 10,
+      "last_event_at": "2026-04-30T10:28:34.655653+03:00",
+      "status": "completed"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "fddd9954"
+    }
+  }
+}

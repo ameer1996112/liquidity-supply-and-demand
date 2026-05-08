@@ -1,0 +1,146 @@
+{
+  "run_id": "20260424_093835_03ded0",
+  "state": "running",
+  "started_at": "2026-04-24T09:38:35.527353+03:00",
+  "last_progress_at": "2026-04-24T13:08:21.275891+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 40688,
+  "desktop_cdp_pid": 86946,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
+  "mode": "bayesian",
+  "workers": 10,
+  "args": [
+    "--parallel",
+    "--workers",
+    "10",
+    "--mode",
+    "bayesian",
+    "--trials",
+    "80",
+    "--dd-limit",
+    "8.0",
+    "--pairs",
+    "EURUSD,GBPUSD,AUDUSD,NZDUSD,USDCAD,USDCHF,USDJPY,GBPJPY,EURJPY,NZDJPY,CADJPY,AUDJPY,CHFJPY,EURGBP,GBPAUD,GBPCAD,GBPCHF,GBPNZD,EURAUD,EURCAD,EURCHF,EURNZD,AUDNZD,AUDCAD,AUDCHF,CADCHF,NZDCAD,NZDCHF,XAUUSD,XAGUSD,NAS100",
+    "--broker",
+    "fxcm",
+    "--backtest-range",
+    "365d",
+    "--results-label",
+    "06e6f8d8-e4e9-4e30-8d0d-aba32077cd3e"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "GBPAUD",
+      "trial": 72,
+      "last_event_at": "2026-04-24T13:08:21.275891+03:00",
+      "status": "running"
+    },
+    "worker-1": {
+      "symbol": "CHFJPY",
+      "trial": 76,
+      "last_event_at": "2026-04-24T13:07:01.231120+03:00",
+      "status": "running"
+    },
+    "worker-2": {
+      "symbol": "AUDJPY",
+      "trial": 76,
+      "last_event_at": "2026-04-24T13:08:16.338826+03:00",
+      "status": "running"
+    },
+    "worker-3": {
+      "symbol": "GBPNZD",
+      "trial": 65,
+      "last_event_at": "2026-04-24T13:06:44.633265+03:00",
+      "status": "running"
+    },
+    "worker-4": {
+      "symbol": "EURCHF",
+      "trial": 4,
+      "last_event_at": "2026-04-24T13:07:06.017492+03:00",
+      "status": "running"
+    },
+    "worker-5": {
+      "symbol": "GBPCAD",
+      "trial": 77,
+      "last_event_at": "2026-04-24T13:07:20.329064+03:00",
+      "status": "running"
+    },
+    "worker-6": {
+      "symbol": "EURCAD",
+      "trial": 66,
+      "last_event_at": "2026-04-24T13:07:21.719824+03:00",
+      "status": "running"
+    },
+    "worker-7": {
+      "symbol": "EURNZD",
+      "trial": 2,
+      "last_event_at": "2026-04-24T13:08:17.018147+03:00",
+      "status": "running"
+    },
+    "worker-8": {
+      "symbol": "AUDNZD",
+      "trial": 0,
+      "last_event_at": "2026-04-24T13:08:13.179403+03:00",
+      "status": "running"
+    },
+    "worker-9": {
+      "symbol": "EURAUD",
+      "trial": 70,
+      "last_event_at": "2026-04-24T13:08:12.288995+03:00",
+      "status": "running"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "339554eb"
+    },
+    "worker-1": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "6aaf485b"
+    },
+    "worker-2": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "8791ac78"
+    },
+    "worker-3": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "50d2ece5"
+    },
+    "worker-4": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "b39544af"
+    },
+    "worker-5": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "7c0511a3"
+    },
+    "worker-6": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "a78de537"
+    },
+    "worker-7": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "bfbf39ae"
+    },
+    "worker-8": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "6885b9a3"
+    },
+    "worker-9": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "c3ae683f"
+    }
+  }
+}

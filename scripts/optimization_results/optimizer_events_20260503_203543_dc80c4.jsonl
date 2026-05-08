@@ -1,0 +1,1 @@
+{"ts": "2026-05-03T20:35:43.988104+03:00", "run_id": "20260503_203543_dc80c4", "event_type": "run_started", "mode": "bayesian", "workers": 10, "pairs": ["EURUSD"], "dry_run": false, "broker": "vantage", "backtest_range": "Custom range"}

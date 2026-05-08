@@ -1,0 +1,84 @@
+{
+  "run_id": "20260421_185401_8105b4",
+  "state": "running",
+  "started_at": "2026-04-21T18:54:01.805575+03:00",
+  "last_progress_at": "2026-04-21T18:54:47.115727+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 98560,
+  "desktop_cdp_pid": 83450,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
+  "mode": "bayesian",
+  "workers": 4,
+  "args": [
+    "--parallel",
+    "--workers",
+    "4",
+    "--mode",
+    "bayesian",
+    "--trials",
+    "80",
+    "--dd-limit",
+    "7.0",
+    "--pairs",
+    "EURUSD,EURJPY,AUDCAD,XAUUSD",
+    "--broker",
+    "oanda",
+    "--backtest-range",
+    "90d",
+    "--results-label",
+    "ec0e3e13-f8fd-44a8-84d4-be1ab17c1953"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "EURUSD",
+      "trial": 3,
+      "last_event_at": "2026-04-21T19:06:30.683166+03:00",
+      "status": "running"
+    },
+    "worker-1": {
+      "symbol": "EURJPY",
+      "trial": 2,
+      "last_event_at": "2026-04-21T19:05:25.128530+03:00",
+      "status": "running"
+    },
+    "worker-2": {
+      "symbol": "AUDCAD",
+      "trial": 2,
+      "last_event_at": "2026-04-21T19:06:43.653823+03:00",
+      "status": "running"
+    },
+    "worker-3": {
+      "symbol": "XAUUSD",
+      "trial": 2,
+      "last_event_at": "2026-04-21T19:07:02.023531+03:00",
+      "status": "running"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "unhealthy",
+      "stale_reads": 3,
+      "reason": "stale_result_hash",
+      "last_results_hash": "d41d8cd9"
+    },
+    "worker-1": {
+      "status": "unhealthy",
+      "stale_reads": 3,
+      "reason": "stale_result_hash",
+      "last_results_hash": "d41d8cd9"
+    },
+    "worker-2": {
+      "status": "unhealthy",
+      "stale_reads": 3,
+      "reason": "stale_result_hash",
+      "last_results_hash": "d41d8cd9"
+    },
+    "worker-3": {
+      "status": "unhealthy",
+      "stale_reads": 3,
+      "reason": "stale_result_hash",
+      "last_results_hash": "d41d8cd9"
+    }
+  }
+}

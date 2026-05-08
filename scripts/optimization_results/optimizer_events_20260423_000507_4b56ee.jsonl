@@ -1,0 +1,11 @@
+{"ts": "2026-04-23T00:05:07.723928+03:00", "run_id": "20260423_000507_4b56ee", "event_type": "run_started", "mode": "bayesian", "workers": 10, "pairs": ["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY", "GBPJPY", "EURJPY", "NZDJPY", "CADJPY", "AUDJPY", "CHFJPY", "EURGBP", "GBPAUD", "GBPCAD", "GBPCHF", "GBPNZD", "EURAUD", "EURCAD", "EURCHF", "EURNZD", "AUDNZD", "AUDCAD", "AUDCHF", "CADCHF", "NZDCAD", "NZDCHF", "XAUUSD", "XAGUSD", "NAS100"], "dry_run": false, "broker": "fxcm", "backtest_range": "Last 365 days"}
+{"ts": "2026-04-23T00:05:08.033577+03:00", "run_id": "20260423_000507_4b56ee", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "attempt": 1}
+{"ts": "2026-04-23T00:05:23.036966+03:00", "run_id": "20260423_000507_4b56ee", "event_type": "pair_started", "worker_id": 1, "symbol": "GBPUSD", "attempt": 1}
+{"ts": "2026-04-23T00:05:38.037238+03:00", "run_id": "20260423_000507_4b56ee", "event_type": "pair_started", "worker_id": 2, "symbol": "AUDUSD", "attempt": 1}
+{"ts": "2026-04-23T00:05:53.037651+03:00", "run_id": "20260423_000507_4b56ee", "event_type": "pair_started", "worker_id": 3, "symbol": "NZDUSD", "attempt": 1}
+{"ts": "2026-04-23T00:06:08.038552+03:00", "run_id": "20260423_000507_4b56ee", "event_type": "pair_started", "worker_id": 4, "symbol": "USDCAD", "attempt": 1}
+{"ts": "2026-04-23T00:06:23.038507+03:00", "run_id": "20260423_000507_4b56ee", "event_type": "pair_started", "worker_id": 5, "symbol": "USDCHF", "attempt": 1}
+{"ts": "2026-04-23T00:06:38.039482+03:00", "run_id": "20260423_000507_4b56ee", "event_type": "pair_started", "worker_id": 6, "symbol": "USDJPY", "attempt": 1}
+{"ts": "2026-04-23T00:06:53.040708+03:00", "run_id": "20260423_000507_4b56ee", "event_type": "pair_started", "worker_id": 7, "symbol": "GBPJPY", "attempt": 1}
+{"ts": "2026-04-23T00:07:08.043137+03:00", "run_id": "20260423_000507_4b56ee", "event_type": "pair_started", "worker_id": 8, "symbol": "EURJPY", "attempt": 1}
+{"ts": "2026-04-23T00:07:23.045924+03:00", "run_id": "20260423_000507_4b56ee", "event_type": "pair_started", "worker_id": 9, "symbol": "NZDJPY", "attempt": 1}

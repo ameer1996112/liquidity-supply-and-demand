@@ -1,0 +1,9 @@
+{
+  "EURUSD": {
+    "status": "failed",
+    "params": {},
+    "source_run_id": null,
+    "timestamp": "2026-04-30T09:01:26.029571",
+    "error_message": "'Failed to apply Pine input title: risk_reward_ratio'"
+  }
+}
