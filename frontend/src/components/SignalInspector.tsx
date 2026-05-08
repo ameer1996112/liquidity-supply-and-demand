@@ -253,6 +253,49 @@ function deriveExecutionStages(
   ];
 }
 
+const toneClasses: Record<InspectorTone, { rail: string; text: string; bg: string; border: string }> = {
+  success: {
+    rail: 'bg-[var(--to-long)]',
+    text: 'text-[var(--to-long)]',
+    bg: 'bg-[var(--to-long)]/8',
+    border: 'border-[var(--to-long)]/25',
+  },
+  danger: {
+    rail: 'bg-[var(--to-short)]',
+    text: 'text-[var(--to-short)]',
+    bg: 'bg-[var(--to-short)]/8',
+    border: 'border-[var(--to-short)]/25',
+  },
+  warning: {
+    rail: 'bg-[var(--to-warning)]',
+    text: 'text-[var(--to-warning)]',
+    bg: 'bg-[var(--to-warning)]/8',
+    border: 'border-[var(--to-warning)]/25',
+  },
+  muted: {
+    rail: 'bg-[var(--to-text-dim)]',
+    text: 'text-[var(--to-text-secondary)]',
+    bg: 'bg-muted/35',
+    border: 'border-border',
+  },
+};
+
+const stageClasses: Record<PipelineStageState, string> = {
+  pass: 'border-[var(--to-long)]/25 bg-[var(--to-long)]/7 text-[var(--to-long)]',
+  fail: 'border-[var(--to-short)]/25 bg-[var(--to-short)]/7 text-[var(--to-short)]',
+  skipped: 'border-[var(--to-warning)]/25 bg-[var(--to-warning)]/7 text-[var(--to-warning)]',
+  pending: 'border-[var(--to-warning)]/25 bg-[var(--to-warning)]/7 text-[var(--to-warning)]',
+  unknown: 'border-border bg-muted/20 text-muted-foreground',
+};
+
+function StageGlyph({ state }: { state: PipelineStageState }) {
+  if (state === 'pass') return <Check className='h-3 w-3' />;
+  if (state === 'fail') return <X className='h-3 w-3' />;
+  if (state === 'skipped') return <AlertTriangle className='h-3 w-3' />;
+  if (state === 'pending') return <Activity className='h-3 w-3' />;
+  return <Shield className='h-3 w-3' />;
+}
+
 // Info row component
 function InfoRow({
   label,
@@ -593,6 +636,122 @@ function hasAiOperatingLayerData(aiRun: {
   );
 }
 
+function OutcomeHeader({
+  signal,
+  symbol,
+  side,
+  entryPrice,
+  outcome,
+}: {
+  signal: TradingSignal;
+  symbol: string;
+  side: string;
+  entryPrice: number | undefined;
+  outcome: OutcomeViewModel;
+}) {
+  const tone = toneClasses[outcome.tone];
+  const isBuy = side === 'buy';
+
+  return (
+    <section
+      data-testid='execution-desk-header'
+      className={cn(
+        'relative overflow-hidden rounded-md border bg-[#0b1017] p-4',
+        tone.border
+      )}
+    >
+      <div className={cn('absolute inset-y-0 left-0 w-1', tone.rail)} />
+      <div className='flex min-w-0 flex-col gap-4 pl-2'>
+        <div className='flex min-w-0 flex-wrap items-center gap-2'>
+          <Badge
+            className={cn(
+              'border-0 px-2.5 py-1 text-[10px] font-bold uppercase',
+              isBuy
+                ? 'bg-[var(--to-long)]/14 text-[var(--to-long)]'
+                : 'bg-[var(--to-short)]/14 text-[var(--to-short)]'
+            )}
+          >
+            {side.toUpperCase()}
+          </Badge>
+          <Badge className={cn('border px-2 py-0.5 text-[10px]', tone.bg, tone.text, tone.border)}>
+            {outcome.eyebrow}
+          </Badge>
+          <span className='ml-auto font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground'>
+            {format(new Date(signal.created_at), 'MMM d, HH:mm')}
+          </span>
+        </div>
+
+        <div className='grid gap-3'>
+          <div className='flex min-w-0 items-end justify-between gap-3'>
+            <div className='min-w-0'>
+              <div className='font-mono text-2xl font-bold text-foreground'>
+                {symbol}
+                {entryPrice != null && (
+                  <span className='ml-2 text-base font-medium text-muted-foreground'>
+                    @{formatNum(entryPrice, symbol.includes('JPY') ? 3 : symbol.includes('BTC') ? 2 : 5)}
+                  </span>
+                )}
+              </div>
+              <p className='mt-1 text-xs leading-relaxed text-muted-foreground break-words [overflow-wrap:anywhere]'>
+                {outcome.reason}
+              </p>
+            </div>
+            <div className={cn('shrink-0 rounded px-3 py-2 text-right', tone.bg)}>
+              <div className={cn('font-mono text-xl font-bold', tone.text)}>
+                {outcome.label}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ExecutionPath({ stages }: { stages: PipelineStageViewModel[] }) {
+  return (
+    <section data-testid='execution-path' className='rounded-md border border-border bg-card/80'>
+      <div className='border-b border-border px-3 py-2'>
+        <span className='text-[11px] uppercase tracking-[0.16em] text-muted-foreground'>
+          Execution Path
+        </span>
+      </div>
+      <div className='divide-y divide-border/70'>
+        {stages.map((stage, index) => (
+          <div key={stage.id} className='grid grid-cols-[24px_1fr] gap-3 px-3 py-2.5'>
+            <div className='relative flex justify-center'>
+              {index < stages.length - 1 && (
+                <span className='absolute top-6 h-[calc(100%+10px)] w-px bg-border' />
+              )}
+              <span
+                className={cn(
+                  'relative z-10 flex h-5 w-5 items-center justify-center rounded border',
+                  stageClasses[stage.state]
+                )}
+              >
+                <StageGlyph state={stage.state} />
+              </span>
+            </div>
+            <div className='min-w-0'>
+              <div className='flex min-w-0 items-center justify-between gap-2'>
+                <span className='text-xs font-semibold text-foreground'>
+                  {stage.label}
+                </span>
+                <span className='font-mono text-[10px] uppercase text-muted-foreground'>
+                  {' '}[{stage.state}]
+                </span>
+              </div>
+              <p className='mt-0.5 text-[11px] leading-relaxed text-muted-foreground break-words [overflow-wrap:anywhere]'>
+                {stage.detail}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function SignalInspector({
   signal,
   open,
@@ -625,7 +784,6 @@ export function SignalInspector({
     }
     return raw;
   })();
-  const isBuy = side === 'buy';
   const hasLegacyMetrics =
     !!ai &&
     (ai.zone_score != null ||
@@ -683,70 +841,22 @@ export function SignalInspector({
         <SheetDescription id='signal-inspector-desc' className='sr-only'>
           Trade details and AI reasoning
         </SheetDescription>
-        <div className='sr-only'>
-          <span>{outcome.label}</span>
-          <span>{outcome.reason}</span>
-          {executionStages.map((stage) => (
-            <span key={stage.id}>
-              {stage.label} [{stage.state}]: {stage.detail}
-            </span>
-          ))}
-        </div>
         <ScrollArea className='h-full'>
           <div className='min-w-0 p-6'>
-            {/* Header */}
-            <SheetHeader className='mb-6'>
-              <div className='flex min-w-0 flex-wrap items-center gap-2 mb-2'>
-                <Badge
-                  className={cn(
-                    'text-xs font-bold px-2.5 py-1 border-0',
-                    isBuy
-                      ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
-                      : 'bg-rose-500/20 text-rose-400'
-                  )}
-                >
-                  {side.toUpperCase()}
-                </Badge>
-                <Badge
-                  className={cn(
-                    'max-w-full truncate text-xs px-2 py-0.5 border border-border',
-                    signal.status?.toLowerCase() === 'active'
-                      ? 'text-blue-400 border-blue-500/30'
-                      : signal.status?.toLowerCase() === 'ai_rejected'
-                      ? 'text-rose-400 border-rose-500/30'
-                      : 'text-muted-foreground'
-                  )}
-                >
-                  {signal.status?.toUpperCase()}
-                </Badge>
-                {ai?.is_accuracy && (
-                  <Badge className='text-xs px-2 py-0.5 border-0 bg-purple-500/20 text-purple-400'>
-                    ACCURACY
-                  </Badge>
-                )}
-              </div>
-              <SheetTitle className='flex items-baseline gap-2 text-left'>
-                <span className='font-mono text-2xl font-bold text-foreground'>
-                  {symbol}
-                </span>
-                {entryPrice && (
-                  <span className='font-mono text-lg text-muted-foreground'>
-                    @
-                    {formatNum(
-                      entryPrice,
-                      symbol.includes('JPY')
-                        ? 3
-                        : symbol.includes('BTC')
-                        ? 2
-                        : 5
-                    )}
-                  </span>
-                )}
-              </SheetTitle>
-              <p className='text-xs text-muted-foreground font-mono'>
-                {format(new Date(signal.created_at), 'PPpp')}
-              </p>
+            <SheetHeader className='sr-only'>
+              <SheetTitle>{symbol} Signal Inspector</SheetTitle>
             </SheetHeader>
+
+            <div className='space-y-3'>
+              <OutcomeHeader
+                signal={signal}
+                symbol={symbol}
+                side={side}
+                entryPrice={entryPrice}
+                outcome={outcome}
+              />
+              <ExecutionPath stages={executionStages} />
+            </div>
 
             {/* Execution plan summary */}
             <div className='mb-4 rounded-lg bg-card border border-border px-4 py-3 space-y-1.5'>

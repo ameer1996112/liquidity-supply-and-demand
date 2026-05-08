@@ -428,4 +428,36 @@ describe('SignalInspector decision summary', () => {
     expect(document.body.textContent).not.toContain('unclear');
     expect(document.body.textContent).not.toContain('Setup evidence unavailable');
   });
+
+  it('renders the execution desk header and pipeline path visibly', () => {
+    const signal: TradingSignal = {
+      id: 'sig-desk',
+      created_at: '2026-05-08T08:40:02.000Z',
+      symbol: 'GBPNZD',
+      side: 'buy',
+      status: 'trading_permission_allowed' as TradingSignal['status'],
+      price: 2.28225,
+      run_mode: 'LIVE',
+      execution_source: 'signal_only',
+      ai_reasoning: {
+        decision: 'GO',
+        reason: 'Setup approved by AI.',
+      },
+    } as TradingSignal;
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    expect(document.querySelector('[data-testid="execution-desk-header"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="execution-path"]')).not.toBeNull();
+    expect(document.body.textContent).toContain('No Entry');
+    expect(document.body.textContent).toContain('Signal Received');
+    expect(document.body.textContent).toContain('Broker Execution');
+  });
 });
