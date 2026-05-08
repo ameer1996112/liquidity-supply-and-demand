@@ -161,6 +161,37 @@ const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }>
   staleness_rejected:  { label: 'STALE',     bg: 'bg-[var(--to-warning)]/10',       text: 'text-[var(--to-warning)]/70' },
 };
 
+function getStatusStyle(status: SignalStatus): { label: string; bg: string; text: string } {
+  const normalized = String(status).toLowerCase();
+  const style = STATUS_STYLES[normalized];
+  if (style) return style;
+
+  if (normalized.includes('trading_permission') || normalized.includes('trade_permission')) {
+    return {
+      label: normalized.includes('denied') || normalized.includes('blocked') ? 'NO TRADE' : 'PERMIT',
+      bg: normalized.includes('denied') || normalized.includes('blocked')
+        ? 'bg-[var(--to-short)]/12'
+        : 'bg-[var(--to-long)]/12',
+      text: normalized.includes('denied') || normalized.includes('blocked')
+        ? 'text-[var(--to-short)]'
+        : 'text-[var(--to-long)]',
+    };
+  }
+
+  const label = String(status)
+    .replace(/^trading[_\s-]*/i, '')
+    .replaceAll('_', ' ')
+    .replaceAll('-', ' ')
+    .trim()
+    .toUpperCase();
+
+  return {
+    label: label.length > 10 ? label.slice(0, 10) : label,
+    bg: 'bg-[var(--to-surface-raised)]',
+    text: 'text-[var(--to-text-dim)]',
+  };
+}
+
 // =============================================================================
 // SUB-COMPONENTS — defined outside SignalTable to avoid recreation on render
 // =============================================================================
@@ -199,22 +230,18 @@ function SortHeader({ field, label, align = 'left', sortField, sortDir, onSort }
 }
 
 function StatusBadge({ status, isStale }: { status: SignalStatus; isStale?: boolean }) {
-  const normalized = String(status).toLowerCase();
-  const style = STATUS_STYLES[normalized] ?? {
-    label: String(status).toUpperCase(),
-    bg: 'bg-[var(--to-surface-raised)]',
-    text: 'text-[var(--to-text-dim)]',
-  };
+  const style = getStatusStyle(status);
 
   return (
-    <div className='inline-flex items-center gap-1'>
+    <div className='inline-flex min-w-0 shrink-0 items-center gap-1'>
       <span
         className={cn(
-          'inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
+          'inline-flex max-w-[74px] shrink-0 items-center truncate whitespace-nowrap rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
           style.bg,
           style.text,
         )}
         style={{ fontFamily: 'var(--font-mono)' }}
+        title={String(status)}
       >
         {style.label}
       </span>
@@ -255,10 +282,10 @@ function formatSignalPrice(symbol: string, value?: number | null): string {
 
 const SIGNAL_GRID_STYLE = {
   gridTemplateColumns:
-    '64px minmax(150px,1.2fr) 64px minmax(92px,0.8fr) minmax(92px,0.8fr) minmax(92px,0.8fr) 96px 96px 76px 64px 92px',
+    '64px minmax(150px,1.2fr) 64px minmax(92px,0.8fr) minmax(92px,0.8fr) minmax(92px,0.8fr) 96px 96px 76px 56px 126px',
 } as const;
 
-const SIGNAL_TABLE_WIDTH = 'w-full min-w-[1120px]';
+const SIGNAL_TABLE_WIDTH = 'w-full min-w-[1160px]';
 
 interface SignalBlotterHeaderProps {
   sortField: SortField;
@@ -297,7 +324,7 @@ function SignalBlotterHeader({ sortField, sortDir, onSort }: SignalBlotterHeader
           <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
         )}
       </button>
-      <SortHeader field='status' label='Status' sortField={sortField} sortDir={sortDir} onSort={onSort} />
+      <SortHeader field='status' label='Status' align='right' sortField={sortField} sortDir={sortDir} onSort={onSort} />
     </div>
   );
 }
@@ -449,7 +476,7 @@ function SignalBlotterRow({ signal, broker, council, onSelect }: SignalBlotterRo
         <span className={cn(scoreColor)}>{score == null ? '—' : Math.round(score)}</span>
       </div>
 
-      <div className='flex items-center justify-between gap-2'>
+      <div className='flex min-w-0 items-center justify-end gap-2 overflow-hidden'>
         <CouncilBadge summary={council} suppressPending={isTerminalStatus(signal.status)} />
         <StatusBadge status={signal.status} isStale={broker?.is_stale} />
       </div>
@@ -488,7 +515,7 @@ function CouncilBadge({
   if (isPending) {
     return (
       <div
-        className='inline-flex items-center justify-end gap-1'
+        className='inline-flex min-w-0 shrink items-center justify-end gap-1 whitespace-nowrap'
         title='Council is still processing this signal'
       >
         <Brain className='h-3 w-3 shrink-0 text-[var(--to-warning)]/50' strokeWidth={1.5} />
@@ -507,7 +534,7 @@ function CouncilBadge({
   if (!hasVotes) {
     return (
       <div
-        className='inline-flex items-center justify-end gap-1'
+        className='inline-flex min-w-0 shrink items-center justify-end gap-1 whitespace-nowrap'
         title='Council skipped or timed out — no vote detail available'
       >
         <Brain className='h-3 w-3 shrink-0 text-[var(--to-text-dim)]/30' strokeWidth={1.5} />
@@ -533,7 +560,7 @@ function CouncilBadge({
   const blockCount = voteEntries.filter(([, v]) => v === 'block').length;
 
   return (
-    <div className='inline-flex items-center justify-end gap-1'>
+    <div className='inline-flex min-w-0 shrink items-center justify-end gap-1 whitespace-nowrap'>
       <Brain
         className={cn('h-3 w-3 shrink-0', isAllow ? 'text-[var(--to-long)]/60' : 'text-[var(--to-short)]/60')}
         strokeWidth={1.5}

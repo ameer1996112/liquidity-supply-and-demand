@@ -290,4 +290,19 @@ describe('SignalTable', () => {
     expect(container.textContent).toContain('Risk');
     expect(container.textContent).toContain('$30.44');
   });
+
+  it('renders trading permission statuses as compact table badges', () => {
+    const signal: TradingSignal = {
+      ...signals[0],
+      id: 'permission-sig',
+      status: 'trading_permission_denied' as TradingSignal['status'],
+    };
+
+    act(() => {
+      root.render(<SignalTable signals={[signal]} />);
+    });
+
+    expect(container.textContent).toContain('NO TRADE');
+    expect(container.textContent).not.toContain('TRADING_PERMISSION_DENIED');
+  });
 });
