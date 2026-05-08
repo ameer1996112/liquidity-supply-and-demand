@@ -1,30 +1,7 @@
 from __future__ import annotations
 
-import argparse
-import json
-from pathlib import Path
-import time
 from typing import Any
-from urllib.parse import urlparse
 
-import requests
-
-from scripts.rd_concepts_pipeline.common import (
-    ensure_dir,
-    get_logger,
-    now_iso,
-    redact,
-    safe_filename,
-    write_jsonl,
-)
-from scripts.rd_concepts_pipeline.config import (
-    PipelineSettings,
-    configured_channels,
-    get_settings,
-)
-
-LOGGER = get_logger("rd_concepts.scraper")
-DISCORD_API = "https://discord.com/api/v10"
 IMAGE_CONTENT_PREFIX = "image/"
 
 
