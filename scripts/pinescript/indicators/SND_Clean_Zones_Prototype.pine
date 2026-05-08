@@ -169,3 +169,99 @@ f_state_name(int state) =>
 f_side_name(int side) =>
     side == SIDE_DEMAND ? "DEMAND" :
       side == SIDE_SUPPLY ? "SUPPLY" : "UNKNOWN"
+
+f_overlaps_existing(float top, float bottom, int side) =>
+    bool overlaps = false
+    if array.size(zones) > 0
+        for i = 0 to array.size(zones) - 1
+            CleanZone existing = array.get(zones, i)
+            bool sameSide = existing.side == side
+            bool liveState = existing.state == STATE_WAITING_BOS or existing.state == STATE_VALID or existing.state == STATE_TESTED
+            bool rangesOverlap = not (existing.top < bottom or existing.bottom > top)
+            if sameSide and liveState and rangesOverlap
+                overlaps := true
+                break
+    overlaps
+
+f_trim_zones() =>
+    while array.size(zones) > max_zones
+        CleanZone old = array.pop(zones)
+        if not na(old.zoneBox)
+            box.delete(old.zoneBox)
+        if not na(old.inducementLine)
+            line.delete(old.inducementLine)
+        if not na(old.targetLine)
+            line.delete(old.targetLine)
+        if not na(old.stateLabel)
+            label.delete(old.stateLabel)
+
+f_create_zone(bool isDemand, int baseCount, float bodyHigh, float bodyLow, float wickHigh, float wickLow) =>
+    int side = isDemand ? SIDE_DEMAND : SIDE_SUPPLY
+    float top = na
+    float bottom = na
+    bool isAccuracy = false
+
+    if isDemand
+        isAccuracy := enable_accuracy_zones and high[1] > high
+        top := isAccuracy ? math.max(open[1], close[1]) : wickHigh
+        bottom := wickLow
+    else
+        isAccuracy := enable_accuracy_zones and low[1] < low
+        top := wickHigh
+        bottom := isAccuracy ? math.min(open[1], close[1]) : wickLow
+
+    [bosLevel, bosBar] = f_bos_level(isDemand, baseCount)
+    bool bosNow = f_breaks_bos(isDemand, bosLevel)
+    int state = bosNow ? STATE_VALID : STATE_WAITING_BOS
+    bool validBounds = not na(top) and not na(bottom) and top > bottom
+    bool duplicate = validBounds ? f_overlaps_existing(top, bottom, side) : true
+
+    if validBounds and not duplicate
+        CleanZone z = CleanZone.new()
+        int zoneId = array.get(next_zone_id, 0)
+        z.id := zoneId
+        z.side := side
+        z.state := state
+        z.createdBar := bar_index
+        z.baseStartBar := bar_index - baseCount
+        z.baseEndBar := bar_index - 1
+        z.top := top
+        z.bottom := bottom
+        z.bosLevel := bosLevel
+        z.bosBar := bosNow ? bar_index : bosBar
+        z.isAccuracy := isAccuracy
+        z.inducementPrice := na
+        z.inducementBar := na
+        z.liquidityMode := LIQ_NONE
+        z.inducementSwept := false
+        z.targetPrice := na
+        z.targetBar := na
+        z.targetSwept := false
+        z.touchCount := 0
+        z.lastTouchBar := na
+        array.unshift(zones, z)
+        array.set(next_zone_id, 0, zoneId + 1)
+        f_trim_zones()
+
+f_try_detect_zone(bool isDemand) =>
+    int baseCount = f_base_count()
+    if baseCount > 0
+        [bodyHigh, bodyLow, wickHigh, wickLow] = f_base_bounds(baseCount)
+        if f_displacement_ok(isDemand, bodyHigh, bodyLow, wickHigh, wickLow)
+            f_create_zone(isDemand, baseCount, bodyHigh, bodyLow, wickHigh, wickLow)
+
+f_promote_waiting_zones() =>
+    if array.size(zones) > 0
+        for i = 0 to array.size(zones) - 1
+            CleanZone z = array.get(zones, i)
+            if z.state == STATE_WAITING_BOS
+                bool isDemand = z.side == SIDE_DEMAND
+                if f_breaks_bos(isDemand, z.bosLevel)
+                    z.state := STATE_VALID
+                    z.bosBar := bar_index
+                    array.set(zones, i, z)
+
+if barstate.isconfirmed and bar_index > bos_lookback + base_max_candles + 5
+    f_try_detect_zone(true)
+    f_try_detect_zone(false)
+    f_promote_waiting_zones()
