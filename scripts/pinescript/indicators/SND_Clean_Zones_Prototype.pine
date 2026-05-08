@@ -261,7 +261,121 @@ f_promote_waiting_zones() =>
                     z.bosBar := bar_index
                     array.set(zones, i, z)
 
+f_is_pivot_low(int off) =>
+    bool enoughBars = off >= 1 and off + 1 <= bar_index
+    bool twoCandle = enoughBars and low[off] < low[off - 1] and low[off] < low[off + 1]
+    bool oneCandle = enoughBars and low[off] < low[off + 1]
+    twoCandle or (enable_one_candle_liquidity and oneCandle)
+
+f_is_pivot_high(int off) =>
+    bool enoughBars = off >= 1 and off + 1 <= bar_index
+    bool twoCandle = enoughBars and high[off] > high[off - 1] and high[off] > high[off + 1]
+    bool oneCandle = enoughBars and high[off] > high[off + 1]
+    twoCandle or (enable_one_candle_liquidity and oneCandle)
+
+f_highest_between(int startBar, int endBar) =>
+    float best = na
+    int bestBar = na
+    if not na(startBar) and not na(endBar) and endBar >= startBar
+        for b = startBar to endBar
+            int off = bar_index - b
+            if off < 0 or off > bar_index
+                continue
+            if na(best) or high[off] > best
+                best := high[off]
+                bestBar := b
+    [best, bestBar]
+
+f_lowest_between(int startBar, int endBar) =>
+    float best = na
+    int bestBar = na
+    if not na(startBar) and not na(endBar) and endBar >= startBar
+        for b = startBar to endBar
+            int off = bar_index - b
+            if off < 0 or off > bar_index
+                continue
+            if na(best) or low[off] < best
+                best := low[off]
+                bestBar := b
+    [best, bestBar]
+
+f_liquidity_mode_from_distance(float distance) =>
+    float internalMax = atr14 * max_internal_liquidity_atr
+    float externalMax = atr14 * max_external_liquidity_atr
+    distance <= internalMax ? LIQ_INTERNAL : distance <= externalMax ? LIQ_EXTERNAL : LIQ_NONE
+
+f_scan_liquidity_for_zone(int idx) =>
+    CleanZone z = array.get(zones, idx)
+    if z.state == STATE_VALID or z.state == STATE_TESTED
+        bool isDemand = z.side == SIDE_DEMAND
+        float bestPrice = na
+        int bestBar = na
+        int bestMode = LIQ_NONE
+        float bestScore = 1.0e10
+        int maxOff = math.min(liquidity_scan_bars, bar_index - z.createdBar)
+
+        if maxOff >= 1
+            for off = 1 to maxOff
+                int candidateBar = bar_index - off
+                bool afterZone = candidateBar > z.createdBar
+                bool isPivot = isDemand ? f_is_pivot_low(off) : f_is_pivot_high(off)
+                float candidatePrice = isDemand ? low[off] : high[off]
+                bool correctSide = isDemand ? candidatePrice > z.top : candidatePrice < z.bottom
+                float distance = isDemand ? candidatePrice - z.top : z.bottom - candidatePrice
+                int mode = distance > 0.0 ? f_liquidity_mode_from_distance(distance) : LIQ_NONE
+                float moveSize = math.abs(z.bosLevel - (isDemand ? z.bottom : z.top))
+                bool externalPercentOk = mode != LIQ_EXTERNAL or moveSize <= 0.0 ? true : distance <= moveSize * external_structure_max_percent_of_move / 100.0
+                float score = distance + (mode == LIQ_INTERNAL ? 0.0 : atr14 * 0.25)
+
+                if afterZone and isPivot and correctSide and mode != LIQ_NONE and externalPercentOk
+                    if score < bestScore
+                        bestScore := score
+                        bestPrice := candidatePrice
+                        bestBar := candidateBar
+                        bestMode := mode
+
+        if not na(bestPrice)
+            bool changed = na(z.inducementPrice) or z.inducementPrice != bestPrice or z.inducementBar != bestBar
+            z.inducementPrice := bestPrice
+            z.inducementBar := bestBar
+            z.liquidityMode := bestMode
+            if changed
+                z.inducementSwept := false
+                z.targetSwept := false
+
+            if isDemand
+                [target, targetBar] = f_highest_between(z.createdBar, bestBar - 1)
+                z.targetPrice := target
+                z.targetBar := targetBar
+            else
+                [target, targetBar] = f_lowest_between(z.createdBar, bestBar - 1)
+                z.targetPrice := target
+                z.targetBar := targetBar
+
+            array.set(zones, idx, z)
+
+f_update_liquidity_sweeps(int idx) =>
+    CleanZone z = array.get(zones, idx)
+    if z.state == STATE_VALID or z.state == STATE_TESTED
+        bool isDemand = z.side == SIDE_DEMAND
+        if not na(z.inducementPrice) and not z.inducementSwept
+            if isDemand ? low <= z.inducementPrice : high >= z.inducementPrice
+                z.inducementSwept := true
+        if show_target_liquidity and not na(z.targetPrice) and not z.targetSwept
+            if isDemand ? high >= z.targetPrice : low <= z.targetPrice
+                z.targetSwept := true
+        array.set(zones, idx, z)
+
+f_update_all_liquidity() =>
+    if array.size(zones) > 0
+        for i = 0 to array.size(zones) - 1
+            CleanZone z = array.get(zones, i)
+            if (z.state == STATE_VALID or z.state == STATE_TESTED) and na(z.inducementPrice)
+                f_scan_liquidity_for_zone(i)
+            f_update_liquidity_sweeps(i)
+
 if barstate.isconfirmed and bar_index > bos_lookback + base_max_candles + 5
     f_try_detect_zone(true)
     f_try_detect_zone(false)
     f_promote_waiting_zones()
+    f_update_all_liquidity()
