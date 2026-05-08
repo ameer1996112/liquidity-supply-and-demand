@@ -1,5 +1,15 @@
 # Worklog
 
+## 2026-05-08 - RD Concepts Research Data Lake Implementation
+
+**Problem:** The trading bot needed an offline evidence layer for RD Concepts pair, setup, session, and rule research before PineScript tuning.
+
+**Solution:**
+- Added the isolated `scripts/rd_concepts_pipeline/` utility package
+- Added Discord channel discovery, scraping, parsing, rule extraction, knowledge-base aggregation, and Streamlit browsing
+- Wrote fixture-driven tests under `tests/rd_concepts_pipeline/`
+- Kept generated Discord archives under ignored `data/rd_concepts/`
+
 ## 2026-05-08 — RD Concepts Research Data Lake Design
 
 **Problem:** The bot can execute the existing strategy, but the missing layer is evidence for which RD Concepts pairs, setups, sessions, and strategy rules should be trusted before tuning PineScript and prop-firm execution permissions.
