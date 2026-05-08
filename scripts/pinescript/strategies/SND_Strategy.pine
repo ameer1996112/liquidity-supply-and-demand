@@ -425,6 +425,11 @@ col_acc_demand_border = use_myrtille_visuals ? color.new(#2E7D32, 35) : #42A5F5
 col_acc_supply_bg     = use_myrtille_visuals ? color.new(#4CAF50, 80) : color.new(#AB47BC, 70)
 col_acc_supply_border = use_myrtille_visuals ? color.new(#2E7D32, 35) : #BA68C8
 
+col_label_demand_bg = color.rgb(0, 121, 107)
+col_label_supply_bg = color.rgb(199, 57, 67)
+col_label_acc_bg    = color.rgb(30, 136, 229)
+col_label_text      = color.rgb(248, 250, 252)
+
 float tol = pip_size * 1.0
 
 // Forex TP/BE rules — apply to ALL forex pairs (JPY, GBP, EUR, etc.)
@@ -1652,21 +1657,17 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                  bgcolor = zoneBgColor,
                  xloc = xloc.bar_index)
 
-            string sideTag = isDemand ? "D-" : "S-"
-            string compactText = sideTag + str.tostring(zoneUZID)
+            string sideTag = isDemand ? "D" : "S"
+            string compactText = sideTag + " " + str.tostring(zoneUZID)
             string detailedText = (isDemand ? "Demand " : "Supply ") + compactText
             string id_text = " " + (zone_label_style == "Detailed" ? detailedText : compactText) + " "
             float mid = (zTop + zBottom) / 2.0
-            color lbl_bg_color = na
-            if isAccuracy
-                lbl_bg_color := isDemand ? color.new(#2196F3, 0) : color.new(#AB47BC, 0)  // Blue for demand ACC, Purple for supply ACC
-            else
-                lbl_bg_color := isDemand ? color.new(#26a69a, 0) : color.new(#ef5350, 0)  // Teal for demand, Coral for supply
+            color lbl_bg_color = isAccuracy ? col_label_acc_bg : (isDemand ? col_label_demand_bg : col_label_supply_bg)
             label idLbl = na
             if draw_zone_labels
                 idLbl := label.new(x = baseBarIdx, y = mid, text = id_text,
-                     style = label.style_label_left, textcolor = color.white, color = lbl_bg_color,
-                     size = size.tiny,
+                     style = label.style_label_left, textcolor = col_label_text, color = lbl_bg_color,
+                     size = size.small,
                      textalign = text.align_center, xloc = xloc.bar_index)
 
             Core.Zone z = Core.Zone.new()
@@ -1700,8 +1701,8 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 z.departureStrength := 50.0
 
             if draw_zone_labels and show_grade_on_zone and zone_label_style == "Compact"
-                string gradeStr = "[" + z.grade + "] "
-                label.set_text(idLbl, gradeStr + id_text)
+                string gradeStr = "  " + z.grade
+                label.set_text(idLbl, " " + compactText + gradeStr + " ")
 
             if isDemand
                 array.unshift(demandZones, z)
@@ -2919,16 +2920,17 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
                         float lbl_mid = (z.top + z.bottom) / 2
                         label.set_x(z.idLabel, bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        string demandAccTag = z.isAccuracy ? "⭐ ACC " : ""
-                        string demandCompact = demandAccTag + "D-" + str.tostring(z.id)
+                        string demandAccTag = z.isAccuracy ? "★ ACC " : "◆ "
+                        string demandGrade = show_grade_on_zone ? ("  " + z.grade) : ""
+                        string demandCompact = demandAccTag + "D " + str.tostring(z.id) + demandGrade
                         string demandDetailed = "Demand " + demandCompact
-                        string demandMetrics = zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
+                        string demandMetrics = zone_label_show_metrics ? ("  " + str.tostring(z.score, "#")) : ""
                         string demandText = zone_label_style == "Detailed" ? (demandDetailed + demandMetrics) : demandCompact
                         label.set_text(z.idLabel, " " + demandText + " ")
                         label.set_style(z.idLabel, label.style_label_left)
-                        label.set_textcolor(z.idLabel, color.white)
-                        label.set_color(z.idLabel, z.isAccuracy ? color.new(#2196F3, 0) : color.new(#26a69a, 0))  // Blue for ACC, teal for normal
-                        label.set_size(z.idLabel, size.normal)
+                        label.set_textcolor(z.idLabel, col_label_text)
+                        label.set_color(z.idLabel, z.isAccuracy ? col_label_acc_bg : col_label_demand_bg)
+                        label.set_size(z.idLabel, size.small)
                         label.set_textalign(z.idLabel, text.align_center)
 
 if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isconfirmed
@@ -2955,16 +2957,17 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
                         float lbl_mid = (z.top + z.bottom) / 2
                         label.set_x(z.idLabel, bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        string supplyAccTag = z.isAccuracy ? "⭐ ACC " : ""
-                        string supplyCompact = supplyAccTag + "S-" + str.tostring(z.id)
+                        string supplyAccTag = z.isAccuracy ? "★ ACC " : "◆ "
+                        string supplyGrade = show_grade_on_zone ? ("  " + z.grade) : ""
+                        string supplyCompact = supplyAccTag + "S " + str.tostring(z.id) + supplyGrade
                         string supplyDetailed = "Supply " + supplyCompact
-                        string supplyMetrics = zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
+                        string supplyMetrics = zone_label_show_metrics ? ("  " + str.tostring(z.score, "#")) : ""
                         string supplyText = zone_label_style == "Detailed" ? (supplyDetailed + supplyMetrics) : supplyCompact
                         label.set_text(z.idLabel, " " + supplyText + " ")
                         label.set_style(z.idLabel, label.style_label_left)
-                        label.set_textcolor(z.idLabel, color.white)
-                        label.set_color(z.idLabel, z.isAccuracy ? color.new(#AB47BC, 0) : color.new(#ef5350, 0))  // Purple for ACC, coral for normal
-                        label.set_size(z.idLabel, size.normal)
+                        label.set_textcolor(z.idLabel, col_label_text)
+                        label.set_color(z.idLabel, z.isAccuracy ? col_label_acc_bg : col_label_supply_bg)
+                        label.set_size(z.idLabel, size.small)
                         label.set_textalign(z.idLabel, text.align_center)
 
 
