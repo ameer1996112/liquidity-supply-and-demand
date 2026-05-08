@@ -833,4 +833,43 @@ describe('SignalInspector decision summary', () => {
     expect(document.body.textContent).toContain('Broker execution is recorded.');
     expect(document.body.textContent).not.toContain('Signal State');
   });
+
+  it('shows AI-rejected exit signals with position impact as recorded', () => {
+    const signal: TradingSignal = {
+      id: 'sig-exit-ai-rejected-position-impact',
+      created_at: '2026-05-08T10:55:02.000Z',
+      symbol: 'XAUUSD',
+      side: 'buy',
+      status: 'ai_rejected',
+      price: 4721.18,
+      stop_loss: 4717.68,
+      take_profit: 4777.18,
+      position_size: 0.37,
+      pnl: -85.47,
+      risk_usd: 135.79,
+      execution_source: 'signal_only',
+      run_mode: 'LIVE',
+      signal_action: 'exit',
+      ai_reasoning: {
+        decision: 'NO_GO',
+        reason: '[MAS] Quant blocked: Score 0.44 below threshold 0.55. conf=0.44 | REJECT',
+      },
+    } as TradingSignal;
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    expect(document.body.textContent).toContain('Exit Seen');
+    expect(document.body.textContent).toContain('Position Impact Recorded');
+    expect(document.body.textContent).toContain('Broker Execution [pass]');
+    expect(document.body.textContent).toContain('Position close/update is recorded for this signal.');
+    expect(document.body.textContent).toContain('Risk guard is not a blocking step for recorded exit/close updates.');
+    expect(document.body.textContent).not.toContain('Broker Execution [skipped]');
+  });
 });

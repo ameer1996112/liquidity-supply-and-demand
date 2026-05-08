@@ -122,6 +122,31 @@ function isBrokerExecuted(signal: TradingSignal): boolean {
   );
 }
 
+function getSignalAction(signal: TradingSignal): string {
+  const rawAction =
+    (signal.signal_action as string | undefined) ??
+    (signal.status?.toLowerCase() === 'closed' || signal.exit_type
+      ? 'exit'
+      : undefined);
+
+  return (rawAction || 'entry').toLowerCase();
+}
+
+function isExitLikeAction(action: string): boolean {
+  return action === 'exit' || action === 'close' || action === 'close_all';
+}
+
+function hasRecordedPositionImpact(signal: TradingSignal): boolean {
+  const status = String(signal.status || '').toLowerCase();
+  const action = getSignalAction(signal);
+
+  return (
+    status === 'closed' ||
+    Boolean(signal.exit_type) ||
+    (isExitLikeAction(action) && (getPnl(signal) != null || signal.position_size != null))
+  );
+}
+
 function deriveOutcome(signal: TradingSignal, ai: AIReasoning | null): OutcomeViewModel {
   const status = String(signal.status || '').toLowerCase();
   const reason =
@@ -129,6 +154,7 @@ function deriveOutcome(signal: TradingSignal, ai: AIReasoning | null): OutcomeVi
     ai?.reason ||
     getNotes(signal) ||
     'No explicit stop reason was recorded.';
+  const positionImpactRecorded = hasRecordedPositionImpact(signal);
 
   if (isPermissionBlocked(status)) {
     return {
@@ -154,6 +180,18 @@ function deriveOutcome(signal: TradingSignal, ai: AIReasoning | null): OutcomeVi
       eyebrow: 'Broker Execution Failed',
       tone: 'danger',
       reason: `Execution failed: ${reason}`,
+    };
+  }
+
+  if (positionImpactRecorded) {
+    return {
+      label: status === 'closed' ? 'Closed' : 'Exit Seen',
+      eyebrow: 'Position Impact Recorded',
+      tone: status === 'closed' ? 'muted' : 'success',
+      reason:
+        reason === 'No explicit stop reason was recorded.'
+          ? 'Position close/update is recorded for this signal.'
+          : reason,
     };
   }
 
@@ -206,6 +244,7 @@ function deriveExecutionStages(
   const aiRejected = status === 'ai_rejected' || ai?.decision === 'NO_GO';
   const executionFailed = status === 'failed' || status === 'execution_failed';
   const brokerExecuted = isBrokerExecuted(signal);
+  const positionImpactRecorded = hasRecordedPositionImpact(signal);
   const permissionAllowed = isPermissionStatus(status) && !permissionBlocked;
 
   return [
@@ -240,9 +279,11 @@ function deriveExecutionStages(
     {
       id: 'risk',
       label: 'Risk Guard',
-      state: brokerExecuted ? 'pass' : permissionBlocked || aiRejected ? 'skipped' : 'unknown',
+      state: brokerExecuted ? 'pass' : positionImpactRecorded ? 'skipped' : permissionBlocked || aiRejected ? 'skipped' : 'unknown',
       detail: brokerExecuted
         ? 'Risk checks did not prevent broker execution.'
+        : positionImpactRecorded
+          ? 'Risk guard is not a blocking step for recorded exit/close updates.'
         : permissionBlocked || aiRejected
           ? 'Skipped because an earlier gate stopped the signal.'
           : 'No risk result recorded.',
@@ -250,11 +291,13 @@ function deriveExecutionStages(
     {
       id: 'broker',
       label: 'Broker Execution',
-      state: executionFailed ? 'fail' : brokerExecuted ? 'pass' : permissionBlocked || aiRejected ? 'skipped' : 'unknown',
+      state: executionFailed ? 'fail' : brokerExecuted || positionImpactRecorded ? 'pass' : permissionBlocked || aiRejected ? 'skipped' : 'unknown',
       detail: executionFailed
         ? signal.filter_reason || 'Broker execution failed.'
         : brokerExecuted
           ? 'Broker execution is recorded.'
+          : positionImpactRecorded
+            ? 'Position close/update is recorded for this signal.'
           : permissionBlocked || aiRejected
             ? 'Skipped because an earlier gate stopped the signal.'
             : 'No broker execution recorded.',
@@ -520,14 +563,7 @@ function deriveExecutionPlan(signal: TradingSignal): {
   brokerLabel: string;
   description: string;
 } {
-  const rawAction =
-    (signal.signal_action as string | undefined) ??
-    (signal.status?.toLowerCase() === 'closed' || signal.exit_type
-      ? 'exit'
-      : undefined);
-
-  const action = (rawAction || 'entry').toLowerCase();
-
+  const action = getSignalAction(signal);
   const execSource = signal.execution_source || 'signal_only';
   const runMode = (signal.run_mode || signal.mode || '').toString().toUpperCase();
 
