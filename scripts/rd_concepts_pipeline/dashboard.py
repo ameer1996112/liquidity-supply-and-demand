@@ -1,27 +1,81 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-from scripts.rd_concepts_pipeline.common import read_jsonl
 from scripts.rd_concepts_pipeline.config import get_settings
+
+LOGGER = logging.getLogger(__name__)
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 
 def _read_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
-    return pd.read_csv(path)
+    try:
+        return pd.read_csv(path)
+    except (
+        pd.errors.EmptyDataError,
+        pd.errors.ParserError,
+        UnicodeDecodeError,
+        OSError,
+    ) as exc:
+        LOGGER.warning("Could not read RD Concepts CSV %s: %s", path, exc)
+        return pd.DataFrame()
 
 
 def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
-    with path.open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-    return data if isinstance(data, dict) else {}
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+        LOGGER.warning("Could not read RD Concepts JSON %s: %s", path, exc)
+        return {}
+    if not isinstance(data, dict):
+        LOGGER.warning("Ignoring RD Concepts JSON %s because it is not an object", path)
+        return {}
+    return data
+
+
+def _read_rules_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+
+    rules: list[dict[str, Any]] = []
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for line_number, line in enumerate(handle, start=1):
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    row = json.loads(stripped)
+                except json.JSONDecodeError as exc:
+                    LOGGER.warning(
+                        "Could not read RD Concepts JSONL %s line %s: %s",
+                        path,
+                        line_number,
+                        exc,
+                    )
+                    return []
+                if not isinstance(row, dict):
+                    LOGGER.warning(
+                        "Ignoring RD Concepts JSONL %s line %s because it is not an object",
+                        path,
+                        line_number,
+                    )
+                    return []
+                rules.append(row)
+    except (UnicodeDecodeError, OSError) as exc:
+        LOGGER.warning("Could not read RD Concepts JSONL %s: %s", path, exc)
+        return []
+    return rules
 
 
 def load_processed_data(
@@ -30,7 +84,7 @@ def load_processed_data(
     processed_dir = data_dir / "processed"
     signals = _read_csv(processed_dir / "signals.csv")
     image_index = _read_csv(processed_dir / "image_index.csv")
-    rules = list(read_jsonl(processed_dir / "rules.jsonl"))
+    rules = _read_rules_jsonl(processed_dir / "rules.jsonl")
     knowledge_base = _read_json(processed_dir / "knowledge_base.json")
     return signals, rules, knowledge_base, image_index
 
@@ -103,17 +157,57 @@ def _filter_rules(rules: list[dict[str, Any]], query: str) -> list[dict[str, Any
     ]
 
 
-def _image_path(data_dir: Path, value: Any) -> Path:
-    path = Path(str(value))
-    return path if path.is_absolute() else data_dir / path
+def _safe_image_path(raw_path: Any, data_dir: Path) -> Path | None:
+    if raw_path is None:
+        return None
+    try:
+        if bool(pd.isna(raw_path)):
+            return None
+    except (TypeError, ValueError):
+        return None
+
+    path_text = str(raw_path).strip()
+    if not path_text:
+        return None
+
+    candidate = Path(path_text)
+    if candidate.suffix.lower() not in IMAGE_SUFFIXES:
+        return None
+
+    data_root = data_dir.resolve()
+    resolved = (
+        candidate.resolve()
+        if candidate.is_absolute()
+        else (data_root / candidate).resolve()
+    )
+
+    try:
+        resolved.relative_to(data_root)
+    except ValueError:
+        return None
+
+    return resolved
+
+
+def _knowledge_base_pair_count(knowledge_base: dict[str, Any]) -> int:
+    pairs = knowledge_base.get("pairs")
+    return len(pairs) if isinstance(pairs, dict) else 0
 
 
 def main() -> None:
     import streamlit as st
 
+    @st.cache_data
+    def load_cached_processed_data(
+        data_dir_text: str,
+    ) -> tuple[pd.DataFrame, list[dict[str, Any]], dict[str, Any], pd.DataFrame]:
+        return load_processed_data(Path(data_dir_text))
+
     settings = get_settings()
-    signals, rules, knowledge_base, image_index = load_processed_data(settings.data_dir)
-    pair_count = len((knowledge_base.get("pairs") or {}))
+    signals, rules, knowledge_base, image_index = load_cached_processed_data(
+        str(settings.data_dir)
+    )
+    pair_count = _knowledge_base_pair_count(knowledge_base)
 
     st.set_page_config(page_title="RD Concepts Data Lake", layout="wide")
 
@@ -259,7 +353,8 @@ def main() -> None:
             st.dataframe(filtered_images, use_container_width=True, hide_index=True)
             if "image_path" in filtered_images.columns:
                 for _, row in filtered_images.head(50).iterrows():
-                    path = _image_path(settings.data_dir, row["image_path"])
+                    raw_path = row["image_path"]
+                    path = _safe_image_path(raw_path, settings.data_dir)
                     label_parts = [
                         str(row[column])
                         for column in ("timestamp", "channel", "pair", "direction")
@@ -267,11 +362,17 @@ def main() -> None:
                         and pd.notna(row[column])
                         and str(row[column])
                     ]
-                    st.caption(" | ".join(label_parts) or str(row["image_path"]))
-                    if path.exists():
-                        st.image(str(path), use_container_width=True)
+                    st.caption(" | ".join(label_parts) or str(raw_path))
+                    if path is None:
+                        st.code(str(raw_path))
+                    elif path.exists():
+                        try:
+                            st.image(str(path), use_container_width=True)
+                        except Exception as exc:  # pragma: no cover - Streamlit UI guard
+                            LOGGER.warning("Could not render image %s: %s", path, exc)
+                            st.code(str(raw_path))
                     else:
-                        st.code(str(row["image_path"]))
+                        st.code(str(raw_path))
 
 
 if __name__ == "__main__":
