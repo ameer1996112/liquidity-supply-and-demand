@@ -512,6 +512,7 @@ f_render_zone(int idx) =>
             if na(z.inducementLine)
                 z.inducementLine := line.new(x1=z.inducementBar, y1=z.inducementPrice, x2=bar_index + 20, y2=z.inducementPrice, color=liqColor, width=1, xloc=xloc.bar_index)
             else
+                line.set_x1(z.inducementLine, z.inducementBar)
                 line.set_x2(z.inducementLine, bar_index + 20)
                 line.set_y1(z.inducementLine, z.inducementPrice)
                 line.set_y2(z.inducementLine, z.inducementPrice)
@@ -525,6 +526,7 @@ f_render_zone(int idx) =>
             if na(z.targetLine)
                 z.targetLine := line.new(x1=z.targetBar, y1=z.targetPrice, x2=bar_index + 20, y2=z.targetPrice, color=targetColor, width=1, style=line.style_dotted, xloc=xloc.bar_index)
             else
+                line.set_x1(z.targetLine, z.targetBar)
                 line.set_x2(z.targetLine, bar_index + 20)
                 line.set_y1(z.targetLine, z.targetPrice)
                 line.set_y2(z.targetLine, z.targetPrice)
