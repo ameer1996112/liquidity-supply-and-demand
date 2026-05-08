@@ -414,20 +414,21 @@ if news_blackout_enabled
         if time >= _pf_ts - 2 * 60 * 1000 and time <= _pf_ts + 2 * 60 * 1000
             pf_is_news_blackout := true
 
-col_demand_bg     = use_myrtille_visuals ? color.new(#4CAF50, 80) : color.new(#26a69a, 88)
-col_demand_border = use_myrtille_visuals ? color.new(#2E7D32, 35) : color.new(#26a69a, 40)
+col_demand_bg     = use_myrtille_visuals ? color.new(#14B8A6, 82) : color.new(#26a69a, 88)
+col_demand_border = use_myrtille_visuals ? color.new(#0F766E, 18) : color.new(#26a69a, 40)
 
-col_supply_bg     = use_myrtille_visuals ? color.new(#4CAF50, 80) : color.new(#ef5350, 88)
-col_supply_border = use_myrtille_visuals ? color.new(#2E7D32, 35) : color.new(#ef5350, 40)
+col_supply_bg     = use_myrtille_visuals ? color.new(#F43F5E, 84) : color.new(#ef5350, 88)
+col_supply_border = use_myrtille_visuals ? color.new(#BE123C, 18) : color.new(#ef5350, 40)
 
-col_acc_demand_bg     = use_myrtille_visuals ? color.new(#4CAF50, 80) : color.new(#2196F3, 70)
-col_acc_demand_border = use_myrtille_visuals ? color.new(#2E7D32, 35) : #42A5F5
-col_acc_supply_bg     = use_myrtille_visuals ? color.new(#4CAF50, 80) : color.new(#AB47BC, 70)
-col_acc_supply_border = use_myrtille_visuals ? color.new(#2E7D32, 35) : #BA68C8
+col_acc_demand_bg     = use_myrtille_visuals ? color.new(#3B82F6, 80) : color.new(#2196F3, 70)
+col_acc_demand_border = use_myrtille_visuals ? color.new(#1D4ED8, 0) : #42A5F5
+col_acc_supply_bg     = use_myrtille_visuals ? color.new(#A855F7, 80) : color.new(#AB47BC, 70)
+col_acc_supply_border = use_myrtille_visuals ? color.new(#7E22CE, 0) : #BA68C8
 
-col_label_demand_bg = color.rgb(0, 121, 107)
-col_label_supply_bg = color.rgb(199, 57, 67)
-col_label_acc_bg    = color.rgb(30, 136, 229)
+col_label_demand_bg     = color.rgb(13, 148, 136)
+col_label_supply_bg     = color.rgb(225, 29, 72)
+col_label_acc_demand_bg = color.rgb(37, 99, 235)
+col_label_acc_supply_bg = color.rgb(126, 34, 206)
 col_label_text      = color.rgb(248, 250, 252)
 
 float tol = pip_size * 1.0
@@ -1657,15 +1658,15 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                  bgcolor = zoneBgColor,
                  xloc = xloc.bar_index)
 
-            string sideTag = isDemand ? "D" : "S"
+            string sideTag = isDemand ? (isAccuracy ? "D-ACC" : "DMD") : (isAccuracy ? "S-ACC" : "SUP")
             string compactText = sideTag + " " + str.tostring(zoneUZID)
             string detailedText = (isDemand ? "Demand " : "Supply ") + compactText
             string id_text = " " + (zone_label_style == "Detailed" ? detailedText : compactText) + " "
             float mid = (zTop + zBottom) / 2.0
-            color lbl_bg_color = isAccuracy ? col_label_acc_bg : (isDemand ? col_label_demand_bg : col_label_supply_bg)
+            color lbl_bg_color = isAccuracy ? (isDemand ? col_label_acc_demand_bg : col_label_acc_supply_bg) : (isDemand ? col_label_demand_bg : col_label_supply_bg)
             label idLbl = na
             if draw_zone_labels
-                idLbl := label.new(x = baseBarIdx, y = mid, text = id_text,
+                idLbl := label.new(x = baseBarIdx + extend_bars, y = mid, text = id_text,
                      style = label.style_label_left, textcolor = col_label_text, color = lbl_bg_color,
                      size = size.small,
                      textalign = text.align_center, xloc = xloc.bar_index)
@@ -1701,7 +1702,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 z.departureStrength := 50.0
 
             if draw_zone_labels and show_grade_on_zone and zone_label_style == "Compact"
-                string gradeStr = "  " + z.grade
+                string gradeStr = " | " + z.grade
                 label.set_text(idLbl, " " + compactText + gradeStr + " ")
 
             if isDemand
@@ -2918,18 +2919,18 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
 
                     if not na(z.idLabel)
                         float lbl_mid = (z.top + z.bottom) / 2
-                        label.set_x(z.idLabel, bar_index)
+                        label.set_x(z.idLabel, right_bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        string demandAccTag = z.isAccuracy ? "★ ACC " : "◆ "
-                        string demandGrade = show_grade_on_zone ? ("  " + z.grade) : ""
-                        string demandCompact = demandAccTag + "D " + str.tostring(z.id) + demandGrade
+                        string demandPrefix = z.isAccuracy ? "D-ACC " : "DMD "
+                        string demandGrade = show_grade_on_zone ? (" | " + z.grade) : ""
+                        string demandCompact = demandPrefix + str.tostring(z.id) + demandGrade
                         string demandDetailed = "Demand " + demandCompact
-                        string demandMetrics = zone_label_show_metrics ? ("  " + str.tostring(z.score, "#")) : ""
+                        string demandMetrics = zone_label_show_metrics ? (" | " + str.tostring(z.score, "#")) : ""
                         string demandText = zone_label_style == "Detailed" ? (demandDetailed + demandMetrics) : demandCompact
                         label.set_text(z.idLabel, " " + demandText + " ")
                         label.set_style(z.idLabel, label.style_label_left)
                         label.set_textcolor(z.idLabel, col_label_text)
-                        label.set_color(z.idLabel, z.isAccuracy ? col_label_acc_bg : col_label_demand_bg)
+                        label.set_color(z.idLabel, z.isAccuracy ? col_label_acc_demand_bg : col_label_demand_bg)
                         label.set_size(z.idLabel, size.small)
                         label.set_textalign(z.idLabel, text.align_center)
 
@@ -2955,18 +2956,18 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
 
                     if not na(z.idLabel)
                         float lbl_mid = (z.top + z.bottom) / 2
-                        label.set_x(z.idLabel, bar_index)
+                        label.set_x(z.idLabel, right_bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        string supplyAccTag = z.isAccuracy ? "★ ACC " : "◆ "
-                        string supplyGrade = show_grade_on_zone ? ("  " + z.grade) : ""
-                        string supplyCompact = supplyAccTag + "S " + str.tostring(z.id) + supplyGrade
+                        string supplyPrefix = z.isAccuracy ? "S-ACC " : "SUP "
+                        string supplyGrade = show_grade_on_zone ? (" | " + z.grade) : ""
+                        string supplyCompact = supplyPrefix + str.tostring(z.id) + supplyGrade
                         string supplyDetailed = "Supply " + supplyCompact
-                        string supplyMetrics = zone_label_show_metrics ? ("  " + str.tostring(z.score, "#")) : ""
+                        string supplyMetrics = zone_label_show_metrics ? (" | " + str.tostring(z.score, "#")) : ""
                         string supplyText = zone_label_style == "Detailed" ? (supplyDetailed + supplyMetrics) : supplyCompact
                         label.set_text(z.idLabel, " " + supplyText + " ")
                         label.set_style(z.idLabel, label.style_label_left)
                         label.set_textcolor(z.idLabel, col_label_text)
-                        label.set_color(z.idLabel, z.isAccuracy ? col_label_acc_bg : col_label_supply_bg)
+                        label.set_color(z.idLabel, z.isAccuracy ? col_label_acc_supply_bg : col_label_supply_bg)
                         label.set_size(z.idLabel, size.small)
                         label.set_textalign(z.idLabel, text.align_center)
 
