@@ -70,11 +70,11 @@ function InfoRow({
   valueClass?: string;
 }) {
   return (
-    <div className='flex items-center justify-between py-1.5'>
-      <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
+    <div className='flex min-w-0 items-start justify-between gap-3 py-1.5'>
+      <span className='shrink-0 text-[11px] text-muted-foreground uppercase tracking-wider'>
         {label}
       </span>
-      <span className={cn('font-mono text-sm text-foreground', valueClass)}>
+      <span className={cn('min-w-0 text-right font-mono text-sm text-foreground break-words [overflow-wrap:anywhere]', valueClass)}>
         {value}
       </span>
     </div>
@@ -91,10 +91,10 @@ function BoolIndicator({
 }) {
   const isTrue = value === true;
   return (
-    <div className='flex items-center gap-2'>
+    <div className='flex min-w-0 items-center gap-2'>
       <div
         className={cn(
-          'w-5 h-5 rounded flex items-center justify-center',
+          'h-5 w-5 shrink-0 rounded flex items-center justify-center',
           isTrue
             ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
             : 'bg-muted text-muted-foreground'
@@ -102,7 +102,9 @@ function BoolIndicator({
       >
         {isTrue ? <Check className='w-3 h-3' /> : <X className='w-3 h-3' />}
       </div>
-      <span className='text-[11px] text-muted-foreground'>{label}</span>
+      <span className='min-w-0 text-[11px] text-muted-foreground break-words'>
+        {label}
+      </span>
     </div>
   );
 }
@@ -486,10 +488,10 @@ export function SignalInspector({
           Trade details and AI reasoning
         </SheetDescription>
         <ScrollArea className='h-full'>
-          <div className='p-6'>
+          <div className='min-w-0 p-6'>
             {/* Header */}
             <SheetHeader className='mb-6'>
-              <div className='flex items-center gap-2 mb-2'>
+              <div className='flex min-w-0 flex-wrap items-center gap-2 mb-2'>
                 <Badge
                   className={cn(
                     'text-xs font-bold px-2.5 py-1 border-0',
@@ -502,7 +504,7 @@ export function SignalInspector({
                 </Badge>
                 <Badge
                   className={cn(
-                    'text-xs px-2 py-0.5 border border-border',
+                    'max-w-full truncate text-xs px-2 py-0.5 border border-border',
                     signal.status?.toLowerCase() === 'active'
                       ? 'text-blue-400 border-blue-500/30'
                       : signal.status?.toLowerCase() === 'ai_rejected'
@@ -543,11 +545,11 @@ export function SignalInspector({
 
             {/* Execution plan summary */}
             <div className='mb-4 rounded-lg bg-card border border-border px-4 py-3 space-y-1.5'>
-              <div className='flex items-center justify-between gap-2'>
+              <div className='flex min-w-0 items-center justify-between gap-2'>
                 <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
                   Execution Plan
                 </span>
-                <Badge className='text-[10px] px-2 py-0.5 border-0 bg-muted text-muted-foreground'>
+                <Badge className='min-w-0 max-w-[65%] truncate text-[10px] px-2 py-0.5 border-0 bg-muted text-muted-foreground'>
                   {executionPlan.brokerLabel}
                 </Badge>
               </div>
@@ -790,12 +792,12 @@ export function SignalInspector({
                         </span>
                       </div>
                       <div className='p-4 space-y-4'>
-                        <div className='flex items-start justify-between gap-3'>
-                          <div>
+                        <div className='flex min-w-0 flex-col items-start gap-3'>
+                          <div className='min-w-0'>
                             <div className='text-[11px] text-muted-foreground uppercase tracking-wider mb-1'>
                               Decision Summary
                             </div>
-                            <div className='text-sm text-foreground/90'>
+                            <div className='text-sm text-foreground/90 break-words [overflow-wrap:anywhere]'>
                               {decisionValue === 'GO'
                                 ? 'Approved: all active gates passed.'
                                 : decisionValue === 'MODEL_ERROR'
@@ -805,7 +807,7 @@ export function SignalInspector({
                           </div>
                           <span
                             className={cn(
-                              'font-mono text-sm font-bold px-2.5 py-1 rounded',
+                              'max-w-full truncate font-mono text-sm font-bold px-2.5 py-1 rounded',
                               decisionValue === 'GO' &&
                                 'bg-[var(--to-long)]/20 text-[var(--to-long)]',
                               decisionValue === 'NO_GO' &&
@@ -887,21 +889,21 @@ export function SignalInspector({
                                     badge.rowClass
                                   )}
                                 >
-                                  <div>
-                                    <div className='font-mono text-foreground/90'>
+                                  <div className='min-w-0'>
+                                    <div className='font-mono text-foreground/90 break-words [overflow-wrap:anywhere]'>
                                       {getRuleDisplayId(
                                         rule as Record<string, unknown>
                                       )}
                                     </div>
                                     {ruleMessage && (
-                                      <div className='text-muted-foreground mt-0.5'>
+                                      <div className='text-muted-foreground mt-0.5 break-words [overflow-wrap:anywhere]'>
                                         {ruleMessage}
                                       </div>
                                     )}
                                   </div>
                                   <div
                                     className={cn(
-                                      'text-[10px] font-semibold uppercase whitespace-nowrap',
+                                      'shrink-0 text-[10px] font-semibold uppercase whitespace-nowrap',
                                       badge.textClass
                                     )}
                                   >
@@ -987,8 +989,8 @@ export function SignalInspector({
                           Zone Analysis
                         </span>
                       </div>
-                      <div className='p-4 grid grid-cols-2 gap-4'>
-                        <div>
+                      <div className='p-4 space-y-1'>
+                        <div className='min-w-0'>
                           {ai.zone_id && (
                             <InfoRow label='Zone ID' value={`#${ai.zone_id}`} />
                           )}
@@ -1013,7 +1015,7 @@ export function SignalInspector({
                             <InfoRow label='Grade' value={ai.zone_grade} />
                           )}
                         </div>
-                        <div>
+                        <div className='min-w-0'>
                           {ai.entry_model && (
                             <InfoRow
                               label='Entry Model'
@@ -1071,7 +1073,7 @@ export function SignalInspector({
                         </span>
                       </div>
                       <div className='p-4 space-y-3'>
-                        <div className='grid grid-cols-2 gap-x-6 gap-y-2'>
+                        <div className='grid grid-cols-1 gap-y-2'>
                           <BoolIndicator
                             value={ai.liquidity_swept}
                             label='Liquidity Swept'
@@ -1090,7 +1092,7 @@ export function SignalInspector({
                           />
                         </div>
                         <Separator className='bg-border' />
-                        <div className='grid grid-cols-2 gap-2'>
+                        <div className='grid grid-cols-1 gap-2'>
                           {(ai.liquidity_distance_pips != null ||
                             ai.liquidity_distance != null) && (
                             <InfoRow
