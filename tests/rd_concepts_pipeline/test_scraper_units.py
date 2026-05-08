@@ -1,7 +1,9 @@
 from scripts.rd_concepts_pipeline.scraper import (
+    build_image_filename,
     extract_image_urls,
     next_before_id,
     normalize_message,
+    should_retry_status,
 )
 
 
@@ -69,3 +71,17 @@ def test_normalize_message_preserves_required_fields() -> None:
 def test_next_before_id_uses_last_message_id() -> None:
     assert next_before_id([{"id": "3"}, {"id": "2"}]) == "2"
     assert next_before_id([]) is None
+
+
+def test_build_image_filename_uses_message_source_and_extension() -> None:
+    filename = build_image_filename(
+        "123",
+        {"source": "embed_image", "index": "0", "url": "https://cdn/chart.png?x=1"},
+    )
+    assert filename == "123_embed_image_0.png"
+
+
+def test_should_retry_status_marks_rate_limits_and_server_errors() -> None:
+    assert should_retry_status(429) is True
+    assert should_retry_status(500) is True
+    assert should_retry_status(403) is False
