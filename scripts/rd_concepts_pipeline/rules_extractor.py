@@ -4,6 +4,7 @@ import argparse
 from collections import Counter, defaultdict
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 from scripts.rd_concepts_pipeline.common import ensure_dir, extract_setup_tags, get_logger, read_jsonl, write_jsonl
@@ -36,11 +37,14 @@ RULE_KEYWORDS = [
     "fvg",
     "pd array",
 ]
+KEYWORD_PATTERNS = {
+    keyword: re.compile(rf"\b{re.escape(keyword)}\b", re.IGNORECASE)
+    for keyword in RULE_KEYWORDS
+}
 
 
 def keyword_hits(content: str) -> list[str]:
-    lower = content.lower()
-    return sorted({keyword for keyword in RULE_KEYWORDS if keyword in lower})
+    return sorted({keyword for keyword, pattern in KEYWORD_PATTERNS.items() if pattern.search(content)})
 
 
 def extract_rule_record(row: dict[str, Any]) -> dict[str, Any] | None:
