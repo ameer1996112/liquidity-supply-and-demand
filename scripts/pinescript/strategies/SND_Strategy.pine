@@ -223,6 +223,7 @@ stop_loss_buffer_pips = input.float(1.4, "stop_loss_buffer_pips", minval = 0, st
 tp_rule_mode = input.string("RD 2026 Playbook", "tp_rule_mode", options = ["RD 2026 Playbook", "Custom Fixed RR", "Legacy Defaults"], group = "📊 Trade Execution", tooltip = "RD 2026 Playbook uses Gold and JPY/forex SL-size TP tables. Custom Fixed RR uses risk_reward_ratio. Legacy Defaults keeps old fixed defaults for non-forex instruments.")
 use_custom_rr         = input.bool(true, "use_custom_rr", group = "📊 Trade Execution")
 risk_reward_ratio     = input.float(4.0, "risk_reward_ratio", minval = 0.5, step = 0.1, group = "📊 Trade Execution")
+xau_max_rr            = input.float(4.0, "xau_max_rr", minval = 0.5, maxval = 10.0, step = 0.1, group = "📊 Trade Execution", tooltip = "Hard cap for XAU/GOLD TP RR. Protects gold alerts from old saved chart inputs such as 16R.")
 liq_entry_max_dist = input.float(8.7, "liq_entry_max_dist", minval = 0.0, step = 0.1, group = "💧 Liquidity")
 min_tp_distance_pips = input.float(11.0, "min_tp_distance_pips", minval = 1.0, step = 0.1, group = "📊 Trade Execution")
 
@@ -584,6 +585,9 @@ get_tp_ratio(symbol_type, sl_pips) =>
 
     if enable_double_tp
         base_ratio := base_ratio * 2.0
+
+    if is_gold or is_xpt
+        base_ratio := math.min(base_ratio, xau_max_rr)
 
     [base_ratio, be_trig, be_sl, move_be]
 
