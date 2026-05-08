@@ -203,12 +203,12 @@ f_create_zone(bool isDemand, int baseCount, float bodyHigh, float bodyLow, float
 
     if isDemand
         isAccuracy := enable_accuracy_zones and high[1] > high
-        top := isAccuracy ? math.max(open[1], close[1]) : wickHigh
+        top := isAccuracy ? bodyHigh : wickHigh
         bottom := wickLow
     else
         isAccuracy := enable_accuracy_zones and low[1] < low
         top := wickHigh
-        bottom := isAccuracy ? math.min(open[1], close[1]) : wickLow
+        bottom := isAccuracy ? bodyLow : wickLow
 
     [bosLevel, bosBar] = f_bos_level(isDemand, baseCount)
     bool bosNow = f_breaks_bos(isDemand, bosLevel)
@@ -228,7 +228,7 @@ f_create_zone(bool isDemand, int baseCount, float bodyHigh, float bodyLow, float
         z.top := top
         z.bottom := bottom
         z.bosLevel := bosLevel
-        z.bosBar := bosNow ? bar_index : bosBar
+        z.bosBar := bosNow ? bar_index : na
         z.isAccuracy := isAccuracy
         z.inducementPrice := na
         z.inducementBar := na
