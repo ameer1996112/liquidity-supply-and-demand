@@ -295,8 +295,8 @@ f_zone_source_bounds(bool isDemand, int baseCount, float bodyHigh, float bodyLow
         originOffset := f_origin_offset(isDemand, baseCount)
         zoneBodyHigh := math.max(open[originOffset], close[originOffset])
         zoneBodyLow := math.min(open[originOffset], close[originOffset])
-        zoneWickHigh := high[originOffset]
-        zoneWickLow := low[originOffset]
+        zoneWickHigh := isDemand ? high[originOffset] : wickHigh
+        zoneWickLow := isDemand ? wickLow : low[originOffset]
         zoneStartBar := bar_index - originOffset
 
     [zoneBodyHigh, zoneBodyLow, zoneWickHigh, zoneWickLow, zoneStartBar, originOffset]
@@ -323,10 +323,10 @@ f_create_zone(bool isDemand, int baseCount, float bodyHigh, float bodyLow, float
     if isDemand
         isAccuracy := enable_accuracy_zones and high[originOffset] > high
         top := isAccuracy ? zoneBodyHigh : zoneWickHigh
-        bottom := zoneWickLow
+        bottom := math.min(zoneWickLow, low)
     else
         isAccuracy := enable_accuracy_zones and low[originOffset] < low
-        top := zoneWickHigh
+        top := math.max(zoneWickHigh, high)
         bottom := isAccuracy ? zoneBodyLow : zoneWickLow
 
     [cappedTop, cappedBottom] = f_cap_zone_height(isDemand, top, bottom)
