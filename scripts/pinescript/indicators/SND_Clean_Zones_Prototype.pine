@@ -448,7 +448,7 @@ f_update_zone_lifecycle(int idx) =>
 
     if liveState
         bool invalidated = isDemand ? close < z.bottom : close > z.top
-        bool touched = isDemand ? low <= z.top and low >= z.bottom : high >= z.bottom and high <= z.top
+        bool touched = high >= z.bottom and low <= z.top
 
         if invalidated
             z.state := STATE_INVALID
@@ -486,6 +486,9 @@ f_render_zone(int idx) =>
                 line.set_y1(z.inducementLine, z.inducementPrice)
                 line.set_y2(z.inducementLine, z.inducementPrice)
                 line.set_color(z.inducementLine, liqColor)
+        else if not na(z.inducementLine)
+            line.delete(z.inducementLine)
+            z.inducementLine := na
 
         if show_target_liquidity and not na(z.targetPrice)
             color targetColor = z.targetSwept ? color.new(color.gray, 0) : color.new(color.gray, 45)
@@ -496,6 +499,9 @@ f_render_zone(int idx) =>
                 line.set_y1(z.targetLine, z.targetPrice)
                 line.set_y2(z.targetLine, z.targetPrice)
                 line.set_color(z.targetLine, targetColor)
+        else if not na(z.targetLine)
+            line.delete(z.targetLine)
+            z.targetLine := na
 
         if show_state_labels
             string txt = f_side_name(z.side) + " " + str.tostring(z.id) + " " + f_state_name(z.state)
