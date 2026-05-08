@@ -370,7 +370,7 @@ f_update_all_liquidity() =>
     if array.size(zones) > 0
         for i = 0 to array.size(zones) - 1
             CleanZone z = array.get(zones, i)
-            if (z.state == STATE_VALID or z.state == STATE_TESTED) and na(z.inducementPrice)
+            if z.state == STATE_VALID or z.state == STATE_TESTED
                 f_scan_liquidity_for_zone(i)
             f_update_liquidity_sweeps(i)
 
