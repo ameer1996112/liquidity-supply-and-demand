@@ -22,6 +22,9 @@ max_zones = input.int(8, "Max Zones", minval=1, maxval=30, group=grpDetection)
 base_max_candles = input.int(4, "Max Base Candles", minval=1, maxval=8, group=grpDetection)
 base_body_max_pct = input.float(50.0, "Max Base Body %", minval=5.0, maxval=90.0, step=1.0, group=grpDetection)
 base_range_atr_max = input.float(1.15, "Max Base Range ATR", minval=0.1, maxval=5.0, step=0.05, group=grpDetection)
+use_origin_candle_zones = input.bool(true, "Use Origin Candle Zones", group=grpDetection)
+max_zone_height_atr = input.float(0.75, "Max Zone Height ATR", minval=0.05, maxval=5.0, step=0.05, group=grpDetection)
+replace_broader_overlaps = input.bool(true, "Replace Broader Overlaps", group=grpDetection)
 displacement_atr_min = input.float(0.80, "Min Displacement ATR", minval=0.1, maxval=5.0, step=0.05, group=grpDetection)
 bos_lookback = input.int(20, "BOS Lookback", minval=5, maxval=100, group=grpDetection)
 strict_bos_close_beyond_level = input.bool(false, "Strict BOS Close Beyond Level", group=grpDetection)
@@ -172,6 +175,19 @@ f_side_name(int side) =>
     side == SIDE_DEMAND ? "DEMAND" :
       side == SIDE_SUPPLY ? "SUPPLY" : "UNKNOWN"
 
+f_zone_height(float top, float bottom) =>
+    top - bottom
+
+f_delete_zone_drawings(CleanZone z) =>
+    if not na(z.zoneBox)
+        box.delete(z.zoneBox)
+    if not na(z.inducementLine)
+        line.delete(z.inducementLine)
+    if not na(z.targetLine)
+        line.delete(z.targetLine)
+    if not na(z.stateLabel)
+        label.delete(z.stateLabel)
+
 f_overlaps_existing(float top, float bottom, int side) =>
     bool overlaps = false
     if array.size(zones) > 0
@@ -185,17 +201,23 @@ f_overlaps_existing(float top, float bottom, int side) =>
                 break
     overlaps
 
+f_remove_broader_overlaps(float top, float bottom, int side) =>
+    if replace_broader_overlaps and array.size(zones) > 0
+        float newHeight = f_zone_height(top, bottom)
+        for i = array.size(zones) - 1 to 0 by -1
+            CleanZone existing = array.get(zones, i)
+            bool sameSide = existing.side == side
+            bool liveState = existing.state == STATE_WAITING_BOS or existing.state == STATE_VALID or existing.state == STATE_TESTED
+            bool rangesOverlap = not (existing.top < bottom or existing.bottom > top)
+            float existingHeight = f_zone_height(existing.top, existing.bottom)
+            if sameSide and liveState and rangesOverlap and existingHeight > newHeight * 1.15
+                f_delete_zone_drawings(existing)
+                array.remove(zones, i)
+
 f_trim_zones() =>
     while array.size(zones) > max_zones
         CleanZone old = array.pop(zones)
-        if not na(old.zoneBox)
-            box.delete(old.zoneBox)
-        if not na(old.inducementLine)
-            line.delete(old.inducementLine)
-        if not na(old.targetLine)
-            line.delete(old.targetLine)
-        if not na(old.stateLabel)
-            label.delete(old.stateLabel)
+        f_delete_zone_drawings(old)
 
 f_track_debug_label(label debugLabel) =>
     array.unshift(debug_labels, debugLabel)
@@ -204,25 +226,70 @@ f_track_debug_label(label debugLabel) =>
         if not na(oldDebugLabel)
             label.delete(oldDebugLabel)
 
+f_origin_offset(bool isDemand, int baseCount) =>
+    int selectedOffset = 1
+    if use_origin_candle_zones and baseCount > 0
+        for off = 1 to baseCount
+            bool opposingCandle = isDemand ? close[off] < open[off] : close[off] > open[off]
+            if opposingCandle
+                selectedOffset := off
+                break
+    selectedOffset
+
+f_zone_source_bounds(bool isDemand, int baseCount, float bodyHigh, float bodyLow, float wickHigh, float wickLow) =>
+    float zoneBodyHigh = bodyHigh
+    float zoneBodyLow = bodyLow
+    float zoneWickHigh = wickHigh
+    float zoneWickLow = wickLow
+    int zoneStartBar = bar_index - baseCount
+    int originOffset = 1
+
+    if use_origin_candle_zones and baseCount > 0
+        originOffset := f_origin_offset(isDemand, baseCount)
+        zoneBodyHigh := math.max(open[originOffset], close[originOffset])
+        zoneBodyLow := math.min(open[originOffset], close[originOffset])
+        zoneWickHigh := high[originOffset]
+        zoneWickLow := low[originOffset]
+        zoneStartBar := bar_index - originOffset
+
+    [zoneBodyHigh, zoneBodyLow, zoneWickHigh, zoneWickLow, zoneStartBar, originOffset]
+
+f_cap_zone_height(bool isDemand, float top, float bottom) =>
+    if not na(atr14) and atr14 > 0.0 and max_zone_height_atr > 0.0
+        float maxHeight = atr14 * max_zone_height_atr
+        if f_zone_height(top, bottom) > maxHeight
+            if isDemand
+                top := bottom + maxHeight
+            else
+                bottom := top - maxHeight
+    [top, bottom]
+
 f_create_zone(bool isDemand, int baseCount, float bodyHigh, float bodyLow, float wickHigh, float wickLow) =>
     int side = isDemand ? SIDE_DEMAND : SIDE_SUPPLY
     float top = na
     float bottom = na
     bool isAccuracy = false
+    [zoneBodyHigh, zoneBodyLow, zoneWickHigh, zoneWickLow, zoneStartBar, originOffset] = f_zone_source_bounds(isDemand, baseCount, bodyHigh, bodyLow, wickHigh, wickLow)
 
     if isDemand
-        isAccuracy := enable_accuracy_zones and high[1] > high
-        top := isAccuracy ? bodyHigh : wickHigh
-        bottom := wickLow
+        isAccuracy := enable_accuracy_zones and high[originOffset] > high
+        top := isAccuracy ? zoneBodyHigh : zoneWickHigh
+        bottom := zoneWickLow
     else
-        isAccuracy := enable_accuracy_zones and low[1] < low
-        top := wickHigh
-        bottom := isAccuracy ? bodyLow : wickLow
+        isAccuracy := enable_accuracy_zones and low[originOffset] < low
+        top := zoneWickHigh
+        bottom := isAccuracy ? zoneBodyLow : zoneWickLow
+
+    [cappedTop, cappedBottom] = f_cap_zone_height(isDemand, top, bottom)
+    top := cappedTop
+    bottom := cappedBottom
 
     [bosLevel, bosBar] = f_bos_level(isDemand, baseCount)
     bool bosNow = f_breaks_bos(isDemand, bosLevel)
     int state = bosNow ? STATE_VALID : STATE_WAITING_BOS
     bool validBounds = not na(top) and not na(bottom) and top > bottom
+    if validBounds
+        f_remove_broader_overlaps(top, bottom, side)
     bool duplicate = validBounds ? f_overlaps_existing(top, bottom, side) : true
 
     if validBounds and not duplicate
@@ -232,7 +299,7 @@ f_create_zone(bool isDemand, int baseCount, float bodyHigh, float bodyLow, float
         z.side := side
         z.state := state
         z.createdBar := bar_index
-        z.baseStartBar := bar_index - baseCount
+        z.baseStartBar := zoneStartBar
         z.baseEndBar := bar_index - 1
         z.top := top
         z.bottom := bottom
