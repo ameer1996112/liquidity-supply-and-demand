@@ -75,3 +75,38 @@ def test_get_settings_loads_package_env_and_parses_values(
     assert settings.request_timeout_seconds == 45
     assert settings.max_retries == 5
     assert settings.page_limit == 50
+
+
+def test_get_settings_preserves_explicit_env_over_package_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "\n".join(
+            [
+                "RD_DISCORD_AUTHORIZATION=from-local-env",
+                "RD_DISCORD_SERVER_ID=987654321",
+                "RD_DATA_DIR=tmp/rd_data",
+                "RD_REQUEST_TIMEOUT_SECONDS=45",
+                "RD_MAX_RETRIES=5",
+                "RD_PAGE_LIMIT=50",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config, "PACKAGE_ENV_PATH", env_path)
+    monkeypatch.setenv("RD_DISCORD_AUTHORIZATION", "from-process-env")
+    monkeypatch.setenv("RD_DISCORD_SERVER_ID", "123456789")
+    monkeypatch.setenv("RD_DATA_DIR", "tmp/process_rd_data")
+    monkeypatch.setenv("RD_REQUEST_TIMEOUT_SECONDS", "60")
+    monkeypatch.setenv("RD_MAX_RETRIES", "7")
+    monkeypatch.setenv("RD_PAGE_LIMIT", "25")
+
+    settings = get_settings()
+
+    assert settings.discord_authorization == "from-process-env"
+    assert settings.discord_server_id == "123456789"
+    assert settings.data_dir == Path("tmp/process_rd_data")
+    assert settings.request_timeout_seconds == 60
+    assert settings.max_retries == 7
+    assert settings.page_limit == 25
