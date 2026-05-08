@@ -14,14 +14,14 @@ TOKEN_RE = re.compile(
 FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 TAG_PATTERNS: dict[str, tuple[str, ...]] = {
-    "liquidity": ("liquidity", "liq", "sweep", "swept"),
-    "sweep": ("sweep", "swept"),
+    "liquidity": ("liquidity", "liq", "sweep", "sweeps", "swept"),
+    "sweep": ("sweep", "sweeps", "swept"),
     "bos": ("bos", "break of structure"),
     "choch": ("choch", "change of character"),
     "displacement": ("displacement", "impulse"),
     "imbalance": ("imbalance",),
     "fvg": ("fvg", "fair value gap"),
-    "order_block": ("order block", "ob "),
+    "order_block": ("order block", "ob"),
     "ema": ("ema",),
     "fib": ("fib", "fibonacci"),
     "mechanical": ("mechanical",),
@@ -29,6 +29,10 @@ TAG_PATTERNS: dict[str, tuple[str, ...]] = {
     "inducement": ("inducement",),
     "compression": ("compression",),
 }
+
+
+def _contains_phrase(text: str, phrase: str) -> bool:
+    return bool(re.search(rf"(?<![A-Za-z0-9]){re.escape(phrase)}(?![A-Za-z0-9])", text))
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -89,10 +93,10 @@ def detect_session(timestamp: str) -> str:
 
 
 def extract_setup_tags(text: str) -> list[str]:
-    lower = f" {text.lower()} "
+    lower = text.lower()
     tags = [
         tag
         for tag, patterns in TAG_PATTERNS.items()
-        if any(pattern in lower for pattern in patterns)
+        if any(_contains_phrase(lower, pattern) for pattern in patterns)
     ]
     return sorted(tags)

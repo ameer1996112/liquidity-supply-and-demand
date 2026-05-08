@@ -35,3 +35,9 @@ def test_detect_session_london_from_utc_timestamp() -> None:
 def test_extract_setup_tags_finds_core_rd_concepts() -> None:
     tags = extract_setup_tags("EURUSD sweep into OB with displacement and FVG")
     assert {"liquidity", "sweep", "order_block", "displacement", "fvg"} <= set(tags)
+
+
+def test_extract_setup_tags_does_not_match_inside_words() -> None:
+    tags = extract_setup_tags("Watching demand, obvious chart, and cinematic move")
+    assert "ema" not in tags
+    assert "order_block" not in tags
