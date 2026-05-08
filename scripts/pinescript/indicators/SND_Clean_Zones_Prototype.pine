@@ -204,7 +204,8 @@ f_overlaps_existing(float top, float bottom, int side) =>
 f_remove_broader_overlaps(float top, float bottom, int side) =>
     if replace_broader_overlaps and array.size(zones) > 0
         float newHeight = f_zone_height(top, bottom)
-        for i = array.size(zones) - 1 to 0 by -1
+        int i = array.size(zones) - 1
+        while i >= 0
             CleanZone existing = array.get(zones, i)
             bool sameSide = existing.side == side
             bool liveState = existing.state == STATE_WAITING_BOS or existing.state == STATE_VALID or existing.state == STATE_TESTED
@@ -213,6 +214,7 @@ f_remove_broader_overlaps(float top, float bottom, int side) =>
             if sameSide and liveState and rangesOverlap and existingHeight > newHeight * 1.15
                 f_delete_zone_drawings(existing)
                 array.remove(zones, i)
+            i -= 1
 
 f_trim_zones() =>
     while array.size(zones) > max_zones
