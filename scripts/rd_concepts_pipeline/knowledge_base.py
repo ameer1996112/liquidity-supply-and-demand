@@ -55,6 +55,8 @@ def _as_list(value: Any) -> list[Any]:
         try:
             parsed = ast.literal_eval(stripped)
         except (SyntaxError, ValueError):
+            if "," in stripped:
+                return [part.strip() for part in stripped.split(",") if part.strip()]
             return [stripped]
         if isinstance(parsed, (list, tuple, set)):
             return [_json_value(item) for item in parsed if not _is_blank(item)]
