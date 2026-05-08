@@ -473,7 +473,7 @@ function JsonViewer({ data, title }: { data: unknown; title: string }) {
   };
 
   return (
-    <div className='rounded-lg border border-border bg-card overflow-hidden'>
+    <div className='rounded-md border border-border bg-card overflow-hidden'>
       <div className='flex items-center justify-between px-3 py-2 border-b border-border bg-muted/40'>
         <span className='text-[11px] text-muted-foreground font-mono uppercase tracking-wider'>
           {title}
@@ -1069,7 +1069,7 @@ export function SignalInspector({
           Trade details and AI reasoning
         </SheetDescription>
         <ScrollArea className='h-full'>
-          <div className='min-w-0 p-6'>
+          <div className='min-w-0 space-y-4 p-5'>
             <SheetHeader className='sr-only'>
               <SheetTitle>{symbol} Signal Inspector</SheetTitle>
             </SheetHeader>
@@ -1086,7 +1086,7 @@ export function SignalInspector({
             </div>
 
             {/* Execution plan summary */}
-            <div className='mb-4 rounded-lg bg-card border border-border px-4 py-3 space-y-1.5'>
+            <div className='rounded-md bg-card border border-border px-4 py-3 space-y-1.5'>
               <div className='flex min-w-0 items-center justify-between gap-2'>
                 <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
                   Execution Plan
@@ -1107,7 +1107,7 @@ export function SignalInspector({
 
             {/* Tabs */}
             <Tabs defaultValue='overview' className='w-full'>
-              <TabsList className='w-full bg-card border border-border p-1 mb-4'>
+              <TabsList className='w-full rounded-md border border-border bg-card/80 p-1 mb-4'>
                 <TabsTrigger
                   value='overview'
                   className='flex-1 data-[state=active]:bg-muted text-xs font-mono uppercase'
@@ -1144,7 +1144,7 @@ export function SignalInspector({
 
                 {/* AI Reasoning / Notes */}
                 {notes && (
-                  <div className='p-3 rounded-lg bg-card border border-border'>
+                  <div className='p-3 rounded-md bg-card border border-border'>
                     <div className='flex items-center gap-2 mb-2'>
                       <FileText className='w-4 h-4 text-muted-foreground' />
                       <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
@@ -1160,7 +1160,7 @@ export function SignalInspector({
                 {/* Filter/Rejection Reason */}
                 {signal.filter_reason &&
                   signal.status?.toLowerCase() !== 'active' && (
-                    <div className='p-3 rounded-lg bg-amber-500/10 border border-amber-500/20'>
+                    <div className='p-3 rounded-md bg-amber-500/10 border border-amber-500/20'>
                       <div className='flex items-center gap-2 mb-1'>
                         <Shield className='w-4 h-4 text-amber-400' />
                         <span className='text-[11px] font-semibold text-amber-400 uppercase'>
@@ -1174,7 +1174,7 @@ export function SignalInspector({
                   )}
 
                 {setupImageUrl && (
-                  <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                  <div className='rounded-md bg-card border border-border overflow-hidden'>
                     <div className='px-4 py-2.5 border-b border-border flex items-center justify-between gap-2'>
                       <div className='flex items-center gap-2'>
                         <Target className='w-4 h-4 text-muted-foreground' />
@@ -1200,7 +1200,7 @@ export function SignalInspector({
 
                 {/* AI Confidence */}
                 {score !== null && (
-                  <div className='rounded-lg bg-card border border-border p-4'>
+                  <div className='rounded-md bg-card border border-border p-4'>
                     <div className='flex items-center justify-between mb-2'>
                       <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
                         AI Confidence
@@ -1313,7 +1313,7 @@ export function SignalInspector({
                     )}
 
                     {/* Zone Analysis */}
-                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                    <div className='rounded-md bg-card border border-border overflow-hidden'>
                       <div className='px-4 py-2.5 border-b border-border flex items-center gap-2'>
                         <BarChart3 className='w-4 h-4 text-muted-foreground' />
                         <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
@@ -1396,7 +1396,7 @@ export function SignalInspector({
                     </div>
 
                     {/* Liquidity Analysis */}
-                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                    <div className='rounded-md bg-card border border-border overflow-hidden'>
                       <div className='px-4 py-2.5 border-b border-border flex items-center gap-2'>
                         <Droplets className='w-4 h-4 text-muted-foreground' />
                         <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
@@ -1465,7 +1465,7 @@ export function SignalInspector({
                     </div>
 
                     {/* AI Metrics */}
-                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                    <div className='rounded-md bg-card border border-border overflow-hidden'>
                       <div className='px-4 py-2.5 border-b border-border flex items-center gap-2'>
                         <Brain className='w-4 h-4 text-muted-foreground' />
                         <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
@@ -1559,7 +1559,7 @@ export function SignalInspector({
                   </div>
                 ) : aiRun ? (
                   isPendingAiRun(aiRun) ? (
-                    <div className='flex flex-col items-center justify-center py-12 text-center gap-3 rounded-lg bg-card border border-border'>
+                    <div className='flex flex-col items-center justify-center py-12 text-center gap-3 rounded-md bg-card border border-border'>
                       <Brain className='w-10 h-10 text-muted-foreground/50' />
                       <p className='text-sm text-muted-foreground'>
                         Council is processing this signal.
@@ -1573,7 +1573,7 @@ export function SignalInspector({
                     {hasAiOperatingLayerData(aiRun) && (
                       <AiOperatingLayerPanel run={mapAiRun(aiRun)} />
                     )}
-                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                    <div className='rounded-md bg-card border border-border overflow-hidden'>
                       <div className='px-4 py-2.5 border-b border-border flex items-center justify-between'>
                         <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
                           Final Vote
@@ -1637,7 +1637,7 @@ export function SignalInspector({
                         )}
                       </div>
                     </div>
-                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                    <div className='rounded-md bg-card border border-border overflow-hidden'>
                       <div className='px-4 py-2.5 border-b border-border'>
                         <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
                           Debate Transcript
