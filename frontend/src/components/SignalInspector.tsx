@@ -55,9 +55,324 @@ interface SignalInspectorProps {
   onOpenChange: (open: boolean) => void;
 }
 
+type InspectorTone = 'success' | 'danger' | 'warning' | 'muted';
+type PipelineStageState = 'pass' | 'fail' | 'skipped' | 'pending' | 'unknown';
+
+interface OutcomeViewModel {
+  label: string;
+  eyebrow: string;
+  tone: InspectorTone;
+  reason: string;
+}
+
+interface PipelineStageViewModel {
+  id: string;
+  label: string;
+  state: PipelineStageState;
+  detail: string;
+}
+
+interface TradePlanItem {
+  label: string;
+  value: React.ReactNode;
+  tone?: InspectorTone;
+}
+
 // Safe number formatter
 const formatNum = (num: number | null | undefined, decimals = 2): string =>
   num != null ? num.toFixed(decimals) : '--';
+
+function formatStatusLabel(status: string | undefined): string {
+  const raw = String(status || 'unknown').trim();
+  if (!raw) return 'Unknown';
+  return raw
+    .replace(/^trading[_\s-]*/i, '')
+    .replaceAll('_', ' ')
+    .replaceAll('-', ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function isPermissionStatus(status: string | undefined): boolean {
+  const normalized = String(status || '').toLowerCase();
+  return normalized.includes('trading_permission') || normalized.includes('trade_permission');
+}
+
+function isPermissionBlocked(status: string | undefined): boolean {
+  const normalized = String(status || '').toLowerCase();
+  return (
+    isPermissionStatus(status) &&
+    (normalized.includes('rejected') ||
+      normalized.includes('denied') ||
+      normalized.includes('blocked'))
+  );
+}
+
+function isBrokerExecuted(signal: TradingSignal): boolean {
+  const status = String(signal.status || '').toLowerCase();
+  const executionSource = String(signal.execution_source || '').toLowerCase();
+  if (status === 'failed' || status === 'execution_failed') return false;
+
+  return (
+    status === 'active' ||
+    status === 'open' ||
+    status === 'executed' ||
+    executionSource === 'metaapi' ||
+    executionSource === 'paper'
+  );
+}
+
+function deriveOutcome(signal: TradingSignal, ai: AIReasoning | null): OutcomeViewModel {
+  const status = String(signal.status || '').toLowerCase();
+  const reason =
+    signal.filter_reason ||
+    ai?.reason ||
+    getNotes(signal) ||
+    'No explicit stop reason was recorded.';
+
+  if (isPermissionBlocked(status)) {
+    return {
+      label: 'No Trade',
+      eyebrow: 'Permission Gate Stopped',
+      tone: 'danger',
+      reason: `Rejected: ${reason}`,
+    };
+  }
+
+  if (isPermissionStatus(status) && !isBrokerExecuted(signal)) {
+    return {
+      label: 'No Entry',
+      eyebrow: 'Execution Not Recorded',
+      tone: 'warning',
+      reason: 'No entry: signal passed permission, broker execution not recorded.',
+    };
+  }
+
+  if (status === 'failed' || status === 'execution_failed') {
+    return {
+      label: 'Exec Fail',
+      eyebrow: 'Broker Execution Failed',
+      tone: 'danger',
+      reason: `Execution failed: ${reason}`,
+    };
+  }
+
+  if (status === 'ai_rejected' || ai?.decision === 'NO_GO') {
+    return {
+      label: 'No Trade',
+      eyebrow: 'AI Brain Rejected',
+      tone: 'danger',
+      reason: `Rejected: ${reason}`,
+    };
+  }
+
+  if (
+    status === 'active' ||
+    status === 'open' ||
+    status === 'executed' ||
+    (isPermissionStatus(status) && isBrokerExecuted(signal))
+  ) {
+    return {
+      label: 'Open',
+      eyebrow: 'Broker Position Active',
+      tone: 'success',
+      reason: 'Opened trade: broker execution is recorded for this signal.',
+    };
+  }
+
+  if (status === 'closed') {
+    return {
+      label: 'Closed',
+      eyebrow: 'Trade Completed',
+      tone: 'muted',
+      reason: reason === 'No explicit stop reason was recorded.' ? 'Closed trade.' : reason,
+    };
+  }
+
+  return {
+    label: formatStatusLabel(signal.status),
+    eyebrow: 'Signal State',
+    tone: 'muted',
+    reason,
+  };
+}
+
+function deriveExecutionStages(
+  signal: TradingSignal,
+  ai: AIReasoning | null
+): PipelineStageViewModel[] {
+  const status = String(signal.status || '').toLowerCase();
+  const permissionBlocked = isPermissionBlocked(status);
+  const aiRejected = status === 'ai_rejected' || ai?.decision === 'NO_GO';
+  const executionFailed = status === 'failed' || status === 'execution_failed';
+  const brokerExecuted = isBrokerExecuted(signal);
+  const permissionAllowed = isPermissionStatus(status) && !permissionBlocked;
+
+  return [
+    {
+      id: 'received',
+      label: 'Signal Received',
+      state: 'pass',
+      detail: 'Webhook signal stored in Latest Signals.',
+    },
+    {
+      id: 'permission',
+      label: 'Permission Gate',
+      state: permissionBlocked ? 'fail' : permissionAllowed || brokerExecuted || aiRejected ? 'pass' : 'unknown',
+      detail: permissionBlocked
+        ? signal.filter_reason || 'Trading permission rejected this signal.'
+        : permissionAllowed
+          ? 'Permission allowed the signal to continue.'
+          : 'No permission verdict recorded.',
+    },
+    {
+      id: 'ai',
+      label: 'AI Brain',
+      state: permissionBlocked ? 'skipped' : aiRejected ? 'fail' : ai?.decision === 'GO' ? 'pass' : 'unknown',
+      detail: permissionBlocked
+        ? 'Skipped after permission gate stopped the signal.'
+        : aiRejected
+          ? ai?.reason || 'AI rejected this signal.'
+          : ai?.decision === 'GO'
+          ? 'AI decision approved the setup.'
+          : 'No AI decision recorded.',
+    },
+    {
+      id: 'risk',
+      label: 'Risk Guard',
+      state: brokerExecuted ? 'pass' : permissionBlocked || aiRejected ? 'skipped' : 'unknown',
+      detail: brokerExecuted
+        ? 'Risk checks did not prevent broker execution.'
+        : permissionBlocked || aiRejected
+          ? 'Skipped because an earlier gate stopped the signal.'
+          : 'No risk result recorded.',
+    },
+    {
+      id: 'broker',
+      label: 'Broker Execution',
+      state: executionFailed ? 'fail' : brokerExecuted ? 'pass' : permissionBlocked || aiRejected ? 'skipped' : 'unknown',
+      detail: executionFailed
+        ? signal.filter_reason || 'Broker execution failed.'
+        : brokerExecuted
+          ? 'Broker execution is recorded.'
+          : permissionBlocked || aiRejected
+            ? 'Skipped because an earlier gate stopped the signal.'
+            : 'No broker execution recorded.',
+    },
+  ];
+}
+
+function formatSignalPrice(symbol: string, value?: number | null): string {
+  if (value == null) return '--';
+  const normalized = symbol.toUpperCase();
+  const isIndexOrCfd =
+    /NAS|US30|SPX|UK100|GER|FRA|JPN225|AUS200|NDX|USTEC/.test(normalized);
+  const decimals = isIndexOrCfd
+    ? 2
+    : normalized.includes('JPY')
+    ? 3
+    : normalized.includes('XAU') || normalized.includes('GOLD') || normalized.includes('BTC')
+      ? 2
+      : 5;
+  return Number(value).toFixed(decimals);
+}
+
+function getStopDistanceUnit(symbol: string): 'pts' | 'pips' {
+  return /NAS|US30|SPX|UK100|GER|FRA|JPN225|AUS200|NDX|USTEC/.test(symbol.toUpperCase())
+    ? 'pts'
+    : 'pips';
+}
+
+function deriveTradePlanItems(
+  signal: TradingSignal,
+  symbol: string,
+  executionPlan: ReturnType<typeof deriveExecutionPlan>,
+  pnl: number | null
+): TradePlanItem[] {
+  const entry = signal.price ?? signal.entry;
+  const stopLoss = signal.stop_loss ?? signal.sl;
+  const takeProfit = signal.take_profit ?? signal.tp;
+  const risk = signal.risk_usd ?? signal.target_risk_usd;
+
+  const items: TradePlanItem[] = [
+    { label: 'Action', value: executionPlan.actionLabel },
+    { label: 'Mode / Broker', value: executionPlan.brokerLabel },
+    { label: 'Entry', value: formatSignalPrice(symbol, entry) },
+    { label: 'Stop Loss', value: formatSignalPrice(symbol, stopLoss), tone: 'danger' },
+    { label: 'Take Profit', value: formatSignalPrice(symbol, takeProfit), tone: 'success' },
+    { label: 'Risk', value: risk != null ? `$${formatNum(risk, 2)}` : '--', tone: risk != null ? 'danger' : 'muted' },
+    { label: 'Size', value: signal.position_size != null ? `${signal.position_size} lots` : '--' },
+    { label: 'PnL', value: pnl != null ? `${pnl >= 0 ? '+' : ''}$${formatNum(pnl, 2)}` : '--', tone: pnl == null ? 'muted' : pnl >= 0 ? 'success' : 'danger' },
+  ];
+
+  if (signal.rr_ratio != null) {
+    items.push({ label: 'Risk:Reward', value: `1:${formatNum(signal.rr_ratio, 2)}` });
+  }
+
+  if (signal.sl_pips != null) {
+    items.push({
+      label: 'SL Distance',
+      value: `${formatNum(signal.sl_pips, 1)} ${getStopDistanceUnit(symbol)}`,
+    });
+  }
+
+  if (signal.pnl_percentage != null) {
+    items.push({
+      label: 'PnL %',
+      value: `${signal.pnl_percentage >= 0 ? '+' : ''}${formatNum(signal.pnl_percentage, 2)}%`,
+      tone: signal.pnl_percentage >= 0 ? 'success' : 'danger',
+    });
+  }
+
+  if (signal.exit_type) {
+    items.push({ label: 'Exit Type', value: signal.exit_type.replaceAll('_', ' ') });
+  }
+
+  return items;
+}
+
+const toneClasses: Record<InspectorTone, { rail: string; text: string; bg: string; border: string }> = {
+  success: {
+    rail: 'bg-[var(--to-long)]',
+    text: 'text-[var(--to-long)]',
+    bg: 'bg-[var(--to-long)]/8',
+    border: 'border-[var(--to-long)]/25',
+  },
+  danger: {
+    rail: 'bg-[var(--to-short)]',
+    text: 'text-[var(--to-short)]',
+    bg: 'bg-[var(--to-short)]/8',
+    border: 'border-[var(--to-short)]/25',
+  },
+  warning: {
+    rail: 'bg-[var(--to-warning)]',
+    text: 'text-[var(--to-warning)]',
+    bg: 'bg-[var(--to-warning)]/8',
+    border: 'border-[var(--to-warning)]/25',
+  },
+  muted: {
+    rail: 'bg-[var(--to-text-dim)]',
+    text: 'text-[var(--to-text-secondary)]',
+    bg: 'bg-muted/35',
+    border: 'border-border',
+  },
+};
+
+const stageClasses: Record<PipelineStageState, string> = {
+  pass: 'border-[var(--to-long)]/25 bg-[var(--to-long)]/7 text-[var(--to-long)]',
+  fail: 'border-[var(--to-short)]/25 bg-[var(--to-short)]/7 text-[var(--to-short)]',
+  skipped: 'border-[var(--to-warning)]/25 bg-[var(--to-warning)]/7 text-[var(--to-warning)]',
+  pending: 'border-[var(--to-warning)]/25 bg-[var(--to-warning)]/7 text-[var(--to-warning)]',
+  unknown: 'border-border bg-muted/20 text-muted-foreground',
+};
+
+function StageGlyph({ state }: { state: PipelineStageState }) {
+  if (state === 'pass') return <Check className='h-3 w-3' />;
+  if (state === 'fail') return <X className='h-3 w-3' />;
+  if (state === 'skipped') return <AlertTriangle className='h-3 w-3' />;
+  if (state === 'pending') return <Activity className='h-3 w-3' />;
+  return <Shield className='h-3 w-3' />;
+}
 
 // Info row component
 function InfoRow({
@@ -167,7 +482,7 @@ function JsonViewer({ data, title }: { data: unknown; title: string }) {
   };
 
   return (
-    <div className='rounded-lg border border-border bg-card overflow-hidden'>
+    <div className='rounded-md border border-border bg-card overflow-hidden'>
       <div className='flex items-center justify-between px-3 py-2 border-b border-border bg-muted/40'>
         <span className='text-[11px] text-muted-foreground font-mono uppercase tracking-wider'>
           {title}
@@ -399,6 +714,285 @@ function hasAiOperatingLayerData(aiRun: {
   );
 }
 
+function OutcomeHeader({
+  signal,
+  symbol,
+  side,
+  entryPrice,
+  outcome,
+}: {
+  signal: TradingSignal;
+  symbol: string;
+  side: string;
+  entryPrice: number | undefined;
+  outcome: OutcomeViewModel;
+}) {
+  const tone = toneClasses[outcome.tone];
+  const isBuy = side === 'buy';
+
+  return (
+    <section
+      data-testid='execution-desk-header'
+      className={cn(
+        'relative overflow-hidden rounded-md border bg-[#0b1017] p-4',
+        tone.border
+      )}
+    >
+      <div className={cn('absolute inset-y-0 left-0 w-1', tone.rail)} />
+      <div className='flex min-w-0 flex-col gap-4 pl-2'>
+        <div className='flex min-w-0 flex-wrap items-center gap-2'>
+          <Badge
+            className={cn(
+              'border-0 px-2.5 py-1 text-[10px] font-bold uppercase',
+              isBuy
+                ? 'bg-[var(--to-long)]/14 text-[var(--to-long)]'
+                : 'bg-[var(--to-short)]/14 text-[var(--to-short)]'
+            )}
+          >
+            {side.toUpperCase()}
+          </Badge>
+          <Badge className={cn('border px-2 py-0.5 text-[10px]', tone.bg, tone.text, tone.border)}>
+            {outcome.eyebrow}
+          </Badge>
+          <span className='ml-auto font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground'>
+            {format(new Date(signal.created_at), 'MMM d, HH:mm')}
+          </span>
+        </div>
+
+        <div className='grid gap-3'>
+          <div className='flex min-w-0 items-end justify-between gap-3'>
+            <div className='min-w-0'>
+              <div className='font-mono text-2xl font-bold text-foreground'>
+                {symbol}
+                {entryPrice != null && (
+                  <span className='ml-2 text-base font-medium text-muted-foreground'>
+                    @{formatSignalPrice(symbol, entryPrice)}
+                  </span>
+                )}
+              </div>
+              <p className='mt-1 text-xs leading-relaxed text-muted-foreground break-words [overflow-wrap:anywhere]'>
+                {outcome.reason}
+              </p>
+            </div>
+            <div className={cn('shrink-0 rounded px-3 py-2 text-right', tone.bg)}>
+              <div className={cn('font-mono text-xl font-bold', tone.text)}>
+                {outcome.label}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ExecutionPath({ stages }: { stages: PipelineStageViewModel[] }) {
+  return (
+    <section data-testid='execution-path' className='rounded-md border border-border bg-card/80'>
+      <div className='border-b border-border px-3 py-2'>
+        <span className='text-[11px] uppercase tracking-[0.16em] text-muted-foreground'>
+          Execution Path
+        </span>
+      </div>
+      <div className='divide-y divide-border/70'>
+        {stages.map((stage, index) => (
+          <div key={stage.id} className='grid grid-cols-[24px_1fr] gap-3 px-3 py-2.5'>
+            <div className='relative flex justify-center'>
+              {index < stages.length - 1 && (
+                <span className='absolute top-6 h-[calc(100%+10px)] w-px bg-border' />
+              )}
+              <span
+                className={cn(
+                  'relative z-10 flex h-5 w-5 items-center justify-center rounded border',
+                  stageClasses[stage.state]
+                )}
+              >
+                <StageGlyph state={stage.state} />
+              </span>
+            </div>
+            <div className='min-w-0'>
+              <div className='flex min-w-0 items-center justify-between gap-2'>
+                <span className='text-xs font-semibold text-foreground'>
+                  {stage.label}
+                </span>
+                <span className='font-mono text-[10px] uppercase text-muted-foreground'>
+                  {' '}[{stage.state}]
+                </span>
+              </div>
+              <p className='mt-0.5 text-[11px] leading-relaxed text-muted-foreground break-words [overflow-wrap:anywhere]'>
+                {stage.detail}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TradePlanPanel({ items }: { items: TradePlanItem[] }) {
+  return (
+    <section data-testid='trade-plan-panel' className='rounded-md border border-border bg-card/80'>
+      <div className='border-b border-border px-3 py-2'>
+        <span className='text-[11px] uppercase tracking-[0.16em] text-muted-foreground'>
+          Trade Plan
+        </span>
+      </div>
+      <div className='grid grid-cols-2 gap-px bg-border/60'>
+        {items.map((item) => {
+          const tone = item.tone ? toneClasses[item.tone] : null;
+          return (
+            <div key={item.label} className='min-w-0 bg-card px-3 py-2'>
+              <div className='text-[10px] uppercase tracking-[0.14em] text-muted-foreground'>
+                {item.label}
+              </div>
+              <div className={cn('mt-1 min-w-0 font-mono text-xs text-foreground break-words [overflow-wrap:anywhere]', tone?.text)}>
+                {item.value}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function SectionShell({
+  title,
+  icon,
+  children,
+  testId,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  testId?: string;
+}) {
+  return (
+    <section data-testid={testId} className='rounded-md border border-border bg-card/80'>
+      <div className='flex items-center gap-2 border-b border-border px-3 py-2'>
+        <span className='text-muted-foreground'>{icon}</span>
+        <span className='text-[11px] uppercase tracking-[0.16em] text-muted-foreground'>
+          {title}
+        </span>
+      </div>
+      <div className='p-3'>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function AiDecisionPanel({
+  ai,
+  decisionValue,
+  rejectedRuleMessage,
+  llmStatus,
+  llmContextMessage,
+  traceRules,
+  failingRules,
+}: {
+  ai: AIReasoning;
+  decisionValue: string;
+  rejectedRuleMessage: string;
+  llmStatus: string;
+  llmContextMessage: string | null;
+  traceRules: Array<Record<string, unknown>>;
+  failingRules: Array<Record<string, unknown>>;
+}) {
+  const visibleRules = decisionValue === 'NO_GO' && failingRules.length > 0 ? failingRules : traceRules;
+  const rfProbabilityPct = ai.decision_trace?.rf_probability_pct;
+  const thresholdPct = ai.decision_trace?.threshold_pct;
+  const hasRfGate = rfProbabilityPct != null && thresholdPct != null;
+  const hasLlmContext =
+    llmStatus || traceRules.some((rule) => rule?.rule_id === 'llm_context');
+  const hasRecordedDecision = Boolean(ai.decision);
+  const displayedDecisionValue = hasRecordedDecision ? decisionValue : 'NOT RECORDED';
+  const decisionBadgeClass =
+    decisionValue === 'GO'
+      ? 'border-[var(--to-long)]/30 bg-[var(--to-long)]/15 text-[var(--to-long)]'
+      : decisionValue === 'NO_GO'
+        ? 'border-rose-500/30 bg-rose-500/15 text-rose-400'
+        : decisionValue === 'MODEL_ERROR'
+          ? 'border-amber-500/30 bg-amber-500/15 text-amber-400'
+          : 'border-border bg-muted text-muted-foreground';
+
+  return (
+    <SectionShell
+      title='AI Decision'
+      icon={<Brain className='h-4 w-4' />}
+      testId='ai-decision-panel'
+    >
+      <div className='space-y-3'>
+        <div className='flex min-w-0 flex-col gap-2'>
+          <Badge className={cn('w-fit border px-2 py-0.5 font-mono text-xs', decisionBadgeClass)}>
+            {displayedDecisionValue}
+          </Badge>
+          <p className='text-sm leading-relaxed text-foreground/90 break-words [overflow-wrap:anywhere]'>
+            {!hasRecordedDecision
+              ? 'No AI decision was recorded for this signal.'
+              : decisionValue === 'GO'
+              ? 'Approved: all active gates passed.'
+              : decisionValue === 'MODEL_ERROR'
+                ? `Model error: ${rejectedRuleMessage}`
+                : `Rejected: ${rejectedRuleMessage}`}
+          </p>
+        </div>
+
+        {hasRfGate && (
+          <div className='rounded border border-border bg-background/40 px-2.5 py-2 text-xs text-muted-foreground'>
+            <span className='font-semibold text-foreground'>RF Gate: </span>
+            <span>
+              {formatNum(rfProbabilityPct, 1)}% vs {formatNum(thresholdPct, 1)}% threshold
+            </span>
+          </div>
+        )}
+
+        {hasLlmContext && (
+          <div className='rounded border border-border bg-background/40 px-2.5 py-2 text-xs text-muted-foreground'>
+            <span className='font-semibold text-foreground'>LLM Context: </span>
+            <span className={cn('font-semibold', llmStatus === 'ok' ? 'text-[var(--to-long)]' : 'text-[var(--to-warning)]')}>
+              {llmStatus === 'ok' ? 'OK' : llmStatus === 'error' ? 'ERROR (NON-BLOCKING)' : 'SKIPPED'}
+            </span>
+            {llmContextMessage && <span className='ml-2'>{llmContextMessage}</span>}
+          </div>
+        )}
+
+        {visibleRules.length > 0 && (
+          <div className='space-y-2'>
+            {visibleRules.map((rule, idx) => {
+              const badge = getRuleBadge(rule, ai);
+              const ruleMessage = rule?.message != null ? String(rule.message) : '';
+              return (
+                <div
+                  key={`${getRuleDisplayId(rule)}-${idx}`}
+                  className={cn('rounded border px-2.5 py-2 text-xs', badge.rowClass)}
+                >
+                  <div className='flex min-w-0 items-start justify-between gap-3'>
+                    <div className='min-w-0'>
+                      <div className='font-mono text-foreground/90 break-words [overflow-wrap:anywhere]'>
+                        {getRuleDisplayId(rule)}
+                      </div>
+                      {ruleMessage && (
+                        <div className='mt-0.5 text-muted-foreground break-words [overflow-wrap:anywhere]'>
+                          {ruleMessage}
+                        </div>
+                      )}
+                    </div>
+                    <span className={cn('shrink-0 text-[10px] font-semibold uppercase', badge.textClass)}>
+                      {badge.label}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </SectionShell>
+  );
+}
+
 export function SignalInspector({
   signal,
   open,
@@ -431,7 +1025,6 @@ export function SignalInspector({
     }
     return raw;
   })();
-  const isBuy = side === 'buy';
   const hasLegacyMetrics =
     !!ai &&
     (ai.zone_score != null ||
@@ -448,8 +1041,6 @@ export function SignalInspector({
       signal.adx != null ||
       signal.rvol != null);
   const entryPrice = signal.price ?? signal.entry;
-  const stopLoss = signal.stop_loss ?? signal.sl;
-  const takeProfit = signal.take_profit ?? signal.tp;
   const setupEvidence = signal.setup_evidence;
   const setupImageUrl = setupEvidence?.focus_image?.url;
   const setupZoneId =
@@ -476,6 +1067,9 @@ export function SignalInspector({
     llmStatus === 'ok' ? null : 'Context unavailable — treated as neutral.';
 
   const executionPlan = deriveExecutionPlan(signal);
+  const outcome = deriveOutcome(signal, ai);
+  const executionStages = deriveExecutionStages(signal, ai);
+  const tradePlanItems = deriveTradePlanItems(signal, symbol, executionPlan, pnl);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -488,63 +1082,24 @@ export function SignalInspector({
           Trade details and AI reasoning
         </SheetDescription>
         <ScrollArea className='h-full'>
-          <div className='min-w-0 p-6'>
-            {/* Header */}
-            <SheetHeader className='mb-6'>
-              <div className='flex min-w-0 flex-wrap items-center gap-2 mb-2'>
-                <Badge
-                  className={cn(
-                    'text-xs font-bold px-2.5 py-1 border-0',
-                    isBuy
-                      ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
-                      : 'bg-rose-500/20 text-rose-400'
-                  )}
-                >
-                  {side.toUpperCase()}
-                </Badge>
-                <Badge
-                  className={cn(
-                    'max-w-full truncate text-xs px-2 py-0.5 border border-border',
-                    signal.status?.toLowerCase() === 'active'
-                      ? 'text-blue-400 border-blue-500/30'
-                      : signal.status?.toLowerCase() === 'ai_rejected'
-                      ? 'text-rose-400 border-rose-500/30'
-                      : 'text-muted-foreground'
-                  )}
-                >
-                  {signal.status?.toUpperCase()}
-                </Badge>
-                {ai?.is_accuracy && (
-                  <Badge className='text-xs px-2 py-0.5 border-0 bg-purple-500/20 text-purple-400'>
-                    ACCURACY
-                  </Badge>
-                )}
-              </div>
-              <SheetTitle className='flex items-baseline gap-2 text-left'>
-                <span className='font-mono text-2xl font-bold text-foreground'>
-                  {symbol}
-                </span>
-                {entryPrice && (
-                  <span className='font-mono text-lg text-muted-foreground'>
-                    @
-                    {formatNum(
-                      entryPrice,
-                      symbol.includes('JPY')
-                        ? 3
-                        : symbol.includes('BTC')
-                        ? 2
-                        : 5
-                    )}
-                  </span>
-                )}
-              </SheetTitle>
-              <p className='text-xs text-muted-foreground font-mono'>
-                {format(new Date(signal.created_at), 'PPpp')}
-              </p>
+          <div className='min-w-0 space-y-4 p-5'>
+            <SheetHeader className='sr-only'>
+              <SheetTitle>{symbol} Signal Inspector</SheetTitle>
             </SheetHeader>
 
+            <div className='space-y-3'>
+              <OutcomeHeader
+                signal={signal}
+                symbol={symbol}
+                side={side}
+                entryPrice={entryPrice}
+                outcome={outcome}
+              />
+              <ExecutionPath stages={executionStages} />
+            </div>
+
             {/* Execution plan summary */}
-            <div className='mb-4 rounded-lg bg-card border border-border px-4 py-3 space-y-1.5'>
+            <div className='rounded-md bg-card border border-border px-4 py-3 space-y-1.5'>
               <div className='flex min-w-0 items-center justify-between gap-2'>
                 <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
                   Execution Plan
@@ -565,42 +1120,44 @@ export function SignalInspector({
 
             {/* Tabs */}
             <Tabs defaultValue='overview' className='w-full'>
-              <TabsList className='w-full bg-card border border-border p-1 mb-4'>
+              <TabsList className='grid h-auto w-full grid-cols-2 gap-1 rounded-md border border-border bg-card/80 p-1 mb-4 sm:grid-cols-4'>
                 <TabsTrigger
                   value='overview'
-                  className='flex-1 data-[state=active]:bg-muted text-xs font-mono uppercase'
+                  className='min-w-0 justify-center data-[state=active]:bg-muted text-[11px] font-mono uppercase sm:text-xs'
                 >
-                  <Activity className='w-3 h-3 mr-1.5' />
+                  <Activity className='w-3 h-3 mr-1.5 shrink-0' />
                   Overview
                 </TabsTrigger>
                 <TabsTrigger
                   value='ai'
-                  className='flex-1 data-[state=active]:bg-muted text-xs font-mono uppercase'
+                  className='min-w-0 justify-center data-[state=active]:bg-muted text-[11px] font-mono uppercase sm:text-xs'
                 >
-                  <Brain className='w-3 h-3 mr-1.5' />
+                  <Brain className='w-3 h-3 mr-1.5 shrink-0' />
                   AI Brain
                 </TabsTrigger>
                 <TabsTrigger
                   value='ai-memo'
-                  className='flex-1 data-[state=active]:bg-muted text-xs font-mono uppercase'
+                  className='min-w-0 justify-center data-[state=active]:bg-muted text-[11px] font-mono uppercase sm:text-xs'
                 >
-                  <MessageSquare className='w-3 h-3 mr-1.5' />
+                  <MessageSquare className='w-3 h-3 mr-1.5 shrink-0' />
                   AI Memo
                 </TabsTrigger>
                 <TabsTrigger
                   value='raw'
-                  className='flex-1 data-[state=active]:bg-muted text-xs font-mono uppercase'
+                  className='min-w-0 justify-center data-[state=active]:bg-muted text-[11px] font-mono uppercase sm:text-xs'
                 >
-                  <Code2 className='w-3 h-3 mr-1.5' />
+                  <Code2 className='w-3 h-3 mr-1.5 shrink-0' />
                   Raw Data
                 </TabsTrigger>
               </TabsList>
 
               {/* Overview Tab */}
               <TabsContent value='overview' className='space-y-4 mt-0'>
+                <TradePlanPanel items={tradePlanItems} />
+
                 {/* AI Reasoning / Notes */}
                 {notes && (
-                  <div className='p-3 rounded-lg bg-card border border-border'>
+                  <div className='p-3 rounded-md bg-card border border-border'>
                     <div className='flex items-center gap-2 mb-2'>
                       <FileText className='w-4 h-4 text-muted-foreground' />
                       <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
@@ -616,7 +1173,7 @@ export function SignalInspector({
                 {/* Filter/Rejection Reason */}
                 {signal.filter_reason &&
                   signal.status?.toLowerCase() !== 'active' && (
-                    <div className='p-3 rounded-lg bg-amber-500/10 border border-amber-500/20'>
+                    <div className='p-3 rounded-md bg-amber-500/10 border border-amber-500/20'>
                       <div className='flex items-center gap-2 mb-1'>
                         <Shield className='w-4 h-4 text-amber-400' />
                         <span className='text-[11px] font-semibold text-amber-400 uppercase'>
@@ -629,96 +1186,8 @@ export function SignalInspector({
                     </div>
                   )}
 
-                {/* Technical Setup */}
-                <div className='rounded-lg bg-card border border-border overflow-hidden'>
-                  <div className='px-4 py-2.5 border-b border-border flex items-center gap-2'>
-                    <Target className='w-4 h-4 text-muted-foreground' />
-                    <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
-                      Technical Setup
-                    </span>
-                  </div>
-                  <div className='p-4 space-y-1'>
-                    {entryPrice && (
-                      <InfoRow
-                        label='Entry'
-                        value={`$${formatNum(entryPrice, 5)}`}
-                      />
-                    )}
-                    {stopLoss && (
-                      <InfoRow
-                        label='Stop Loss'
-                        value={`$${formatNum(stopLoss, 5)}`}
-                        valueClass='text-rose-400'
-                      />
-                    )}
-                    {takeProfit && (
-                      <InfoRow
-                        label='Take Profit'
-                        value={`$${formatNum(takeProfit, 5)}`}
-                        valueClass='text-[var(--to-long)]'
-                      />
-                    )}
-                    <Separator className='my-2 bg-border' />
-                    {signal.position_size && (
-                      <InfoRow
-                        label='Position Size'
-                        value={`${signal.position_size} lots`}
-                      />
-                    )}
-                    {signal.rr_ratio && (
-                      <InfoRow
-                        label='Risk:Reward'
-                        value={`1:${formatNum(signal.rr_ratio, 2)}`}
-                      />
-                    )}
-                    {signal.sl_pips && (
-                      <InfoRow
-                        label='SL Distance'
-                        value={`${formatNum(signal.sl_pips, 1)} ${
-                          /NAS|US30|SPX|UK100|GER|FRA|JPN225|AUS200|NDX|USTEC/.test(symbol?.toUpperCase() ?? '')
-                            ? 'pts'
-                            : 'pips'
-                        }`}
-                      />
-                    )}
-
-                    {/* PnL Section */}
-                    {pnl !== null && (
-                      <>
-                        <Separator className='my-2 bg-border' />
-                        <InfoRow
-                          label='Realized PnL'
-                          value={`${pnl >= 0 ? '+' : ''}$${formatNum(pnl, 2)}`}
-                          valueClass={
-                            pnl >= 0 ? 'text-[var(--to-long)]' : 'text-rose-400'
-                          }
-                        />
-                        {signal.pnl_percentage != null && (
-                          <InfoRow
-                            label='PnL %'
-                            value={`${
-                              signal.pnl_percentage >= 0 ? '+' : ''
-                            }${formatNum(signal.pnl_percentage, 2)}%`}
-                            valueClass={
-                              signal.pnl_percentage >= 0
-                                ? 'text-[var(--to-long)]'
-                                : 'text-rose-400'
-                            }
-                          />
-                        )}
-                        {signal.exit_type && (
-                          <InfoRow
-                            label='Exit Type'
-                            value={signal.exit_type.replace('_', ' ')}
-                          />
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-
                 {setupImageUrl && (
-                  <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                  <div className='rounded-md bg-card border border-border overflow-hidden'>
                     <div className='px-4 py-2.5 border-b border-border flex items-center justify-between gap-2'>
                       <div className='flex items-center gap-2'>
                         <Target className='w-4 h-4 text-muted-foreground' />
@@ -744,7 +1213,7 @@ export function SignalInspector({
 
                 {/* AI Confidence */}
                 {score !== null && (
-                  <div className='rounded-lg bg-card border border-border p-4'>
+                  <div className='rounded-md bg-card border border-border p-4'>
                     <div className='flex items-center justify-between mb-2'>
                       <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
                         AI Confidence
@@ -783,206 +1252,81 @@ export function SignalInspector({
               <TabsContent value='ai' className='space-y-4 mt-0'>
                 {ai ? (
                   <>
-                    {/* Ensemble Decision Summary */}
-                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
-                      <div className='px-4 py-2.5 border-b border-border flex items-center gap-2'>
-                        <Shield className='w-4 h-4 text-muted-foreground' />
-                        <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
-                          Ensemble Decision
+                    <AiDecisionPanel
+                      ai={ai}
+                      decisionValue={decisionValue}
+                      rejectedRuleMessage={rejectedRuleMessage}
+                      llmStatus={llmStatus}
+                      llmContextMessage={llmContextMessage}
+                      traceRules={traceRules as Array<Record<string, unknown>>}
+                      failingRules={failingRules as Array<Record<string, unknown>>}
+                    />
+
+                    {ai.narrative && (
+                      <div className='text-xs text-muted-foreground leading-relaxed'>
+                        <span className='block text-[11px] text-muted-foreground uppercase tracking-wider mb-1'>
+                          Market Narrative
                         </span>
+                        <p>{ai.narrative}</p>
                       </div>
-                      <div className='p-4 space-y-4'>
-                        <div className='flex min-w-0 flex-col items-start gap-3'>
-                          <div className='min-w-0'>
-                            <div className='text-[11px] text-muted-foreground uppercase tracking-wider mb-1'>
-                              Decision Summary
-                            </div>
-                            <div className='text-sm text-foreground/90 break-words [overflow-wrap:anywhere]'>
-                              {decisionValue === 'GO'
-                                ? 'Approved: all active gates passed.'
-                                : decisionValue === 'MODEL_ERROR'
-                                ? `Model error: ${rejectedRuleMessage}`
-                                : `Rejected: ${rejectedRuleMessage}`}
-                            </div>
-                          </div>
-                          <span
-                            className={cn(
-                              'max-w-full truncate font-mono text-sm font-bold px-2.5 py-1 rounded',
-                              decisionValue === 'GO' &&
-                                'bg-[var(--to-long)]/20 text-[var(--to-long)]',
-                              decisionValue === 'NO_GO' &&
-                                'bg-rose-500/20 text-rose-400',
-                              decisionValue === 'MODEL_ERROR' &&
-                                'bg-amber-500/20 text-amber-400',
-                              !['GO', 'NO_GO', 'MODEL_ERROR'].includes(
-                                decisionValue
-                              ) && 'bg-muted text-muted-foreground'
-                            )}
-                          >
-                            {decisionValue}
-                          </span>
+                    )}
+
+                    {Array.isArray(ai.rules) && ai.rules.length > 0 && (
+                      <div className='text-xs text-foreground/90'>
+                        <span className='block text-[11px] text-muted-foreground uppercase tracking-wider mb-1'>
+                          RAG Rules (Top {Math.min(ai.rules.length, 5)})
+                        </span>
+                        <ul className='list-disc pl-4 space-y-1'>
+                          {ai.rules.slice(0, 5).map((rule, idx) => (
+                            <li key={idx}>{String(rule)}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <button
+                      type='button'
+                      onClick={() => setShowDebug((v) => !v)}
+                      className='inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors'
+                    >
+                      <Bug className='w-3.5 h-3.5' />
+                      {showDebug ? 'Hide Debug' : 'Show Debug'}
+                    </button>
+
+                    {showDebug && (
+                      <div className='space-y-2 rounded border border-border bg-background/50 p-3'>
+                        <div className='inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-amber-400'>
+                          <AlertTriangle className='w-3 h-3' />
+                          Debug View (Dev)
                         </div>
-
-                        {decisionTrace?.rf_probability_pct != null &&
-                          decisionTrace?.threshold_pct != null && (
-                            <div className='text-xs text-muted-foreground'>
-                              RF Gate:{' '}
-                              {formatNum(decisionTrace.rf_probability_pct, 1)}%
-                              {' vs '}
-                              {formatNum(decisionTrace.threshold_pct, 1)}%
-                              threshold
-                            </div>
-                          )}
-
-                        {(llmStatus ||
-                          traceRules.some(
-                            (r) => r?.rule_id === 'llm_context'
-                          )) && (
-                          <div className='text-xs text-muted-foreground'>
-                            LLM Context:{' '}
-                            <span
-                              className={cn(
-                                'font-semibold',
-                                llmStatus === 'ok' && 'text-[var(--to-long)]',
-                                llmStatus === 'skipped' && 'text-amber-400',
-                                llmStatus === 'error' && 'text-amber-400'
-                              )}
-                            >
-                              {llmStatus === 'ok'
-                                ? 'OK'
-                                : llmStatus === 'error'
-                                ? 'ERROR (NON-BLOCKING)'
-                                : 'SKIPPED'}
-                            </span>
-                            {llmContextMessage && (
-                              <span className='ml-2'>{llmContextMessage}</span>
-                            )}
-                          </div>
+                        <JsonViewer
+                          data={{
+                            rf_prob: ai.rf_prob,
+                            rf_threshold: ai.rf_threshold,
+                            llm_status: ai.llm_status,
+                            llm_model_used: ai.llm_model_used,
+                            llm_error_code: ai.llm_error_code,
+                            llm_error_message_short:
+                              ai.llm_error_message_short,
+                            decision_trace: ai.decision_trace,
+                          }}
+                          title='Model Output'
+                        />
+                        {ai.llm_error_raw && (
+                          <JsonViewer
+                            data={ai.llm_error_raw}
+                            title='LLM Raw Error (Debug Only)'
+                          />
                         )}
-
-                        {traceRules.length > 0 && (
-                          <div className='space-y-2'>
-                            <div className='text-[11px] text-muted-foreground uppercase tracking-wider'>
-                              Decision Breakdown
-                            </div>
-                            {(decisionValue === 'NO_GO' &&
-                            failingRules.length > 0
-                              ? failingRules
-                              : traceRules
-                            ).map((rule, idx) => {
-                              const badge = getRuleBadge(
-                                rule as Record<string, unknown>,
-                                ai
-                              );
-                              const ruleMessage =
-                                rule?.message != null
-                                  ? String(rule.message)
-                                  : '';
-                              return (
-                                 
-                                <div
-                                  key={`${getRuleDisplayId(
-                                    rule as Record<string, unknown>
-                                  )}-${idx}`}
-                                  className={cn(
-                                    'text-xs rounded border px-2.5 py-2 flex items-start justify-between gap-3',
-                                    badge.rowClass
-                                  )}
-                                >
-                                  <div className='min-w-0'>
-                                    <div className='font-mono text-foreground/90 break-words [overflow-wrap:anywhere]'>
-                                      {getRuleDisplayId(
-                                        rule as Record<string, unknown>
-                                      )}
-                                    </div>
-                                    {ruleMessage && (
-                                      <div className='text-muted-foreground mt-0.5 break-words [overflow-wrap:anywhere]'>
-                                        {ruleMessage}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div
-                                    className={cn(
-                                      'shrink-0 text-[10px] font-semibold uppercase whitespace-nowrap',
-                                      badge.textClass
-                                    )}
-                                  >
-                                    {badge.label}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {ai.narrative && (
-                          <div className='text-xs text-muted-foreground leading-relaxed'>
-                            <span className='block text-[11px] text-muted-foreground uppercase tracking-wider mb-1'>
-                              Market Narrative
-                            </span>
-                            <p>{ai.narrative}</p>
-                          </div>
-                        )}
-
-                        {Array.isArray(ai.rules) && ai.rules.length > 0 && (
-                          <div className='text-xs text-foreground/90'>
-                            <span className='block text-[11px] text-muted-foreground uppercase tracking-wider mb-1'>
-                              RAG Rules (Top {Math.min(ai.rules.length, 5)})
-                            </span>
-                            <ul className='list-disc pl-4 space-y-1'>
-                              {ai.rules.slice(0, 5).map((rule, idx) => (
-                                 
-                                <li key={idx}>{String(rule)}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        <button
-                          type='button'
-                          onClick={() => setShowDebug((v) => !v)}
-                          className='inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors'
-                        >
-                          <Bug className='w-3.5 h-3.5' />
-                          {showDebug ? 'Hide Debug' : 'Show Debug'}
-                        </button>
-
-                        {showDebug && (
-                          <div className='space-y-2 rounded border border-border bg-background/50 p-3'>
-                            <div className='inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-amber-400'>
-                              <AlertTriangle className='w-3 h-3' />
-                              Debug View (Dev)
-                            </div>
-                            <JsonViewer
-                              data={{
-                                rf_prob: ai.rf_prob,
-                                rf_threshold: ai.rf_threshold,
-                                llm_status: ai.llm_status,
-                                llm_model_used: ai.llm_model_used,
-                                llm_error_code: ai.llm_error_code,
-                                llm_error_message_short:
-                                  ai.llm_error_message_short,
-                                decision_trace: ai.decision_trace,
-                              }}
-                              title='Model Output'
-                            />
-                            {ai.llm_error_raw && (
-                              <JsonViewer
-                                data={ai.llm_error_raw}
-                                title='LLM Raw Error (Debug Only)'
-                              />
-                            )}
-                            <JsonViewer
-                              data={ai.decision_trace?.features_snapshot || {}}
-                              title='Feature Snapshot'
-                            />
-                          </div>
-                        )}
+                        <JsonViewer
+                          data={ai.decision_trace?.features_snapshot || {}}
+                          title='Feature Snapshot'
+                        />
                       </div>
-                    </div>
+                    )}
 
                     {/* Zone Analysis */}
-                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                    <div className='rounded-md bg-card border border-border overflow-hidden'>
                       <div className='px-4 py-2.5 border-b border-border flex items-center gap-2'>
                         <BarChart3 className='w-4 h-4 text-muted-foreground' />
                         <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
@@ -1065,7 +1409,7 @@ export function SignalInspector({
                     </div>
 
                     {/* Liquidity Analysis */}
-                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                    <div className='rounded-md bg-card border border-border overflow-hidden'>
                       <div className='px-4 py-2.5 border-b border-border flex items-center gap-2'>
                         <Droplets className='w-4 h-4 text-muted-foreground' />
                         <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
@@ -1134,7 +1478,7 @@ export function SignalInspector({
                     </div>
 
                     {/* AI Metrics */}
-                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                    <div className='rounded-md bg-card border border-border overflow-hidden'>
                       <div className='px-4 py-2.5 border-b border-border flex items-center gap-2'>
                         <Brain className='w-4 h-4 text-muted-foreground' />
                         <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
@@ -1228,7 +1572,7 @@ export function SignalInspector({
                   </div>
                 ) : aiRun ? (
                   isPendingAiRun(aiRun) ? (
-                    <div className='flex flex-col items-center justify-center py-12 text-center gap-3 rounded-lg bg-card border border-border'>
+                    <div className='flex flex-col items-center justify-center py-12 text-center gap-3 rounded-md bg-card border border-border'>
                       <Brain className='w-10 h-10 text-muted-foreground/50' />
                       <p className='text-sm text-muted-foreground'>
                         Council is processing this signal.
@@ -1242,7 +1586,7 @@ export function SignalInspector({
                     {hasAiOperatingLayerData(aiRun) && (
                       <AiOperatingLayerPanel run={mapAiRun(aiRun)} />
                     )}
-                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                    <div className='rounded-md bg-card border border-border overflow-hidden'>
                       <div className='px-4 py-2.5 border-b border-border flex items-center justify-between'>
                         <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
                           Final Vote
@@ -1306,7 +1650,7 @@ export function SignalInspector({
                         )}
                       </div>
                     </div>
-                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                    <div className='rounded-md bg-card border border-border overflow-hidden'>
                       <div className='px-4 py-2.5 border-b border-border'>
                         <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
                           Debate Transcript
