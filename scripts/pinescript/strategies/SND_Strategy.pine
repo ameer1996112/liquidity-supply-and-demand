@@ -154,13 +154,6 @@ invalidate_on_wick   = input.bool(true, "invalidate_on_wick", group = "📐 Zone
 max_zones            = input.int(12, "max_zones", minval = 1, maxval = 50, group = "📐 Zone Detection")
 min_body_perc        = input.float(52.0, "min_body_perc", minval = 0, maxval = 100, group = "📐 Zone Detection")
 structure_mode      = input.string("Relaxed (Wicks)", "structure_mode", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
-require_bos_for_zones = true
-bos_lookback_bars     = 20
-bos_buffer_pips       = 0.0
-strict_bos_close      = false
-
-float bos_reference_high = ta.highest(high, bos_lookback_bars)
-float bos_reference_low = ta.lowest(low, bos_lookback_bars)
 
 liq_pivot_len       = input.int(10, "liq_pivot_len", minval = 1, group = "💧 Liquidity")
 pvtMax              = input.int(12, "pvtMax", minval = 1, maxval = 500, group = "💧 Liquidity")
@@ -179,10 +172,10 @@ pvtTopColor = color.red  // Visual colors
 pvtBtmColor = color.green
 pvtStyle    = line.style_solid
 show_liquidity_connectors = input.bool(true, "show_liquidity_connectors", group = "🎨 Display")
-show_zone_labels = false
+show_zone_labels = true
 draw_fractals = show_fractals and not use_myrtille_visuals
 draw_pivot_liquidity_lines = plotLiq and not use_myrtille_visuals
-draw_zone_labels = show_zone_labels and not use_myrtille_visuals
+draw_zone_labels = show_zone_labels
 draw_liquidity_lines = show_liquidity_connectors
 draw_liquidity_connectors = show_liquidity_connectors and not use_myrtille_visuals
 draw_liquidity_targets = show_liquidity_connectors and not use_myrtille_visuals
@@ -1591,23 +1584,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             if not hasFVG
                 na
 
-        int bosRefOffset = baseIdx + 1
-        float bosPriorHigh = bos_reference_high[bosRefOffset]
-        float bosPriorLow = bos_reference_low[bosRefOffset]
-        float bosDepartureHigh = high
-        float bosDepartureLow = low
-        int bosDepartureLookback = math.max(baseIdx - 1, 0)
-
-        if bosDepartureLookback > 0
-            for off = 1 to bosDepartureLookback
-                bosDepartureHigh := math.max(bosDepartureHigh, high[off])
-                bosDepartureLow := math.min(bosDepartureLow, low[off])
-
-        float bosBuffer = bos_buffer_pips * pip_size
-        float bosBreakPrice = strict_bos_close ? close : (isDemand ? bosDepartureHigh : bosDepartureLow)
-        bool bosHasReference = isDemand ? not na(bosPriorHigh) : not na(bosPriorLow)
-        bool hasBOS = bosHasReference and (isDemand ? bosBreakPrice > bosPriorHigh + bosBuffer : bosBreakPrice < bosPriorLow - bosBuffer)
-        bool proceed_creation = (not use_fvg_confirmation or hasFVG) and (not require_bos_for_zones or hasBOS)
+        bool proceed_creation = not use_fvg_confirmation or hasFVG
 
         bool isAccuracy = false
 
