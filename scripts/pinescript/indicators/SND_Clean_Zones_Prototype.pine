@@ -273,36 +273,43 @@ f_is_pivot_high(int off) =>
     bool oneCandle = enoughBars and high[off] > high[off + 1]
     twoCandle or (enable_one_candle_liquidity and oneCandle)
 
+f_scan_start_bar() =>
+    math.max(0, bar_index - liquidity_scan_bars)
+
 f_highest_between(int startBar, int endBar) =>
     float best = na
     int bestBar = na
-    if not na(startBar) and not na(endBar) and endBar >= startBar
-        for b = startBar to endBar
-            int off = bar_index - b
-            if off < 0 or off > bar_index
-                continue
-            if na(best) or high[off] > best
-                best := high[off]
-                bestBar := b
+    if not na(startBar) and not na(endBar)
+        int safeStartBar = math.max(startBar, f_scan_start_bar())
+        if endBar >= safeStartBar
+            for b = safeStartBar to endBar
+                int off = bar_index - b
+                if off < 0 or off > bar_index
+                    continue
+                if na(best) or high[off] > best
+                    best := high[off]
+                    bestBar := b
     [best, bestBar]
 
 f_lowest_between(int startBar, int endBar) =>
     float best = na
     int bestBar = na
-    if not na(startBar) and not na(endBar) and endBar >= startBar
-        for b = startBar to endBar
-            int off = bar_index - b
-            if off < 0 or off > bar_index
-                continue
-            if na(best) or low[off] < best
-                best := low[off]
-                bestBar := b
+    if not na(startBar) and not na(endBar)
+        int safeStartBar = math.max(startBar, f_scan_start_bar())
+        if endBar >= safeStartBar
+            for b = safeStartBar to endBar
+                int off = bar_index - b
+                if off < 0 or off > bar_index
+                    continue
+                if na(best) or low[off] < best
+                    best := low[off]
+                    bestBar := b
     [best, bestBar]
 
 f_level_swept_since(bool isDemand, float level, int fromBar, bool isTarget) =>
     bool swept = false
     if not na(level) and not na(fromBar)
-        int startBar = math.max(fromBar + 1, 0)
+        int startBar = math.max(fromBar + 1, f_scan_start_bar())
         if bar_index >= startBar
             for b = startBar to bar_index
                 int off = bar_index - b
