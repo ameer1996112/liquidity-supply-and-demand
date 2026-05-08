@@ -448,7 +448,9 @@ f_update_zone_lifecycle(int idx) =>
 
     if liveState
         bool invalidated = isDemand ? close < z.bottom : close > z.top
-        bool touched = high >= z.bottom and low <= z.top
+        int validationBar = na(z.bosBar) ? z.createdBar : z.bosBar
+        bool canCountTouch = na(validationBar) ? bar_index > z.createdBar : bar_index > validationBar
+        bool touched = canCountTouch and high >= z.bottom and low <= z.top
 
         if invalidated
             z.state := STATE_INVALID
