@@ -299,6 +299,27 @@ f_lowest_between(int startBar, int endBar) =>
                 bestBar := b
     [best, bestBar]
 
+f_level_swept_since(bool isDemand, float level, int fromBar, bool isTarget) =>
+    bool swept = false
+    if not na(level) and not na(fromBar)
+        int startBar = math.max(fromBar + 1, 0)
+        if bar_index >= startBar
+            for b = startBar to bar_index
+                int off = bar_index - b
+                if off < 0 or off > bar_index
+                    continue
+                bool crossed = isTarget ? (isDemand ? high[off] >= level : low[off] <= level) : (isDemand ? low[off] <= level : high[off] >= level)
+                if crossed
+                    swept := true
+                    break
+    swept
+
+f_float_changed(float oldValue, float newValue) =>
+    (na(oldValue) and not na(newValue)) or (not na(oldValue) and na(newValue)) or (not na(oldValue) and not na(newValue) and oldValue != newValue)
+
+f_int_changed(int oldValue, int newValue) =>
+    (na(oldValue) and not na(newValue)) or (not na(oldValue) and na(newValue)) or (not na(oldValue) and not na(newValue) and oldValue != newValue)
+
 f_liquidity_mode_from_distance(float distance) =>
     float internalMax = atr14 * max_internal_liquidity_atr
     float externalMax = atr14 * max_external_liquidity_atr
@@ -335,23 +356,39 @@ f_scan_liquidity_for_zone(int idx) =>
                         bestMode := mode
 
         if not na(bestPrice)
-            bool changed = na(z.inducementPrice) or z.inducementPrice != bestPrice or z.inducementBar != bestBar
+            bool changed = f_float_changed(z.inducementPrice, bestPrice) or f_int_changed(z.inducementBar, bestBar)
             z.inducementPrice := bestPrice
             z.inducementBar := bestBar
             z.liquidityMode := bestMode
-            if changed
-                z.inducementSwept := false
-                z.targetSwept := false
 
             if isDemand
                 [target, targetBar] = f_highest_between(z.createdBar, bestBar - 1)
+                bool targetChanged = f_float_changed(z.targetPrice, target) or f_int_changed(z.targetBar, targetBar)
                 z.targetPrice := target
                 z.targetBar := targetBar
+                if changed
+                    z.inducementSwept := f_level_swept_since(isDemand, z.inducementPrice, z.inducementBar, false)
+                if changed or targetChanged
+                    z.targetSwept := f_level_swept_since(isDemand, z.targetPrice, z.targetBar, true)
             else
                 [target, targetBar] = f_lowest_between(z.createdBar, bestBar - 1)
+                bool targetChanged = f_float_changed(z.targetPrice, target) or f_int_changed(z.targetBar, targetBar)
                 z.targetPrice := target
                 z.targetBar := targetBar
+                if changed
+                    z.inducementSwept := f_level_swept_since(isDemand, z.inducementPrice, z.inducementBar, false)
+                if changed or targetChanged
+                    z.targetSwept := f_level_swept_since(isDemand, z.targetPrice, z.targetBar, true)
 
+            array.set(zones, idx, z)
+        else
+            z.inducementPrice := na
+            z.inducementBar := na
+            z.liquidityMode := LIQ_NONE
+            z.inducementSwept := false
+            z.targetPrice := na
+            z.targetBar := na
+            z.targetSwept := false
             array.set(zones, idx, z)
 
 f_update_liquidity_sweeps(int idx) =>
