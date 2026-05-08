@@ -11,6 +11,7 @@ import {
 } from '@/types/trading';
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -1113,6 +1114,7 @@ export function SignalInspector({
         data-testid='signal-inspector-drawer'
         className='w-full sm:max-w-xl bg-background border-border p-0'
         aria-describedby='signal-inspector-desc'
+        showCloseButton={false}
       >
         <SheetDescription id='signal-inspector-desc' className='sr-only'>
           Trade details and AI reasoning
@@ -1122,6 +1124,12 @@ export function SignalInspector({
             <SheetHeader className='sr-only'>
               <SheetTitle>{symbol} Signal Inspector</SheetTitle>
             </SheetHeader>
+            <div className='flex justify-end'>
+              <SheetClose className='group inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card/80 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-colors hover:border-[var(--to-short)]/45 hover:bg-[var(--to-short)]/10 hover:text-[var(--to-short)] focus:outline-none focus:ring-2 focus:ring-[var(--to-short)]/40'>
+                <X className='h-4 w-4 transition-transform group-hover:rotate-90' />
+                <span className='sr-only'>Close signal inspector</span>
+              </SheetClose>
+            </div>
 
             <div className='space-y-3'>
               <OutcomeHeader
