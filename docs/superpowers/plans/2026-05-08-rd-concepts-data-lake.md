@@ -715,9 +715,8 @@ def request_json_with_retries(
 
 def download_image(url: str, output_path: Path, settings: PipelineSettings) -> bool:
     ensure_dir(output_path.parent)
-    headers = {"Authorization": settings.require_discord_authorization()}
     for attempt in range(1, settings.max_retries + 1):
-        response = requests.get(url, headers=headers, timeout=settings.request_timeout_seconds)
+        response = requests.get(url, timeout=settings.request_timeout_seconds, stream=True)
         if response.status_code == 429:
             retry_after = float(response.json().get("retry_after", 1.0))
             time.sleep(retry_after)
@@ -728,7 +727,11 @@ def download_image(url: str, output_path: Path, settings: PipelineSettings) -> b
         if response.status_code >= 400:
             LOGGER.warning("Image download failed %s for %s", response.status_code, redact(url))
             return False
-        output_path.write_bytes(response.content)
+        content_type = response.headers.get("content-type", "")
+        if content_type and not content_type.startswith("image/"):
+            return False
+        # Implementation streams to a .part file, enforces MAX_IMAGE_BYTES,
+        # and removes partial files on failure.
         return True
     return False
 ```
@@ -1483,8 +1486,8 @@ def main() -> None:
     if not image_index.empty:
         st.dataframe(image_index, use_container_width=True)
         for image_path in image_index.get("image_path", pd.Series(dtype=str)).dropna().head(24):
-            path = Path(image_path)
-            if path.exists():
+            path = _safe_image_path(image_path, settings.data_dir)
+            if path is not None and path.exists():
                 st.image(str(path), caption=str(path))
     st.caption(f"Knowledge-base pairs: {len(kb.get('pairs', {})) if isinstance(kb, dict) else 0}")
 
