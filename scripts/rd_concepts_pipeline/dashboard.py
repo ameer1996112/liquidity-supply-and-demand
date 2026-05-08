@@ -11,6 +11,8 @@ from scripts.rd_concepts_pipeline.config import get_settings
 
 LOGGER = logging.getLogger(__name__)
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+FILE_SUFFIXES = {".csv", ".doc", ".docx", ".pdf", ".ppt", ".pptx", ".txt", ".xls", ".xlsm", ".xlsx"}
+DEFAULT_TABLE_ROWS = 250
 
 
 def _read_csv(path: Path) -> pd.DataFrame:
@@ -89,6 +91,31 @@ def load_processed_data(
     return signals, rules, knowledge_base, image_index
 
 
+def load_file_artifacts(data_dir: Path) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    raw_dir = data_dir / "raw"
+    if not raw_dir.exists():
+        return pd.DataFrame(columns=["channel", "file_path", "name", "suffix", "size_mb"])
+
+    for path in sorted(raw_dir.glob("*/files/*")):
+        if not path.is_file() or path.suffix.lower() not in FILE_SUFFIXES:
+            continue
+        try:
+            size_mb = round(path.stat().st_size / (1024 * 1024), 2)
+        except OSError:
+            size_mb = 0.0
+        rows.append(
+            {
+                "channel": path.parent.parent.name,
+                "file_path": str(path),
+                "name": path.name,
+                "suffix": path.suffix.lower(),
+                "size_mb": size_mb,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def _count_by_column(frame: pd.DataFrame, column: str) -> pd.DataFrame:
     if frame.empty or column not in frame.columns:
         return pd.DataFrame(columns=[column, "count"])
@@ -103,6 +130,13 @@ def _count_by_column(frame: pd.DataFrame, column: str) -> pd.DataFrame:
         .reset_index(name="count")
     )
     return counts
+
+
+def _non_blank_frame(frame: pd.DataFrame, column: str) -> pd.DataFrame:
+    if frame.empty or column not in frame.columns:
+        return frame.iloc[0:0].copy()
+    values = frame[column].fillna("").astype(str).str.strip()
+    return frame[values.ne("") & values.ne("unknown")]
 
 
 def _sorted_options(frame: pd.DataFrame, column: str) -> list[str]:
@@ -157,6 +191,36 @@ def _filter_rules(rules: list[dict[str, Any]], query: str) -> list[dict[str, Any
     ]
 
 
+def _rules_frame(rules: list[dict[str, Any]]) -> pd.DataFrame:
+    rows = []
+    for rule in rules:
+        content = str(rule.get("content", ""))
+        rows.append(
+            {
+                "timestamp": rule.get("timestamp", ""),
+                "channel": rule.get("channel", ""),
+                "author": rule.get("author", ""),
+                "concept_tags": ", ".join(rule.get("concept_tags") or []),
+                "keyword_hits": ", ".join(rule.get("keyword_hits") or []),
+                "content": content[:500],
+                "message_url": rule.get("message_url", ""),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _is_complete_signal_frame(frame: pd.DataFrame) -> pd.Series:
+    if frame.empty:
+        return pd.Series(dtype=bool)
+    mask = pd.Series(True, index=frame.index)
+    for column in ("pair", "direction", "entry", "stop_loss", "take_profit"):
+        if column not in frame.columns:
+            return pd.Series(False, index=frame.index)
+        values = frame[column].fillna("").astype(str).str.strip()
+        mask &= values.ne("") & values.ne("None") & values.ne("nan")
+    return mask
+
+
 def _safe_image_path(raw_path: Any, data_dir: Path) -> Path | None:
     if raw_path is None:
         return None
@@ -200,159 +264,199 @@ def main() -> None:
     @st.cache_data
     def load_cached_processed_data(
         data_dir_text: str,
-    ) -> tuple[pd.DataFrame, list[dict[str, Any]], dict[str, Any], pd.DataFrame]:
-        return load_processed_data(Path(data_dir_text))
+    ) -> tuple[pd.DataFrame, list[dict[str, Any]], dict[str, Any], pd.DataFrame, pd.DataFrame]:
+        data_dir = Path(data_dir_text)
+        signals, rules, knowledge_base, image_index = load_processed_data(data_dir)
+        files = load_file_artifacts(data_dir)
+        return signals, rules, knowledge_base, image_index, files
 
     settings = get_settings()
-    signals, rules, knowledge_base, image_index = load_cached_processed_data(
+    signals, rules, knowledge_base, image_index, files = load_cached_processed_data(
         str(settings.data_dir)
     )
     pair_count = _knowledge_base_pair_count(knowledge_base)
 
     st.set_page_config(page_title="RD Concepts Data Lake", layout="wide")
 
-    st.title("RD Concepts Data Lake")
-    st.caption(
-        "Offline research dashboard. "
-        f"Knowledge base covers {pair_count} pairs."
+    st.title("RD Concepts Evidence Lake")
+    st.caption(f"Data directory: {settings.data_dir} | Knowledge-base pairs: {pair_count}")
+
+    metric_cols = st.columns(5)
+    metric_cols[0].metric("Parsed rows", f"{len(signals):,}")
+    metric_cols[1].metric("Complete signals", f"{int(_is_complete_signal_frame(signals).sum()):,}")
+    metric_cols[2].metric("Rules", f"{len(rules):,}")
+    metric_cols[3].metric("Images", f"{len(image_index):,}")
+    metric_cols[4].metric("Files", f"{len(files):,}")
+
+    overview_tab, signals_tab, rules_tab, files_tab, images_tab = st.tabs(
+        ["Overview", "Signals", "Rules", "Files", "Images"]
     )
-    st.caption(
-        f"Data directory: {settings.data_dir} | Knowledge-base pairs: {pair_count}"
-    )
 
-    channel_counts = _count_by_column(signals, "channel")
-    pair_counts = _count_by_column(signals, "pair")
+    with overview_tab:
+        include_unknown_pairs = st.checkbox("Include unknown pairs in pair chart", value=False)
+        chart_signals = signals if include_unknown_pairs else _non_blank_frame(signals, "pair")
+        channel_counts = _count_by_column(signals, "channel")
+        pair_counts = _count_by_column(chart_signals, "pair")
 
-    chart_col, pair_col = st.columns(2)
-    with chart_col:
-        st.subheader("Signals by Channel")
-        if channel_counts.empty:
-            st.info("No signal channel data found.")
-        else:
-            st.bar_chart(channel_counts, x="channel", y="count")
+        chart_col, pair_col = st.columns(2)
+        with chart_col:
+            st.subheader("Rows by Channel")
+            if channel_counts.empty:
+                st.info("No channel data found.")
+            else:
+                st.bar_chart(channel_counts.head(30), x="channel", y="count")
 
-    with pair_col:
-        st.subheader("Pair Breakdown")
-        if pair_counts.empty:
-            st.info("No pair data found.")
-        else:
-            st.bar_chart(pair_counts, x="pair", y="count")
+        with pair_col:
+            st.subheader("Pair Breakdown")
+            if pair_counts.empty:
+                st.info("No pair data found.")
+            else:
+                st.bar_chart(pair_counts.head(30), x="pair", y="count")
 
-    st.subheader("Signals")
-    filtered_signals = signals.copy()
+        if not files.empty:
+            st.subheader("Downloaded Files by Channel")
+            st.bar_chart(_count_by_column(files, "channel").head(30), x="channel", y="count")
 
-    filter_cols = st.columns(4)
-    with filter_cols[0]:
-        selected_pairs = st.multiselect(
-            "Pair",
-            _sorted_options(signals, "pair"),
-            default=[],
-        )
-    with filter_cols[1]:
-        selected_directions = st.multiselect(
-            "Direction",
-            _sorted_options(signals, "direction"),
-            default=[],
-        )
-    with filter_cols[2]:
-        selected_channels = st.multiselect(
-            "Channel",
-            _sorted_options(signals, "channel"),
-            default=[],
-        )
-    with filter_cols[3]:
-        timestamps = _timestamp_series(signals).dropna()
-        date_range = None
-        if timestamps.empty:
-            st.text_input("Date", value="No dated rows", disabled=True)
-        else:
-            date_range = st.date_input(
-                "Date",
-                value=(timestamps.min().date(), timestamps.max().date()),
+    with signals_tab:
+        st.subheader("Signals")
+        only_complete = st.checkbox("Show only complete trade signals", value=True)
+        filtered_signals = signals[_is_complete_signal_frame(signals)].copy() if only_complete else signals.copy()
+
+        filter_cols = st.columns(5)
+        with filter_cols[0]:
+            selected_pairs = st.multiselect(
+                "Pair",
+                _sorted_options(filtered_signals, "pair"),
+                default=[],
             )
-
-    filtered_signals = _filter_by_values(filtered_signals, "pair", selected_pairs)
-    filtered_signals = _filter_by_values(
-        filtered_signals,
-        "direction",
-        selected_directions,
-    )
-    filtered_signals = _filter_by_values(filtered_signals, "channel", selected_channels)
-    filtered_signals = _filter_by_date(filtered_signals, date_range)
-
-    if filtered_signals.empty:
-        st.info("No signals match the current filters.")
-    else:
-        preferred_columns = [
-            column
-            for column in (
-                "timestamp",
-                "channel",
-                "pair",
-                "direction",
-                "timeframe",
-                "entry",
-                "stop_loss",
-                "take_profit",
-                "rr_ratio",
-                "setup_tags",
-                "message_url",
+        with filter_cols[1]:
+            selected_directions = st.multiselect(
+                "Direction",
+                _sorted_options(filtered_signals, "direction"),
+                default=[],
             )
-            if column in filtered_signals.columns
-        ]
-        st.dataframe(
-            filtered_signals[preferred_columns] if preferred_columns else filtered_signals,
-            use_container_width=True,
-            hide_index=True,
-        )
+        with filter_cols[2]:
+            selected_channels = st.multiselect(
+                "Channel",
+                _sorted_options(filtered_signals, "channel"),
+                default=[],
+            )
+        with filter_cols[3]:
+            max_rows = st.number_input(
+                "Rows",
+                min_value=50,
+                max_value=5000,
+                value=DEFAULT_TABLE_ROWS,
+                step=50,
+            )
+        with filter_cols[4]:
+            timestamps = _timestamp_series(filtered_signals).dropna()
+            date_range = None
+            if timestamps.empty:
+                st.text_input("Date", value="No dated rows", disabled=True)
+            else:
+                date_range = st.date_input(
+                    "Date",
+                    value=(timestamps.min().date(), timestamps.max().date()),
+                )
 
-    rules_tab, images_tab = st.tabs(["Strategy Rules", "Chart Images"])
+        filtered_signals = _filter_by_values(filtered_signals, "pair", selected_pairs)
+        filtered_signals = _filter_by_values(filtered_signals, "direction", selected_directions)
+        filtered_signals = _filter_by_values(filtered_signals, "channel", selected_channels)
+        filtered_signals = _filter_by_date(filtered_signals, date_range)
+
+        st.caption(f"Showing {min(len(filtered_signals), int(max_rows)):,} of {len(filtered_signals):,} rows")
+        if filtered_signals.empty:
+            st.info("No signals match the current filters.")
+        else:
+            preferred_columns = [
+                column
+                for column in (
+                    "timestamp",
+                    "channel",
+                    "pair",
+                    "direction",
+                    "timeframe",
+                    "entry",
+                    "stop_loss",
+                    "take_profit",
+                    "rr_ratio",
+                    "setup_tags",
+                    "message_url",
+                )
+                if column in filtered_signals.columns
+            ]
+            st.dataframe(
+                (filtered_signals[preferred_columns] if preferred_columns else filtered_signals).head(int(max_rows)),
+                use_container_width=True,
+                hide_index=True,
+            )
 
     with rules_tab:
-        query = st.text_input("Search rules")
+        st.subheader("Strategy Rules And Education")
+        query = st.text_input("Search rules/content")
         matched_rules = _filter_rules(rules, query)
-        st.caption(f"{len(matched_rules)} of {len(rules)} rules")
-        if not matched_rules:
+        rules_frame = _rules_frame(matched_rules)
+        max_rules = st.number_input(
+            "Rule rows",
+            min_value=50,
+            max_value=5000,
+            value=DEFAULT_TABLE_ROWS,
+            step=50,
+        )
+        st.caption(f"Showing {min(len(rules_frame), int(max_rules)):,} of {len(rules_frame):,} matched rules")
+        if rules_frame.empty:
             st.info("No rules found.")
         else:
-            for index, rule in enumerate(matched_rules, start=1):
-                title = str(
-                    rule.get("title")
-                    or rule.get("concept")
-                    or rule.get("rule")
-                    or f"Rule {index}"
-                )
-                with st.expander(title):
-                    st.json(rule)
+            st.dataframe(rules_frame.head(int(max_rules)), use_container_width=True, hide_index=True)
+
+    with files_tab:
+        st.subheader("Downloaded Spreadsheets And Docs")
+        if files.empty:
+            st.info("No downloaded document/spreadsheet files found.")
+        else:
+            file_cols = st.columns(4)
+            with file_cols[0]:
+                file_channels = st.multiselect("File channel", _sorted_options(files, "channel"), default=[])
+            with file_cols[1]:
+                file_suffixes = st.multiselect("Type", _sorted_options(files, "suffix"), default=[])
+            with file_cols[2]:
+                min_size = st.number_input("Min MB", min_value=0.0, value=0.0, step=1.0)
+            with file_cols[3]:
+                max_files = st.number_input("File rows", min_value=25, max_value=2000, value=250, step=25)
+            filtered_files = _filter_by_values(files.copy(), "channel", file_channels)
+            filtered_files = _filter_by_values(filtered_files, "suffix", file_suffixes)
+            if "size_mb" in filtered_files.columns:
+                filtered_files = filtered_files[filtered_files["size_mb"] >= min_size]
+            st.caption(f"Showing {min(len(filtered_files), int(max_files)):,} of {len(filtered_files):,} files")
+            st.dataframe(
+                filtered_files.sort_values("size_mb", ascending=False).head(int(max_files)),
+                use_container_width=True,
+                hide_index=True,
+            )
 
     with images_tab:
+        st.subheader("Chart Images")
         if image_index.empty:
             st.info("No chart images found.")
         else:
-            image_filter_cols = st.columns(2)
+            image_filter_cols = st.columns(4)
             with image_filter_cols[0]:
-                image_pairs = st.multiselect(
-                    "Image pair",
-                    _sorted_options(image_index, "pair"),
-                    default=[],
-                )
+                image_pairs = st.multiselect("Image pair", _sorted_options(image_index, "pair"), default=[])
             with image_filter_cols[1]:
-                image_channels = st.multiselect(
-                    "Image channel",
-                    _sorted_options(image_index, "channel"),
-                    default=[],
-                )
+                image_channels = st.multiselect("Image channel", _sorted_options(image_index, "channel"), default=[])
+            with image_filter_cols[2]:
+                max_images = st.number_input("Image rows", min_value=25, max_value=1000, value=100, step=25)
+            with image_filter_cols[3]:
+                render_images = st.checkbox("Render thumbnails", value=False)
 
             filtered_images = _filter_by_values(image_index.copy(), "pair", image_pairs)
-            filtered_images = _filter_by_values(
-                filtered_images,
-                "channel",
-                image_channels,
-            )
+            filtered_images = _filter_by_values(filtered_images, "channel", image_channels)
 
-            st.dataframe(filtered_images, use_container_width=True, hide_index=True)
-            if "image_path" in filtered_images.columns:
-                for _, row in filtered_images.head(50).iterrows():
+            st.caption(f"Showing {min(len(filtered_images), int(max_images)):,} of {len(filtered_images):,} images")
+            st.dataframe(filtered_images.head(int(max_images)), use_container_width=True, hide_index=True)
+            if render_images and "image_path" in filtered_images.columns:
+                for _, row in filtered_images.head(min(int(max_images), 24)).iterrows():
                     raw_path = row["image_path"]
                     path = _safe_image_path(raw_path, settings.data_dir)
                     label_parts = [
