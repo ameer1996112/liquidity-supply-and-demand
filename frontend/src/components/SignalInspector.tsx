@@ -256,12 +256,22 @@ function deriveExecutionStages(
 function formatSignalPrice(symbol: string, value?: number | null): string {
   if (value == null) return '--';
   const normalized = symbol.toUpperCase();
-  const decimals = normalized.includes('JPY')
+  const isIndexOrCfd =
+    /NAS|US30|SPX|UK100|GER|FRA|JPN225|AUS200|NDX|USTEC/.test(normalized);
+  const decimals = isIndexOrCfd
+    ? 2
+    : normalized.includes('JPY')
     ? 3
     : normalized.includes('XAU') || normalized.includes('GOLD') || normalized.includes('BTC')
       ? 2
       : 5;
   return Number(value).toFixed(decimals);
+}
+
+function getStopDistanceUnit(symbol: string): 'pts' | 'pips' {
+  return /NAS|US30|SPX|UK100|GER|FRA|JPN225|AUS200|NDX|USTEC/.test(symbol.toUpperCase())
+    ? 'pts'
+    : 'pips';
 }
 
 function deriveTradePlanItems(
@@ -275,7 +285,7 @@ function deriveTradePlanItems(
   const takeProfit = signal.take_profit ?? signal.tp;
   const risk = signal.risk_usd ?? signal.target_risk_usd;
 
-  return [
+  const items: TradePlanItem[] = [
     { label: 'Action', value: executionPlan.actionLabel },
     { label: 'Mode / Broker', value: executionPlan.brokerLabel },
     { label: 'Entry', value: formatSignalPrice(symbol, entry) },
@@ -285,6 +295,31 @@ function deriveTradePlanItems(
     { label: 'Size', value: signal.position_size != null ? `${signal.position_size} lots` : '--' },
     { label: 'PnL', value: pnl != null ? `${pnl >= 0 ? '+' : ''}$${formatNum(pnl, 2)}` : '--', tone: pnl == null ? 'muted' : pnl >= 0 ? 'success' : 'danger' },
   ];
+
+  if (signal.rr_ratio != null) {
+    items.push({ label: 'Risk:Reward', value: `1:${formatNum(signal.rr_ratio, 2)}` });
+  }
+
+  if (signal.sl_pips != null) {
+    items.push({
+      label: 'SL Distance',
+      value: `${formatNum(signal.sl_pips, 1)} ${getStopDistanceUnit(symbol)}`,
+    });
+  }
+
+  if (signal.pnl_percentage != null) {
+    items.push({
+      label: 'PnL %',
+      value: `${signal.pnl_percentage >= 0 ? '+' : ''}${formatNum(signal.pnl_percentage, 2)}%`,
+      tone: signal.pnl_percentage >= 0 ? 'success' : 'danger',
+    });
+  }
+
+  if (signal.exit_type) {
+    items.push({ label: 'Exit Type', value: signal.exit_type.replaceAll('_', ' ') });
+  }
+
+  return items;
 }
 
 const toneClasses: Record<InspectorTone, { rail: string; text: string; bg: string; border: string }> = {
@@ -722,7 +757,7 @@ function OutcomeHeader({
                 {symbol}
                 {entryPrice != null && (
                   <span className='ml-2 text-base font-medium text-muted-foreground'>
-                    @{formatNum(entryPrice, symbol.includes('JPY') ? 3 : symbol.includes('BTC') ? 2 : 5)}
+                    @{formatSignalPrice(symbol, entryPrice)}
                   </span>
                 )}
               </div>

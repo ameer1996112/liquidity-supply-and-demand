@@ -490,7 +490,78 @@ describe('SignalInspector decision summary', () => {
     expect(document.body.textContent).toContain('Trade Plan');
     expect(document.body.textContent).toContain('Entry');
     expect(document.body.textContent).toContain('156.659');
+    expect(document.body.textContent).toContain('Stop Loss');
+    expect(document.body.textContent).toContain('156.579');
+    expect(document.body.textContent).toContain('Take Profit');
+    expect(document.body.textContent).toContain('156.859');
     expect(document.body.textContent).toContain('$125.11');
     expect(document.body.textContent).toContain('MetaApi MT5 bridge');
+  });
+
+  it('formats index prices without forex precision in the trade plan', () => {
+    const signal: TradingSignal = {
+      id: 'sig-index-plan',
+      created_at: '2026-05-08T09:05:00.000Z',
+      symbol: 'NAS100',
+      side: 'buy',
+      status: 'active',
+      price: 21500,
+      sl: 21450,
+      tp: 21625.5,
+      execution_source: 'metaapi',
+      run_mode: 'LIVE',
+    } as TradingSignal;
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    expect(document.querySelector('[data-testid="trade-plan-panel"]')).not.toBeNull();
+    expect(document.body.textContent).toContain('21500.00');
+    expect(document.body.textContent).toContain('21450.00');
+    expect(document.body.textContent).toContain('21625.50');
+    expect(document.body.textContent).not.toContain('21500.00000');
+  });
+
+  it('restores compact RR, stop distance, PnL percent, and exit type facts', () => {
+    const signal: TradingSignal = {
+      id: 'sig-plan-details',
+      created_at: '2026-05-08T09:10:00.000Z',
+      symbol: 'NAS100',
+      side: 'sell',
+      status: 'closed',
+      entry: 21500,
+      sl: 21540,
+      tp: 21400,
+      rr_ratio: 2.5,
+      sl_pips: 40,
+      pnl_percentage: 1.75,
+      exit_type: 'take_profit',
+      execution_source: 'metaapi',
+      run_mode: 'LIVE',
+    } as TradingSignal;
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    expect(document.body.textContent).toContain('Risk:Reward');
+    expect(document.body.textContent).toContain('1:2.50');
+    expect(document.body.textContent).toContain('SL Distance');
+    expect(document.body.textContent).toContain('40.0 pts');
+    expect(document.body.textContent).toContain('PnL %');
+    expect(document.body.textContent).toContain('+1.75%');
+    expect(document.body.textContent).toContain('Exit Type');
+    expect(document.body.textContent).toContain('take profit');
   });
 });
