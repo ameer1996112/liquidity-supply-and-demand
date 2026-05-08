@@ -3,7 +3,7 @@
 // Visual-only shadow indicator. It does not place trades and does not emit production alerts.
 
 //@version=6
-indicator("SND Clean Zones Prototype", shorttitle="SND Clean", overlay=true, max_boxes_count=120, max_lines_count=240, max_labels_count=120, max_bars_back=1000)
+indicator("SND Clean Zones Prototype", shorttitle="SND Clean", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=120, max_bars_back=1000)
 
 const int SIDE_DEMAND = 1
 const int SIDE_SUPPLY = -1
@@ -17,34 +17,61 @@ const int LIQ_NONE = 0
 const int LIQ_INTERNAL = 1
 const int LIQ_EXTERNAL = 2
 
-grpDetection = "Zone Detection"
-max_zones = input.int(8, "Max Zones", minval=1, maxval=30, group=grpDetection)
-base_max_candles = input.int(4, "Max Base Candles", minval=1, maxval=8, group=grpDetection)
-base_body_max_pct = input.float(50.0, "Max Base Body %", minval=5.0, maxval=90.0, step=1.0, group=grpDetection)
-base_range_atr_max = input.float(1.15, "Max Base Range ATR", minval=0.1, maxval=5.0, step=0.05, group=grpDetection)
-use_origin_candle_zones = input.bool(true, "Use Origin Candle Zones", group=grpDetection)
-max_zone_height_atr = input.float(0.75, "Max Zone Height ATR", minval=0.05, maxval=5.0, step=0.05, group=grpDetection)
-replace_broader_overlaps = input.bool(true, "Replace Broader Overlaps", group=grpDetection)
-replace_distal_same_side_zones = input.bool(true, "Replace Distal Same-Side Zones", group=grpDetection)
-displacement_atr_min = input.float(0.80, "Min Displacement ATR", minval=0.1, maxval=5.0, step=0.05, group=grpDetection)
-bos_lookback = input.int(20, "BOS Lookback", minval=5, maxval=100, group=grpDetection)
-strict_bos_close_beyond_level = input.bool(false, "Strict BOS Close Beyond Level", group=grpDetection)
-enable_accuracy_zones = input.bool(true, "Enable Accuracy Zones", group=grpDetection)
+grpDisplay = "Display"
+show_demand_zones = input.bool(true, "Show Demand Zones", group=grpDisplay)
+show_supply_zones = input.bool(true, "Show Supply Zones", group=grpDisplay)
+show_liquidity_lines = input.bool(true, "Show Liquidity Lines", group=grpDisplay)
+
+grpDemandColors = "Demand Colors"
+demand_waiting_bos_color = input.color(color.new(color.rgb(255, 152, 0), 70), "Demand - Waiting BOS", group=grpDemandColors)
+demand_valid_zone_color = input.color(color.new(color.rgb(76, 175, 80), 70), "Demand - Valid Zone", group=grpDemandColors)
+demand_tested_zone_color = input.color(color.new(color.rgb(41, 98, 255), 70), "Demand - Tested (Past)", group=grpDemandColors)
+demand_liquidity_line_color = input.color(color.rgb(248, 38, 91), "Demand - Liquidity Line", group=grpDemandColors)
+
+grpSupplyColors = "Supply Colors"
+supply_waiting_bos_color = input.color(color.new(color.rgb(255, 152, 0), 70), "Supply - Waiting BOS", group=grpSupplyColors)
+supply_valid_zone_color = input.color(color.new(color.rgb(76, 175, 80), 70), "Supply - Valid Zone", group=grpSupplyColors)
+supply_tested_zone_color = input.color(color.new(color.rgb(41, 98, 255), 70), "Supply - Tested (Past)", group=grpSupplyColors)
+supply_liquidity_line_color = input.color(color.rgb(248, 38, 91), "Supply - Liquidity Line", group=grpSupplyColors)
+
+grpAccuracy = "Accuracy Zones"
+enable_accuracy_zones = input.bool(true, "Enable Accuracy Zones", group=grpAccuracy)
+exclude_accuracy_tickers = input.string("", "Exclude Accuracy on (comma-separated tickers)", group=grpAccuracy)
 
 grpLiquidity = "Liquidity Detection"
 enable_one_candle_liquidity = input.bool(true, "Enable One Candle Liquidity", group=grpLiquidity)
-liquidity_scan_bars = input.int(120, "Liquidity Scan Bars", minval=20, maxval=500, group=grpLiquidity)
-max_internal_liquidity_atr = input.float(0.618, "Max Internal Liquidity Distance ATR", minval=0.05, maxval=5.0, step=0.001, group=grpLiquidity)
-max_external_liquidity_atr = input.float(1.414, "Max External Liquidity Distance ATR", minval=0.05, maxval=8.0, step=0.001, group=grpLiquidity)
-external_structure_max_percent_of_move = input.float(30.0, "External Structure Max % Of Move", minval=1.0, maxval=100.0, step=1.0, group=grpLiquidity)
-show_target_liquidity = input.bool(true, "Show Target Liquidity", group=grpLiquidity)
+max_internal_liquidity_atr = input.float(0.618, "Max Liquidity Distance (small structures)", minval=0.05, maxval=5.0, step=0.001, group=grpLiquidity)
+max_external_liquidity_atr = input.float(1.414, "Max Liquidity Distance (bigger structures)", minval=0.05, maxval=8.0, step=0.001, group=grpLiquidity)
+external_structure_max_percent_of_move = input.float(30.0, "Bigger Structure Max Distance (% of move)", minval=1.0, maxval=100.0, step=1.0, group=grpLiquidity)
+strict_bos_close_beyond_level = input.bool(false, "Strict BOS (Close Beyond Level)", group=grpLiquidity)
 
-grpDisplay = "Display"
-show_waiting_bos = input.bool(false, "Show Waiting BOS Zones", group=grpDisplay)
-show_invalid_zones = input.bool(false, "Show Invalid Zones", group=grpDisplay)
-show_state_labels = input.bool(false, "Show State Labels", group=grpDisplay)
-show_debug = input.bool(false, "Debug Mode", group=grpDisplay)
-max_debug_labels = input.int(40, "Max Debug Labels", minval=5, maxval=80, group=grpDisplay)
+grpTimeFilters = "Time Filters"
+max_zone_age_low_tf_hours = input.int(10, "Max Zone Age - Low TF (hours)", minval=1, maxval=240, group=grpTimeFilters)
+max_zone_age_high_tf_days = input.int(7, "Max Zone Age - High TF (days)", minval=1, maxval=365, group=grpTimeFilters)
+
+grpAlerts = "Alerts"
+demand_custom_notification = input.string("Demand tapped", "Demand custom notification", group=grpAlerts)
+supply_custom_notification = input.string("Supply tapped", "Supply custom notification", group=grpAlerts)
+alert_timezone = input.string("Europe/Paris", "Alert Timezone", options=["Europe/Paris", "UTC", "America/New_York", "Asia/Jerusalem", "Asia/Tokyo", "Europe/London"], group=grpAlerts)
+alert_session_low_tf = input.session("0600-2000", "Alert Session - Low TF", group=grpAlerts)
+alert_session_high_tf = input.session("0600-2000", "Alert Session - High TF", group=grpAlerts)
+
+const int max_zones = 200
+const int base_max_candles = 4
+const float base_body_max_pct = 50.0
+const float base_range_atr_max = 1.15
+const bool use_origin_candle_zones = true
+const float max_zone_height_atr = 0.75
+const bool replace_broader_overlaps = false
+const bool replace_distal_same_side_zones = false
+const float displacement_atr_min = 0.80
+const int bos_lookback = 20
+const int liquidity_scan_bars = 120
+const bool show_waiting_bos = false
+const bool show_invalid_zones = false
+const bool show_state_labels = false
+const bool show_debug = false
+const int max_debug_labels = 40
 
 atr14 = ta.atr(14)
 
@@ -83,6 +110,10 @@ f_pip_size() =>
     syminfo.type == "forex" ? (is_jpy_pair ? 0.01 : 0.0001) : syminfo.mintick
 
 pip_size = f_pip_size()
+
+f_accuracy_enabled() =>
+    string excluded = "," + exclude_accuracy_tickers + ","
+    enable_accuracy_zones and not str.contains(excluded, syminfo.ticker) and not str.contains(excluded, syminfo.tickerid)
 
 f_body_pct(int off) =>
     float candleRange = high[off] - low[off]
@@ -196,8 +227,9 @@ f_overlaps_existing(float top, float bottom, int side) =>
             CleanZone existing = array.get(zones, i)
             bool sameSide = existing.side == side
             bool liveState = existing.state == STATE_WAITING_BOS or existing.state == STATE_VALID or existing.state == STATE_TESTED
-            bool rangesOverlap = not (existing.top < bottom or existing.bottom > top)
-            if sameSide and liveState and rangesOverlap
+            bool sameTop = math.abs(existing.top - top) <= pip_size * 0.1
+            bool sameBottom = math.abs(existing.bottom - bottom) <= pip_size * 0.1
+            if sameSide and liveState and sameTop and sameBottom
                 overlaps := true
                 break
     overlaps
@@ -321,13 +353,13 @@ f_create_zone(bool isDemand, int baseCount, float bodyHigh, float bodyLow, float
     [zoneBodyHigh, zoneBodyLow, zoneWickHigh, zoneWickLow, zoneStartBar, originOffset] = f_zone_source_bounds(isDemand, baseCount, bodyHigh, bodyLow, wickHigh, wickLow)
 
     if isDemand
-        isAccuracy := enable_accuracy_zones and high[originOffset] > high
+        isAccuracy := f_accuracy_enabled() and high[originOffset] > high
         top := isAccuracy ? zoneBodyHigh : zoneWickHigh
         bottom := math.min(zoneWickLow, low)
     else
-        isAccuracy := enable_accuracy_zones and low[originOffset] < low
-        top := math.max(zoneWickHigh, high)
-        bottom := isAccuracy ? zoneBodyLow : zoneWickLow
+        isAccuracy := f_accuracy_enabled() and low[originOffset] < low
+        top := isAccuracy ? zoneWickHigh : high
+        bottom := isAccuracy ? zoneBodyLow : low
 
     [cappedTop, cappedBottom] = f_cap_zone_height(isDemand, top, bottom)
     top := cappedTop
@@ -551,7 +583,7 @@ f_update_liquidity_sweeps(int idx) =>
         if not na(z.inducementPrice) and not z.inducementSwept
             if isDemand ? low <= z.inducementPrice : high >= z.inducementPrice
                 z.inducementSwept := true
-        if show_target_liquidity and not na(z.targetPrice) and not z.targetSwept
+        if show_liquidity_lines and not na(z.targetPrice) and not z.targetSwept
             if isDemand ? high >= z.targetPrice : low <= z.targetPrice
                 z.targetSwept := true
         array.set(zones, idx, z)
@@ -564,28 +596,36 @@ f_update_all_liquidity() =>
                 f_scan_liquidity_for_zone(i)
             f_update_liquidity_sweeps(i)
 
-f_zone_bg(CleanZone z) =>
+f_zone_state_color(CleanZone z) =>
     if z.state == STATE_WAITING_BOS
-        z.side == SIDE_DEMAND ? color.new(color.teal, 88) : color.new(color.orange, 88)
+        z.side == SIDE_DEMAND ? demand_waiting_bos_color : supply_waiting_bos_color
     else if z.state == STATE_VALID
-        z.side == SIDE_DEMAND ? color.new(color.green, 78) : color.new(color.red, 78)
+        z.side == SIDE_DEMAND ? demand_valid_zone_color : supply_valid_zone_color
     else if z.state == STATE_TESTED
-        z.side == SIDE_DEMAND ? color.new(color.aqua, 76) : color.new(color.yellow, 76)
+        z.side == SIDE_DEMAND ? demand_tested_zone_color : supply_tested_zone_color
     else
         color.new(color.gray, 92)
 
+f_zone_bg(CleanZone z) =>
+    f_zone_state_color(z)
+
 f_zone_border(CleanZone z) =>
-    if z.state == STATE_WAITING_BOS
-        color.new(color.gray, 30)
-    else if z.state == STATE_VALID
-        z.side == SIDE_DEMAND ? color.new(color.green, 5) : color.new(color.red, 5)
-    else if z.state == STATE_TESTED
-        z.side == SIDE_DEMAND ? color.new(color.aqua, 5) : color.new(color.yellow, 5)
-    else
-        color.new(color.gray, 60)
+    f_zone_state_color(z)
+
+f_liquidity_color(CleanZone z) =>
+    z.side == SIDE_DEMAND ? demand_liquidity_line_color : supply_liquidity_line_color
+
+f_zone_max_age_bars() =>
+    int tfSeconds = timeframe.in_seconds(timeframe.period)
+    float maxSeconds = tfSeconds >= 86400 ? max_zone_age_high_tf_days * 86400.0 : max_zone_age_low_tf_hours * 3600.0
+    int(math.max(1, math.round(maxSeconds / tfSeconds)))
+
+f_zone_expired(CleanZone z) =>
+    bar_index - z.createdBar > f_zone_max_age_bars()
 
 f_should_show_zone(CleanZone z) =>
-    z.state == STATE_VALID or z.state == STATE_TESTED or (show_waiting_bos and z.state == STATE_WAITING_BOS) or (show_invalid_zones and z.state == STATE_INVALID)
+    bool sideVisible = z.side == SIDE_DEMAND ? show_demand_zones : show_supply_zones
+    sideVisible and (z.state == STATE_VALID or z.state == STATE_TESTED or (show_waiting_bos and z.state == STATE_WAITING_BOS) or (show_invalid_zones and z.state == STATE_INVALID))
 
 f_update_zone_lifecycle(int idx) =>
     CleanZone z = array.get(zones, idx)
@@ -594,11 +634,12 @@ f_update_zone_lifecycle(int idx) =>
 
     if liveState
         bool invalidated = isDemand ? close < z.bottom : close > z.top
+        bool expired = f_zone_expired(z)
         int validationBar = na(z.bosBar) ? z.createdBar : z.bosBar
         bool canCountTouch = na(validationBar) ? bar_index > z.createdBar : bar_index > validationBar
         bool touched = canCountTouch and high >= z.bottom and low <= z.top
 
-        if invalidated
+        if invalidated or expired
             z.state := STATE_INVALID
         else if z.state == STATE_VALID and touched
             z.state := STATE_TESTED
@@ -625,8 +666,8 @@ f_render_zone(int idx) =>
             box.set_border_color(z.zoneBox, f_zone_border(z))
             box.set_border_width(z.zoneBox, z.isAccuracy ? 2 : 1)
 
-        if not na(z.inducementPrice)
-            color liqColor = z.inducementSwept ? color.new(color.fuchsia, 0) : color.new(color.fuchsia, 35)
+        if show_liquidity_lines and not na(z.inducementPrice)
+            color liqColor = f_liquidity_color(z)
             if na(z.inducementLine)
                 z.inducementLine := line.new(x1=z.inducementBar, y1=z.inducementPrice, x2=bar_index + 20, y2=z.inducementPrice, color=liqColor, width=1, xloc=xloc.bar_index)
             else
@@ -639,8 +680,8 @@ f_render_zone(int idx) =>
             line.delete(z.inducementLine)
             z.inducementLine := na
 
-        if show_target_liquidity and not na(z.targetPrice)
-            color targetColor = z.targetSwept ? color.new(color.gray, 0) : color.new(color.gray, 45)
+        if show_liquidity_lines and not na(z.targetPrice)
+            color targetColor = f_liquidity_color(z)
             if na(z.targetLine)
                 z.targetLine := line.new(x1=z.targetBar, y1=z.targetPrice, x2=bar_index + 20, y2=z.targetPrice, color=targetColor, width=1, style=line.style_dotted, xloc=xloc.bar_index)
             else
