@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 import sys
 import time
@@ -30,6 +31,7 @@ from scripts.rd_concepts_pipeline.config import (
 IMAGE_CONTENT_PREFIX = "image/"
 DISCORD_API = "https://discord.com/api/v10"
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+MAX_RETRY_AFTER_SECONDS = 60.0
 LOGGER = get_logger("rd_concepts.scraper")
 
 
@@ -49,9 +51,12 @@ def build_image_filename(message_id: str, image: dict[str, str]) -> str:
 def parse_retry_after(response: requests.Response) -> float:
     try:
         retry_after = response.json().get("retry_after", 1.0)
-        return float(retry_after)
+        parsed = float(retry_after)
     except (TypeError, ValueError, AttributeError, json.JSONDecodeError):
         return 1.0
+    if not math.isfinite(parsed) or parsed < 0:
+        return 1.0
+    return min(parsed, MAX_RETRY_AFTER_SECONDS)
 
 
 def request_json_with_retries(

@@ -147,6 +147,18 @@ def test_scrape_channel_persists_forbidden_manifest(monkeypatch, tmp_path) -> No
     assert json.loads(manifest_path.read_text(encoding="utf-8")) == manifest
 
 
+def test_parse_retry_after_clamps_unsafe_values() -> None:
+    assert scraper.parse_retry_after(
+        FakeResponse(429, payload={"retry_after": -1})
+    ) == 1.0
+    assert scraper.parse_retry_after(
+        FakeResponse(429, payload={"retry_after": "NaN"})
+    ) == 1.0
+    assert scraper.parse_retry_after(
+        FakeResponse(429, payload={"retry_after": 9999})
+    ) == 60.0
+
+
 def test_download_image_does_not_send_authorization_header(monkeypatch, tmp_path) -> None:
     settings = PipelineSettings(
         discord_authorization="secret-token",
