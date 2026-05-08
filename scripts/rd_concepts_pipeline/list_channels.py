@@ -49,7 +49,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="List visible Discord channels for RD Concepts.")
     parser.add_argument("--json", action="store_true", help="Print JSON instead of text.")
     args = parser.parse_args()
-    channels = sorted(fetch_channels(), key=lambda item: item["name"])
+    try:
+        channels = sorted(fetch_channels(), key=lambda item: item["name"])
+    except (RuntimeError, ValueError, requests.RequestException, json.JSONDecodeError) as exc:
+        print(f"error: {redact(str(exc))}", file=sys.stderr)
+        return 1
     if args.json:
         print(json.dumps(channels, indent=2, sort_keys=True))
     else:
