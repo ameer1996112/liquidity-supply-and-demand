@@ -2418,7 +2418,9 @@ updateDemandLiquidityVisual(idx) =>
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
                 color indColor = use_myrtille_visuals ? (z.liquiditySwept ? liq_line_swept_color : liq_line_color) : (z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50))
                 lineStyle = z.liquiditySwept ? line.style_solid : line.style_dashed
-                int lineEnd = bar_index + 36
+                int projectedEnd = bar_index + 36
+                int lineEnd = z.liquiditySwept and not na(z.liquiditySweptBarIndex) ? z.liquiditySweptBarIndex : projectedEnd
+                lineEnd := math.max(lineEnd, z.liqLowBar + 1)
                 z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                                x2 = lineEnd, y2 = z.liqLowPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
@@ -2485,7 +2487,9 @@ updateSupplyLiquidityVisual(idx) =>
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
                 color indColor = use_myrtille_visuals ? (z.liquiditySwept ? liq_line_swept_color : liq_line_color) : (z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50))
                 lineStyle = z.liquiditySwept ? line.style_solid : line.style_dashed
-                int lineEnd = bar_index + 36
+                int projectedEnd = bar_index + 36
+                int lineEnd = z.liquiditySwept and not na(z.liquiditySweptBarIndex) ? z.liquiditySweptBarIndex : projectedEnd
+                lineEnd := math.max(lineEnd, z.liqHighBar + 1)
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = lineEnd, y2 = z.liqHighPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
