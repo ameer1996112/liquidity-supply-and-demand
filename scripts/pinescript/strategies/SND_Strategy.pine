@@ -154,6 +154,13 @@ invalidate_on_wick   = input.bool(true, "invalidate_on_wick", group = "📐 Zone
 max_zones            = input.int(12, "max_zones", minval = 1, maxval = 50, group = "📐 Zone Detection")
 min_body_perc        = input.float(52.0, "min_body_perc", minval = 0, maxval = 100, group = "📐 Zone Detection")
 structure_mode      = input.string("Relaxed (Wicks)", "structure_mode", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
+require_bos_for_zones = true
+bos_lookback_bars     = 20
+bos_buffer_pips       = 0.0
+strict_bos_close      = false
+
+float bos_reference_high = ta.highest(high, bos_lookback_bars)
+float bos_reference_low = ta.lowest(low, bos_lookback_bars)
 
 liq_pivot_len       = input.int(10, "liq_pivot_len", minval = 1, group = "💧 Liquidity")
 pvtMax              = input.int(12, "pvtMax", minval = 1, maxval = 500, group = "💧 Liquidity")
@@ -165,13 +172,21 @@ liq_max_distance_pips_gold  = input.float(150.0, "liq_max_distance_pips_gold", m
 liq_max_distance_pips_index = input.float(500.0, "liq_max_distance_pips_index", minval = 100.0, group = "💧 Liquidity")
 
 fractalsPeriod = 2  // Williams Fractals period
+use_myrtille_visuals = true
 plotLiq    = input.bool(true, "plotLiq", group = "🎨 Display")
 show_fractals = input.bool(true, "show_fractals", group = "🎨 Display")
 pvtTopColor = color.red  // Visual colors
 pvtBtmColor = color.green
 pvtStyle    = line.style_solid
 show_liquidity_connectors = input.bool(true, "show_liquidity_connectors", group = "🎨 Display")
-liq_line_color = color.new(color.gray, 35)
+show_zone_labels = false
+draw_fractals = show_fractals and not use_myrtille_visuals
+draw_pivot_liquidity_lines = plotLiq and not use_myrtille_visuals
+draw_zone_labels = show_zone_labels and not use_myrtille_visuals
+draw_liquidity_lines = show_liquidity_connectors
+draw_liquidity_connectors = show_liquidity_connectors and not use_myrtille_visuals
+draw_liquidity_targets = show_liquidity_connectors and not use_myrtille_visuals
+liq_line_color = use_myrtille_visuals ? color.new(#ff2d6f, 0) : color.new(color.gray, 35)
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
 liq_link_lookback_bars = 400
@@ -406,16 +421,16 @@ if news_blackout_enabled
         if time >= _pf_ts - 2 * 60 * 1000 and time <= _pf_ts + 2 * 60 * 1000
             pf_is_news_blackout := true
 
-col_demand_bg     = color.new(#26a69a, 88)  // Very subtle (12% visible)
-col_demand_border = color.new(#26a69a, 40)  // Teal border, semi-transparent
+col_demand_bg     = use_myrtille_visuals ? color.new(#4CAF50, 80) : color.new(#26a69a, 88)
+col_demand_border = use_myrtille_visuals ? color.new(#2E7D32, 35) : color.new(#26a69a, 40)
 
-col_supply_bg     = color.new(#ef5350, 88)  // Very subtle (12% visible)
-col_supply_border = color.new(#ef5350, 40)  // Red border, semi-transparent
+col_supply_bg     = use_myrtille_visuals ? color.new(#4CAF50, 80) : color.new(#ef5350, 88)
+col_supply_border = use_myrtille_visuals ? color.new(#2E7D32, 35) : color.new(#ef5350, 40)
 
-col_acc_demand_bg     = color.new(#2196F3, 70)  // Blue, more visible (30%)
-col_acc_demand_border = #42A5F5  // Bright blue border
-col_acc_supply_bg     = color.new(#AB47BC, 70)  // Purple, more visible (30%)
-col_acc_supply_border = #BA68C8  // Bright purple border
+col_acc_demand_bg     = use_myrtille_visuals ? color.new(#4CAF50, 80) : color.new(#2196F3, 70)
+col_acc_demand_border = use_myrtille_visuals ? color.new(#2E7D32, 35) : #42A5F5
+col_acc_supply_bg     = use_myrtille_visuals ? color.new(#4CAF50, 80) : color.new(#AB47BC, 70)
+col_acc_supply_border = use_myrtille_visuals ? color.new(#2E7D32, 35) : #BA68C8
 
 float tol = pip_size * 1.0
 
@@ -907,8 +922,8 @@ isZoneBaseBar  = (isFractalHigh_result or isFractalLow_result) ?
 fractalHigh = (not isZoneBaseBar and isFractalHigh_result) ? high[fractalsPeriod] : na
 fractalLow  = (not isZoneBaseBar and isFractalLow_result) ? low[fractalsPeriod] : na
 
-plotshape(show_fractals and not na(fractalHigh), style = shape.triangleup,   location = location.abovebar, color = color.green, size = size.small, offset = -fractalsPeriod)
-plotshape(show_fractals and not na(fractalLow),  style = shape.triangledown, location = location.belowbar, color = color.red,   size = size.small, offset = -fractalsPeriod)
+plotshape(draw_fractals and not na(fractalHigh), style = shape.triangleup,   location = location.abovebar, color = color.green, size = size.small, offset = -fractalsPeriod)
+plotshape(draw_fractals and not na(fractalLow),  style = shape.triangledown, location = location.belowbar, color = color.red,   size = size.small, offset = -fractalsPeriod)
 
 var array<float> liqPvtHighPrices = array.new_float()
 var array<int>   liqPvtHighBars   = array.new_int()
@@ -1576,7 +1591,23 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             if not hasFVG
                 na
 
-        bool proceed_creation = not use_fvg_confirmation or hasFVG
+        int bosRefOffset = baseIdx + 1
+        float bosPriorHigh = bos_reference_high[bosRefOffset]
+        float bosPriorLow = bos_reference_low[bosRefOffset]
+        float bosDepartureHigh = high
+        float bosDepartureLow = low
+        int bosDepartureLookback = math.max(baseIdx - 1, 0)
+
+        if bosDepartureLookback > 0
+            for off = 1 to bosDepartureLookback
+                bosDepartureHigh := math.max(bosDepartureHigh, high[off])
+                bosDepartureLow := math.min(bosDepartureLow, low[off])
+
+        float bosBuffer = bos_buffer_pips * pip_size
+        float bosBreakPrice = strict_bos_close ? close : (isDemand ? bosDepartureHigh : bosDepartureLow)
+        bool bosHasReference = isDemand ? not na(bosPriorHigh) : not na(bosPriorLow)
+        bool hasBOS = bosHasReference and (isDemand ? bosBreakPrice > bosPriorHigh + bosBuffer : bosBreakPrice < bosPriorLow - bosBuffer)
+        bool proceed_creation = (not use_fvg_confirmation or hasFVG) and (not require_bos_for_zones or hasBOS)
 
         bool isAccuracy = false
 
@@ -1654,10 +1685,12 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 lbl_bg_color := isDemand ? color.new(#2196F3, 0) : color.new(#AB47BC, 0)  // Blue for demand ACC, Purple for supply ACC
             else
                 lbl_bg_color := isDemand ? color.new(#26a69a, 0) : color.new(#ef5350, 0)  // Teal for demand, Coral for supply
-            label idLbl = label.new(x = baseBarIdx, y = mid, text = id_text,
-                 style = label.style_label_left, textcolor = color.white, color = lbl_bg_color,
-                 size = size.tiny,  // Forced tiny size for clean chart
-                 textalign = text.align_center, xloc = xloc.bar_index)
+            label idLbl = na
+            if draw_zone_labels
+                idLbl := label.new(x = baseBarIdx, y = mid, text = id_text,
+                     style = label.style_label_left, textcolor = color.white, color = lbl_bg_color,
+                     size = size.tiny,
+                     textalign = text.align_center, xloc = xloc.bar_index)
 
             Core.Zone z = Core.Zone.new()
             z.id := zoneUZID
@@ -1689,7 +1722,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 z.baseQuality := 50.0
                 z.departureStrength := 50.0
 
-            if show_grade_on_zone and zone_label_style == "Compact"
+            if draw_zone_labels and show_grade_on_zone and zone_label_style == "Compact"
                 string gradeStr = "[" + z.grade + "] "
                 label.set_text(idLbl, gradeStr + id_text)
 
@@ -2399,12 +2432,12 @@ updateDemandLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(demandZones)
         Core.Zone z = array.get(demandZones, idx)
 
-        if show_liquidity_connectors
+        if draw_liquidity_lines
             if not na(z.inducementHLine)
                 line.delete(z.inducementHLine)
 
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                color indColor = z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50)
+                color indColor = use_myrtille_visuals ? liq_line_color : (z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50))
                 int lineEnd = bar_index + 20
                 z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                                x2 = lineEnd, y2 = z.liqLowPrice,
@@ -2414,7 +2447,7 @@ updateDemandLiquidityVisual(idx) =>
             if not na(z.targetHLine)
                 line.delete(z.targetHLine)
 
-            if not na(z.liqHighPrice) and not na(z.liqHighBar)
+            if draw_liquidity_targets and not na(z.liqHighPrice) and not na(z.liqHighBar)
                 color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
                 int lineEnd = bar_index + 20
                 z.targetHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
@@ -2429,7 +2462,7 @@ updateDemandLiquidityVisual(idx) =>
                 line.delete(z.targetHLine)
                 z.targetHLine := na
 
-        if na(z.liquidityPrice) or na(z.liquidityBarIndex) or na(z.createdBarIndex) or not show_liquidity_connectors
+        if na(z.liquidityPrice) or na(z.liquidityBarIndex) or na(z.createdBarIndex) or not draw_liquidity_connectors
             if not na(z.connectorLine)
                 line.delete(z.connectorLine)
                 z.connectorLine := na
@@ -2465,12 +2498,12 @@ updateSupplyLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(supplyZones)
         Core.Zone z = array.get(supplyZones, idx)
 
-        if show_liquidity_connectors
+        if draw_liquidity_lines
             if not na(z.inducementHLine)
                 line.delete(z.inducementHLine)
 
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
-                color indColor = z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50)
+                color indColor = use_myrtille_visuals ? liq_line_color : (z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50))
                 int lineEnd = bar_index + 20
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = lineEnd, y2 = z.liqHighPrice,
@@ -2480,7 +2513,7 @@ updateSupplyLiquidityVisual(idx) =>
             if not na(z.targetHLine)
                 line.delete(z.targetHLine)
 
-            if not na(z.liqLowPrice) and not na(z.liqLowBar)
+            if draw_liquidity_targets and not na(z.liqLowPrice) and not na(z.liqLowBar)
                 color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
                 int lineEnd = bar_index + 20
                 z.targetHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
@@ -2495,7 +2528,7 @@ updateSupplyLiquidityVisual(idx) =>
                 line.delete(z.targetHLine)
                 z.targetHLine := na
 
-        if na(z.liqHighPrice) or na(z.liqHighBar) or na(z.createdBarIndex) or not show_liquidity_connectors
+        if na(z.liqHighPrice) or na(z.liqHighBar) or na(z.createdBarIndex) or not draw_liquidity_connectors
             if not na(z.connectorLine)
                 line.delete(z.connectorLine)
                 z.connectorLine := na
@@ -4300,7 +4333,7 @@ _controlLine(_lines, _activeFlags, __high, __low) =>
         true  // Return value
 
 
-if isPvtLow and plotLiq
+if isPvtLow and draw_pivot_liquidity_lines
     int  pBar  = bar_index - 1  // Middle candle of the 3-candle pattern
     float pLow = low[1]
     lowLine = line.new(x1 = pBar, y1 = pLow, x2 = bar_index, y2 = pLow,
@@ -4312,7 +4345,7 @@ if isPvtLow and plotLiq
     array.push(_lowLiqLines, lowLine)
     array.push(_lowLiqActive, true)
 
-if isPvtHigh and plotLiq
+if isPvtHigh and draw_pivot_liquidity_lines
     int  pBar  = bar_index - 1  // Middle candle of the 3-candle pattern
     float pHigh = high[1]
     highLine = line.new(x1 = pBar, y1 = pHigh, x2 = bar_index, y2 = pHigh,extend = extend.none, color = pvtTopColor, style = pvtStyle, xloc = xloc.bar_index)
@@ -4323,7 +4356,7 @@ if isPvtHigh and plotLiq
     array.push(_highLiqLines, highLine)
     array.push(_highLiqActive, true)
 
-if plotLiq and barstate.isconfirmed
+if draw_pivot_liquidity_lines and barstate.isconfirmed
     _controlLine(_lowLiqLines, _lowLiqActive, high, low)
     _controlLine(_highLiqLines, _highLiqActive, high, low)
 
