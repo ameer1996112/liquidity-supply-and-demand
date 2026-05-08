@@ -3,7 +3,7 @@
 // Visual-only shadow indicator. It does not place trades and does not emit production alerts.
 
 //@version=6
-indicator("SND Clean Zones Prototype", shorttitle="SND Clean Zones", overlay=true, max_boxes_count=120, max_lines_count=240, max_labels_count=120, max_bars_back=1000)
+indicator("SND Clean Zones Prototype", shorttitle="SND Clean", overlay=true, max_boxes_count=120, max_lines_count=240, max_labels_count=120, max_bars_back=1000)
 
 const int SIDE_DEMAND = 1
 const int SIDE_SUPPLY = -1
@@ -255,14 +255,16 @@ f_zone_source_bounds(bool isDemand, int baseCount, float bodyHigh, float bodyLow
     [zoneBodyHigh, zoneBodyLow, zoneWickHigh, zoneWickLow, zoneStartBar, originOffset]
 
 f_cap_zone_height(bool isDemand, float top, float bottom) =>
+    float cappedTop = top
+    float cappedBottom = bottom
     if not na(atr14) and atr14 > 0.0 and max_zone_height_atr > 0.0
         float maxHeight = atr14 * max_zone_height_atr
-        if f_zone_height(top, bottom) > maxHeight
+        if f_zone_height(cappedTop, cappedBottom) > maxHeight
             if isDemand
-                top := bottom + maxHeight
+                cappedTop := cappedBottom + maxHeight
             else
-                bottom := top - maxHeight
-    [top, bottom]
+                cappedBottom := cappedTop - maxHeight
+    [cappedTop, cappedBottom]
 
 f_create_zone(bool isDemand, int baseCount, float bodyHigh, float bodyLow, float wickHigh, float wickLow) =>
     int side = isDemand ? SIDE_DEMAND : SIDE_SUPPLY
