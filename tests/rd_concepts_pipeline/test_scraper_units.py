@@ -1,5 +1,7 @@
 import json
 
+import requests
+
 from scripts.rd_concepts_pipeline import scraper
 from scripts.rd_concepts_pipeline.config import PipelineSettings
 from scripts.rd_concepts_pipeline.scraper import (
@@ -9,6 +11,27 @@ from scripts.rd_concepts_pipeline.scraper import (
     normalize_message,
     should_retry_status,
 )
+
+
+class FakeResponse:
+    def __init__(
+        self,
+        status_code: int,
+        payload=None,
+        text: str = "",
+        content: bytes = b"",
+        json_exc: Exception | None = None,
+    ) -> None:
+        self.status_code = status_code
+        self._payload = payload
+        self.text = text
+        self.content = content
+        self._json_exc = json_exc
+
+    def json(self):
+        if self._json_exc is not None:
+            raise self._json_exc
+        return self._payload
 
 
 def test_extract_image_urls_from_attachments_and_embeds() -> None:
@@ -122,3 +145,105 @@ def test_scrape_channel_persists_forbidden_manifest(monkeypatch, tmp_path) -> No
     assert messages_path.exists()
     assert messages_path.read_text(encoding="utf-8") == ""
     assert json.loads(manifest_path.read_text(encoding="utf-8")) == manifest
+
+
+def test_download_image_does_not_send_authorization_header(monkeypatch, tmp_path) -> None:
+    settings = PipelineSettings(
+        discord_authorization="secret-token",
+        discord_server_id="guild-123",
+        data_dir=tmp_path,
+    )
+    seen_headers = []
+
+    def fake_get(url, **kwargs):
+        seen_headers.append(kwargs.get("headers"))
+        return FakeResponse(200, content=b"image-bytes")
+
+    monkeypatch.setattr(scraper.requests, "get", fake_get)
+
+    assert scraper.download_image(
+        "https://images.example/chart.png",
+        tmp_path / "chart.png",
+        settings,
+    )
+    assert seen_headers == [None]
+
+
+def test_request_json_with_retries_retries_timeout_then_succeeds(monkeypatch, tmp_path) -> None:
+    settings = PipelineSettings(
+        discord_authorization="secret-token",
+        discord_server_id="guild-123",
+        data_dir=tmp_path,
+    )
+    responses = [
+        requests.Timeout("slow"),
+        FakeResponse(200, payload=[{"id": "1"}]),
+    ]
+
+    def fake_get(url, **kwargs):
+        item = responses.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    monkeypatch.setattr(scraper.requests, "get", fake_get)
+    monkeypatch.setattr(scraper.time, "sleep", lambda delay: None)
+
+    assert scraper.request_json_with_retries(
+        "https://discord.example/messages",
+        settings,
+    ) == (200, [{"id": "1"}])
+
+
+def test_request_json_with_retries_uses_default_sleep_for_malformed_429(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    settings = PipelineSettings(
+        discord_authorization="secret-token",
+        discord_server_id="guild-123",
+        data_dir=tmp_path,
+    )
+    responses = [
+        FakeResponse(429, json_exc=ValueError("not json")),
+        FakeResponse(200, payload=[]),
+    ]
+    sleeps = []
+
+    def fake_get(url, **kwargs):
+        return responses.pop(0)
+
+    monkeypatch.setattr(scraper.requests, "get", fake_get)
+    monkeypatch.setattr(scraper.time, "sleep", lambda delay: sleeps.append(delay))
+
+    assert scraper.request_json_with_retries(
+        "https://discord.example/messages",
+        settings,
+    ) == (200, [])
+    assert sleeps == [1.0]
+
+
+def test_download_image_returns_false_after_repeated_connection_errors(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    settings = PipelineSettings(
+        discord_authorization="secret-token",
+        discord_server_id="guild-123",
+        data_dir=tmp_path,
+    )
+
+    def fake_get(url, **kwargs):
+        raise requests.ConnectionError("offline")
+
+    monkeypatch.setattr(scraper.requests, "get", fake_get)
+    monkeypatch.setattr(scraper.time, "sleep", lambda delay: None)
+
+    assert (
+        scraper.download_image(
+            "https://images.example/chart.png",
+            tmp_path / "chart.png",
+            settings,
+        )
+        is False
+    )

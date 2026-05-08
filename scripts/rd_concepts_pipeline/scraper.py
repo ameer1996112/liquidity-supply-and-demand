@@ -46,21 +46,37 @@ def build_image_filename(message_id: str, image: dict[str, str]) -> str:
     return f"{base}{suffix}"
 
 
+def parse_retry_after(response: requests.Response) -> float:
+    try:
+        retry_after = response.json().get("retry_after", 1.0)
+        return float(retry_after)
+    except (TypeError, ValueError, AttributeError, json.JSONDecodeError):
+        return 1.0
+
+
 def request_json_with_retries(
     url: str,
     settings: PipelineSettings,
     params: dict[str, Any] | None = None,
 ) -> tuple[int, Any]:
     headers = {"Authorization": settings.require_discord_authorization()}
+    last_error: requests.RequestException | None = None
     for attempt in range(1, settings.max_retries + 1):
-        response = requests.get(
-            url,
-            headers=headers,
-            params=params,
-            timeout=settings.request_timeout_seconds,
-        )
+        try:
+            response = requests.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=settings.request_timeout_seconds,
+            )
+        except requests.RequestException as exc:
+            last_error = exc
+            if attempt < settings.max_retries:
+                time.sleep(min(attempt * 2, 10))
+                continue
+            break
         if response.status_code == 429:
-            retry_after = float(response.json().get("retry_after", 1.0))
+            retry_after = parse_retry_after(response)
             LOGGER.warning("Rate limited for %.2fs on %s", retry_after, redact(url))
             time.sleep(retry_after)
             continue
@@ -77,20 +93,28 @@ def request_json_with_retries(
                 )
             )
         return response.status_code, response.json()
+    if last_error is not None:
+        raise RuntimeError(
+            redact(f"Discord request exhausted retries: {url}: {last_error}")
+        ) from last_error
     raise RuntimeError(redact(f"Discord request exhausted retries: {url}"))
 
 
 def download_image(url: str, output_path: Path, settings: PipelineSettings) -> bool:
     ensure_dir(output_path.parent)
-    headers = {"Authorization": settings.require_discord_authorization()}
     for attempt in range(1, settings.max_retries + 1):
-        response = requests.get(
-            url,
-            headers=headers,
-            timeout=settings.request_timeout_seconds,
-        )
+        try:
+            response = requests.get(
+                url,
+                timeout=settings.request_timeout_seconds,
+            )
+        except requests.RequestException:
+            if attempt < settings.max_retries:
+                time.sleep(min(attempt * 2, 10))
+                continue
+            return False
         if response.status_code == 429:
-            retry_after = float(response.json().get("retry_after", 1.0))
+            retry_after = parse_retry_after(response)
             time.sleep(retry_after)
             continue
         if should_retry_status(response.status_code) and attempt < settings.max_retries:
