@@ -40,6 +40,7 @@ show_waiting_bos = input.bool(false, "Show Waiting BOS Zones", group=grpDisplay)
 show_invalid_zones = input.bool(false, "Show Invalid Zones", group=grpDisplay)
 show_state_labels = input.bool(false, "Show State Labels", group=grpDisplay)
 show_debug = input.bool(false, "Debug Mode", group=grpDisplay)
+max_debug_labels = input.int(40, "Max Debug Labels", minval=5, maxval=80, group=grpDisplay)
 
 atr14 = ta.atr(14)
 
@@ -70,6 +71,7 @@ type CleanZone
     label stateLabel
 
 var CleanZone[] zones = array.new<CleanZone>()
+var label[] debug_labels = array.new<label>()
 var int[] next_zone_id = array.new_int(1, 1)
 
 f_pip_size() =>
@@ -195,6 +197,13 @@ f_trim_zones() =>
         if not na(old.stateLabel)
             label.delete(old.stateLabel)
 
+f_track_debug_label(label debugLabel) =>
+    array.unshift(debug_labels, debugLabel)
+    while array.size(debug_labels) > max_debug_labels
+        label oldDebugLabel = array.pop(debug_labels)
+        if not na(oldDebugLabel)
+            label.delete(oldDebugLabel)
+
 f_create_zone(bool isDemand, int baseCount, float bodyHigh, float bodyLow, float wickHigh, float wickLow) =>
     int side = isDemand ? SIDE_DEMAND : SIDE_SUPPLY
     float top = na
@@ -248,13 +257,15 @@ f_debug_candidate_marker(bool isDemand, int baseCount) =>
         string txt = isDemand ? "D base" : "S base"
         color markerColor = isDemand ? color.new(color.green, 0) : color.new(color.red, 0)
         float markerPrice = isDemand ? low : high
-        label.new(x=bar_index, y=markerPrice, text=txt, style=isDemand ? label.style_label_up : label.style_label_down, textcolor=color.white, color=markerColor, size=size.tiny, xloc=xloc.bar_index)
+        label debugLabel = label.new(x=bar_index, y=markerPrice, text=txt, style=isDemand ? label.style_label_up : label.style_label_down, textcolor=color.white, color=markerColor, size=size.tiny, xloc=xloc.bar_index)
+        f_track_debug_label(debugLabel)
 
 f_debug_rejected_marker(bool isDemand, string reason) =>
     if show_debug
         color markerColor = color.new(color.gray, 35)
         float markerPrice = isDemand ? low : high
-        label.new(x=bar_index, y=markerPrice, text=reason, style=isDemand ? label.style_label_up : label.style_label_down, textcolor=color.white, color=markerColor, size=size.tiny, xloc=xloc.bar_index)
+        label debugLabel = label.new(x=bar_index, y=markerPrice, text=reason, style=isDemand ? label.style_label_up : label.style_label_down, textcolor=color.white, color=markerColor, size=size.tiny, xloc=xloc.bar_index)
+        f_track_debug_label(debugLabel)
 
 f_try_detect_zone(bool isDemand) =>
     int baseCount = f_base_count()
