@@ -55,9 +55,203 @@ interface SignalInspectorProps {
   onOpenChange: (open: boolean) => void;
 }
 
+type InspectorTone = 'success' | 'danger' | 'warning' | 'muted';
+type PipelineStageState = 'pass' | 'fail' | 'skipped' | 'pending' | 'unknown';
+
+interface OutcomeViewModel {
+  label: string;
+  eyebrow: string;
+  tone: InspectorTone;
+  reason: string;
+}
+
+interface PipelineStageViewModel {
+  id: string;
+  label: string;
+  state: PipelineStageState;
+  detail: string;
+}
+
+interface TradePlanItem {
+  label: string;
+  value: React.ReactNode;
+  tone?: InspectorTone;
+}
+
 // Safe number formatter
 const formatNum = (num: number | null | undefined, decimals = 2): string =>
   num != null ? num.toFixed(decimals) : '--';
+
+function formatStatusLabel(status: string | undefined): string {
+  const raw = String(status || 'unknown').trim();
+  if (!raw) return 'Unknown';
+  return raw
+    .replace(/^trading[_\s-]*/i, '')
+    .replaceAll('_', ' ')
+    .replaceAll('-', ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function isPermissionStatus(status: string | undefined): boolean {
+  const normalized = String(status || '').toLowerCase();
+  return normalized.includes('trading_permission') || normalized.includes('trade_permission');
+}
+
+function isPermissionBlocked(status: string | undefined): boolean {
+  const normalized = String(status || '').toLowerCase();
+  return (
+    isPermissionStatus(status) &&
+    (normalized.includes('rejected') ||
+      normalized.includes('denied') ||
+      normalized.includes('blocked'))
+  );
+}
+
+function isBrokerExecuted(signal: TradingSignal): boolean {
+  const status = String(signal.status || '').toLowerCase();
+  const executionSource = String(signal.execution_source || '').toLowerCase();
+  return (
+    status === 'active' ||
+    status === 'open' ||
+    status === 'executed' ||
+    executionSource === 'metaapi' ||
+    executionSource === 'paper'
+  );
+}
+
+function deriveOutcome(signal: TradingSignal, ai: AIReasoning | null): OutcomeViewModel {
+  const status = String(signal.status || '').toLowerCase();
+  const reason =
+    signal.filter_reason ||
+    ai?.reason ||
+    getNotes(signal) ||
+    'No explicit stop reason was recorded.';
+
+  if (isPermissionBlocked(status)) {
+    return {
+      label: 'No Trade',
+      eyebrow: 'Permission Gate Stopped',
+      tone: 'danger',
+      reason: `Rejected: ${reason}`,
+    };
+  }
+
+  if (isPermissionStatus(status) && !isBrokerExecuted(signal)) {
+    return {
+      label: 'No Entry',
+      eyebrow: 'Execution Not Recorded',
+      tone: 'warning',
+      reason: 'No entry: signal passed permission, broker execution not recorded.',
+    };
+  }
+
+  if (status === 'failed' || status === 'execution_failed') {
+    return {
+      label: 'Exec Fail',
+      eyebrow: 'Broker Execution Failed',
+      tone: 'danger',
+      reason: `Execution failed: ${reason}`,
+    };
+  }
+
+  if (status === 'ai_rejected' || ai?.decision === 'NO_GO') {
+    return {
+      label: 'No Trade',
+      eyebrow: 'AI Brain Rejected',
+      tone: 'danger',
+      reason: `Rejected: ${reason}`,
+    };
+  }
+
+  if (status === 'active' || status === 'open' || status === 'executed') {
+    return {
+      label: 'Open',
+      eyebrow: 'Broker Position Active',
+      tone: 'success',
+      reason: 'Opened trade: broker execution is recorded for this signal.',
+    };
+  }
+
+  if (status === 'closed') {
+    return {
+      label: 'Closed',
+      eyebrow: 'Trade Completed',
+      tone: 'muted',
+      reason: reason === 'No explicit stop reason was recorded.' ? 'Closed trade.' : reason,
+    };
+  }
+
+  return {
+    label: formatStatusLabel(signal.status),
+    eyebrow: 'Signal State',
+    tone: 'muted',
+    reason,
+  };
+}
+
+function deriveExecutionStages(
+  signal: TradingSignal,
+  ai: AIReasoning | null
+): PipelineStageViewModel[] {
+  const status = String(signal.status || '').toLowerCase();
+  const permissionBlocked = isPermissionBlocked(status);
+  const aiRejected = status === 'ai_rejected' || ai?.decision === 'NO_GO';
+  const executionFailed = status === 'failed' || status === 'execution_failed';
+  const brokerExecuted = isBrokerExecuted(signal);
+  const permissionAllowed = isPermissionStatus(status) && !permissionBlocked;
+
+  return [
+    {
+      id: 'received',
+      label: 'Signal Received',
+      state: 'pass',
+      detail: 'Webhook signal stored in Latest Signals.',
+    },
+    {
+      id: 'permission',
+      label: 'Permission Gate',
+      state: permissionBlocked ? 'fail' : permissionAllowed || brokerExecuted || aiRejected ? 'pass' : 'unknown',
+      detail: permissionBlocked
+        ? signal.filter_reason || 'Trading permission rejected this signal.'
+        : permissionAllowed
+          ? 'Permission allowed the signal to continue.'
+          : 'No permission verdict recorded.',
+    },
+    {
+      id: 'ai',
+      label: 'AI Brain',
+      state: aiRejected ? 'fail' : ai?.decision === 'GO' ? 'pass' : permissionBlocked ? 'skipped' : 'unknown',
+      detail: aiRejected
+        ? ai?.reason || 'AI rejected this signal.'
+        : ai?.decision === 'GO'
+          ? 'AI decision approved the setup.'
+          : permissionBlocked
+            ? 'Skipped after permission gate stopped the signal.'
+            : 'No AI decision recorded.',
+    },
+    {
+      id: 'risk',
+      label: 'Risk Guard',
+      state: brokerExecuted ? 'pass' : permissionBlocked || aiRejected ? 'skipped' : 'unknown',
+      detail: brokerExecuted
+        ? 'Risk checks did not prevent broker execution.'
+        : permissionBlocked || aiRejected
+          ? 'Skipped because an earlier gate stopped the signal.'
+          : 'No risk result recorded.',
+    },
+    {
+      id: 'broker',
+      label: 'Broker Execution',
+      state: brokerExecuted ? 'pass' : executionFailed ? 'fail' : permissionBlocked || aiRejected || permissionAllowed ? 'skipped' : 'unknown',
+      detail: brokerExecuted
+        ? 'Broker execution is recorded.'
+        : executionFailed
+          ? signal.filter_reason || 'Broker execution failed.'
+          : 'No broker execution recorded.',
+    },
+  ];
+}
 
 // Info row component
 function InfoRow({
@@ -476,6 +670,8 @@ export function SignalInspector({
     llmStatus === 'ok' ? null : 'Context unavailable — treated as neutral.';
 
   const executionPlan = deriveExecutionPlan(signal);
+  const outcome = deriveOutcome(signal, ai);
+  const executionStages = deriveExecutionStages(signal, ai);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -487,6 +683,15 @@ export function SignalInspector({
         <SheetDescription id='signal-inspector-desc' className='sr-only'>
           Trade details and AI reasoning
         </SheetDescription>
+        <div className='sr-only'>
+          <span>{outcome.label}</span>
+          <span>{outcome.reason}</span>
+          {executionStages.map((stage) => (
+            <span key={stage.id}>
+              {stage.label}: {stage.detail}
+            </span>
+          ))}
+        </div>
         <ScrollArea className='h-full'>
           <div className='min-w-0 p-6'>
             {/* Header */}

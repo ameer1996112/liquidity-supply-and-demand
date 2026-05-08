@@ -297,6 +297,67 @@ describe('SignalInspector decision summary', () => {
     expect(document.body.textContent).not.toContain('Setup evidence unavailable');
   });
 
+  it('shows permission rejection as a no-trade execution outcome', () => {
+    const signal: TradingSignal = {
+      id: 'sig-permission-rejected',
+      created_at: '2026-05-08T07:55:02.000Z',
+      symbol: 'GBPUSD',
+      side: 'sell',
+      status: 'trading_permission_rejected' as TradingSignal['status'],
+      price: 1.35852,
+      filter_reason: 'permission_file_missing:approved_candidates.json',
+      ai_reasoning: {
+        decision: 'NO_GO',
+        reason: 'permission_file_missing:approved_candidates.json',
+      },
+    };
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    expect(document.body.textContent).toContain('No Trade');
+    expect(document.body.textContent).toContain('Permission Gate');
+    expect(document.body.textContent).toContain('permission_file_missing:approved_candidates.json');
+    expect(document.body.textContent).not.toContain('OPEN');
+  });
+
+  it('shows permission allowed without broker execution as no entry', () => {
+    const signal: TradingSignal = {
+      id: 'sig-permission-allowed',
+      created_at: '2026-05-08T08:40:02.000Z',
+      symbol: 'XAUUSD',
+      side: 'sell',
+      status: 'trading_permission_allowed' as TradingSignal['status'],
+      price: 4714.11,
+      execution_source: 'signal_only',
+      run_mode: 'LIVE',
+      ai_reasoning: {
+        decision: 'GO',
+        reason: 'Permission allowed, broker execution not recorded.',
+      },
+    } as TradingSignal;
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    expect(document.body.textContent).toContain('No Entry');
+    expect(document.body.textContent).toContain('Broker Execution');
+    expect(document.body.textContent).toContain('broker execution not recorded');
+    expect(document.body.textContent).not.toContain('Opened trade');
+  });
+
   it('does not show empty operating-layer fallbacks for completed legacy memos', async () => {
     vi.mocked(fetchAiRunBySignal).mockResolvedValue({
       id: 11,
