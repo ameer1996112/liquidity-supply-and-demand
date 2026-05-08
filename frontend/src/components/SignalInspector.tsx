@@ -111,6 +111,8 @@ function isPermissionBlocked(status: string | undefined): boolean {
 function isBrokerExecuted(signal: TradingSignal): boolean {
   const status = String(signal.status || '').toLowerCase();
   const executionSource = String(signal.execution_source || '').toLowerCase();
+  if (status === 'failed' || status === 'execution_failed') return false;
+
   return (
     status === 'active' ||
     status === 'open' ||
@@ -221,14 +223,14 @@ function deriveExecutionStages(
     {
       id: 'ai',
       label: 'AI Brain',
-      state: aiRejected ? 'fail' : ai?.decision === 'GO' ? 'pass' : permissionBlocked ? 'skipped' : 'unknown',
-      detail: aiRejected
-        ? ai?.reason || 'AI rejected this signal.'
-        : ai?.decision === 'GO'
+      state: permissionBlocked ? 'skipped' : aiRejected ? 'fail' : ai?.decision === 'GO' ? 'pass' : 'unknown',
+      detail: permissionBlocked
+        ? 'Skipped after permission gate stopped the signal.'
+        : aiRejected
+          ? ai?.reason || 'AI rejected this signal.'
+          : ai?.decision === 'GO'
           ? 'AI decision approved the setup.'
-          : permissionBlocked
-            ? 'Skipped after permission gate stopped the signal.'
-            : 'No AI decision recorded.',
+          : 'No AI decision recorded.',
     },
     {
       id: 'risk',
@@ -243,12 +245,14 @@ function deriveExecutionStages(
     {
       id: 'broker',
       label: 'Broker Execution',
-      state: brokerExecuted ? 'pass' : executionFailed ? 'fail' : permissionBlocked || aiRejected ? 'skipped' : 'unknown',
-      detail: brokerExecuted
-        ? 'Broker execution is recorded.'
-        : executionFailed
-          ? signal.filter_reason || 'Broker execution failed.'
-          : 'No broker execution recorded.',
+      state: executionFailed ? 'fail' : brokerExecuted ? 'pass' : permissionBlocked || aiRejected ? 'skipped' : 'unknown',
+      detail: executionFailed
+        ? signal.filter_reason || 'Broker execution failed.'
+        : brokerExecuted
+          ? 'Broker execution is recorded.'
+          : permissionBlocked || aiRejected
+            ? 'Skipped because an earlier gate stopped the signal.'
+            : 'No broker execution recorded.',
     },
   ];
 }
@@ -897,6 +901,8 @@ function AiDecisionPanel({
   const hasRfGate = rfProbabilityPct != null && thresholdPct != null;
   const hasLlmContext =
     llmStatus || traceRules.some((rule) => rule?.rule_id === 'llm_context');
+  const hasRecordedDecision = Boolean(ai.decision);
+  const displayedDecisionValue = hasRecordedDecision ? decisionValue : 'NOT RECORDED';
   const decisionBadgeClass =
     decisionValue === 'GO'
       ? 'border-[var(--to-long)]/30 bg-[var(--to-long)]/15 text-[var(--to-long)]'
@@ -915,10 +921,12 @@ function AiDecisionPanel({
       <div className='space-y-3'>
         <div className='flex min-w-0 flex-col gap-2'>
           <Badge className={cn('w-fit border px-2 py-0.5 font-mono text-xs', decisionBadgeClass)}>
-            {decisionValue}
+            {displayedDecisionValue}
           </Badge>
           <p className='text-sm leading-relaxed text-foreground/90 break-words [overflow-wrap:anywhere]'>
-            {decisionValue === 'GO'
+            {!hasRecordedDecision
+              ? 'No AI decision was recorded for this signal.'
+              : decisionValue === 'GO'
               ? 'Approved: all active gates passed.'
               : decisionValue === 'MODEL_ERROR'
                 ? `Model error: ${rejectedRuleMessage}`

@@ -713,4 +713,98 @@ describe('SignalInspector decision summary', () => {
     expect(document.body.textContent).toContain('SKIPPED');
     expect(document.body.textContent).toContain('RF probability 33.6% < 63% threshold');
   });
+
+  it('does not label legacy metric-only AI data as rejected', () => {
+    const signal: TradingSignal = {
+      id: 'sig-active-legacy-metrics',
+      created_at: '2026-05-08T10:00:00.000Z',
+      symbol: 'GBPUSD',
+      side: 'buy',
+      status: 'active',
+      price: 1.35852,
+      zone_id: 17862,
+      zone_type: 'demand',
+      zone_grade: 'B+',
+    } as TradingSignal;
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    const aiTab = Array.from(document.querySelectorAll('button')).find((el) =>
+      el.textContent?.includes('AI Brain')
+    );
+    act(() => {
+      aiTab?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+      aiTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.body.textContent).toContain('AI Decision');
+    expect(document.body.textContent).toContain('NOT RECORDED');
+    expect(document.body.textContent).toContain('No AI decision was recorded for this signal.');
+    expect(document.body.textContent).not.toContain('Rejected: No explicit rejection reason');
+  });
+
+  it('marks broker execution as failed when status failed even with broker source', () => {
+    const signal: TradingSignal = {
+      id: 'sig-exec-failed',
+      created_at: '2026-05-08T10:05:00.000Z',
+      symbol: 'GBPUSD',
+      side: 'sell',
+      status: 'failed',
+      price: 1.35852,
+      execution_source: 'metaapi',
+      filter_reason: 'broker adapter timeout',
+    } as TradingSignal;
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    expect(document.body.textContent).toContain('Exec Fail');
+    expect(document.body.textContent).toContain('Broker Execution');
+    expect(document.body.textContent).toContain('fail');
+    expect(document.body.textContent).toContain('broker adapter timeout');
+    expect(document.body.textContent).not.toContain('Broker execution is recorded.');
+  });
+
+  it('shows downstream stages skipped after permission gate stops the signal', () => {
+    const signal: TradingSignal = {
+      id: 'sig-permission-stop-ai-reason',
+      created_at: '2026-05-08T10:10:00.000Z',
+      symbol: 'GBPUSD',
+      side: 'sell',
+      status: 'trading_permission_rejected' as TradingSignal['status'],
+      price: 1.35852,
+      filter_reason: 'permission_file_missing:approved_candidates.json',
+      ai_reasoning: {
+        decision: 'NO_GO',
+        reason: 'permission_file_missing:approved_candidates.json',
+      },
+    };
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    expect(document.body.textContent).toContain('Permission Gate');
+    expect(document.body.textContent).toContain('AI Brain');
+    expect(document.body.textContent).toContain('Skipped after permission gate stopped the signal.');
+    expect(document.body.textContent).not.toContain('AI rejected this signal.');
+  });
 });
