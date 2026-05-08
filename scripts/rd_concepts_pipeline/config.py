@@ -20,6 +20,17 @@ DEFAULT_CHANNELS: dict[str, str] = {
     "webinars-and-extras": "1169627155798446172",
     "market-breakdowns": "1246790498304262164",
     "daily-forecast": "1219165120622493756",
+    "rules": "1160559454849351720",
+    "watch-first": "1163500988162916462",
+    "webinar-questions": "1211048857908285460",
+    "mechanical-style-lives": "1481266322150133892",
+    "analysis-style-lives": "1404330713544790066",
+    "tp-and-news-rules": "1162008394551537665",
+    "backtest-charts": "1253261006776303617",
+    "1-to-1-mentoring-open": "1234804480176820284",
+    "liquidity-distances": "1324438480134340679",
+    "30-day-challenge-1": "1402195445002014801",
+    "30-day-challenge-2": "1480811504852008981",
 }
 
 INCOMPLETE_CHANNEL_VALUES = {"", "PASTE_ID", "MISSING", "UNKNOWN"}

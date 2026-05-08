@@ -6,6 +6,8 @@ from scripts.rd_concepts_pipeline import scraper
 from scripts.rd_concepts_pipeline.config import PipelineSettings
 from scripts.rd_concepts_pipeline.scraper import (
     build_image_filename,
+    build_file_filename,
+    extract_file_urls,
     extract_image_urls,
     message_matches_keywords,
     next_before_id,
@@ -108,6 +110,46 @@ def test_build_image_filename_uses_message_source_and_extension() -> None:
         {"source": "embed_image", "index": "0", "url": "https://cdn/chart.png?x=1"},
     )
     assert filename == "123_embed_image_0.png"
+
+
+def test_extract_file_urls_from_non_image_attachments() -> None:
+    message = {
+        "id": "44",
+        "attachments": [
+            {
+                "id": "doc",
+                "url": "https://cdn/backtest.xlsx",
+                "filename": "backtest.xlsx",
+                "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            },
+            {
+                "id": "img",
+                "url": "https://cdn/chart.png",
+                "filename": "chart.png",
+                "content_type": "image/png",
+            },
+        ],
+    }
+
+    files = extract_file_urls(message)
+
+    assert len(files) == 1
+    assert files[0]["url"] == "https://cdn/backtest.xlsx"
+    assert files[0]["filename"] == "backtest.xlsx"
+
+
+def test_build_file_filename_preserves_allowed_extension() -> None:
+    filename = build_file_filename(
+        "123",
+        {
+            "source": "attachment",
+            "index": "0",
+            "url": "https://cdn/download?id=1",
+            "filename": "Liquidity distances.xlsx",
+        },
+    )
+
+    assert filename == "123_Liquidity_distances.xlsx"
 
 
 def test_should_retry_status_marks_rate_limits_and_server_errors() -> None:
@@ -242,6 +284,30 @@ def test_download_image_does_not_send_authorization_header(monkeypatch, tmp_path
         tmp_path / "chart.png",
         settings,
     )
+    assert seen_headers == [None]
+
+
+def test_download_file_saves_non_image_attachment(monkeypatch, tmp_path) -> None:
+    settings = PipelineSettings(
+        discord_authorization="secret-token",
+        discord_server_id="guild-123",
+        data_dir=tmp_path,
+    )
+    seen_headers = []
+
+    def fake_get(url, **kwargs):
+        seen_headers.append(kwargs.get("headers"))
+        return FakeResponse(200, content=b"pair,win_rate\nEURUSD,55\n")
+
+    monkeypatch.setattr(scraper.requests, "get", fake_get)
+    output_path = tmp_path / "files" / "backtest.csv"
+
+    assert scraper.download_file(
+        "https://cdn.example/backtest.csv",
+        output_path,
+        settings,
+    )
+    assert output_path.read_bytes() == b"pair,win_rate\nEURUSD,55\n"
     assert seen_headers == [None]
 
 

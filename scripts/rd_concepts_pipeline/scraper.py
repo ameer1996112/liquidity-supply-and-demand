@@ -31,6 +31,19 @@ from scripts.rd_concepts_pipeline.config import (
 IMAGE_CONTENT_PREFIX = "image/"
 DISCORD_API = "https://discord.com/api/v10"
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+FILE_SUFFIXES = {
+    ".csv",
+    ".doc",
+    ".docx",
+    ".html",
+    ".pdf",
+    ".ppt",
+    ".pptx",
+    ".txt",
+    ".xls",
+    ".xlsm",
+    ".xlsx",
+}
 MAX_RETRY_AFTER_SECONDS = 60.0
 LOGGER = get_logger("rd_concepts.scraper")
 DEFAULT_TRADING_KEYWORDS = [
@@ -75,6 +88,17 @@ DEFAULT_TRADING_KEYWORDS = [
     "SUPPLY",
     "MECHANICAL",
     "FORECAST",
+    "BACKTEST",
+    "BACKTESTING",
+    "SPREADSHEET",
+    "SHEET",
+    "LIQUIDITY DISTANCE",
+    "DISTANCES",
+    "NEWS",
+    "TP RULE",
+    "PDF",
+    "XLSX",
+    "CSV",
 ]
 
 
@@ -88,6 +112,17 @@ def build_image_filename(message_id: str, image: dict[str, str]) -> str:
     if suffix not in IMAGE_SUFFIXES:
         suffix = ".img"
     base = safe_filename(f"{message_id}_{image['source']}_{image['index']}")
+    return f"{base}{suffix}"
+
+
+def build_file_filename(message_id: str, file_item: dict[str, str]) -> str:
+    suffix = Path(file_item.get("filename", "")).suffix.lower()
+    if suffix not in FILE_SUFFIXES:
+        suffix = Path(urlparse(file_item["url"]).path).suffix.lower()
+    if suffix not in FILE_SUFFIXES:
+        suffix = ".bin"
+    stem = Path(file_item.get("filename", "")).stem or f"{file_item['source']}_{file_item['index']}"
+    base = safe_filename(f"{message_id}_{stem}")
     return f"{base}{suffix}"
 
 
@@ -180,6 +215,35 @@ def download_image(url: str, output_path: Path, settings: PipelineSettings) -> b
     return False
 
 
+def download_file(url: str, output_path: Path, settings: PipelineSettings) -> bool:
+    ensure_dir(output_path.parent)
+    for attempt in range(1, settings.max_retries + 1):
+        try:
+            response = requests.get(url, timeout=settings.request_timeout_seconds)
+        except requests.RequestException:
+            if attempt < settings.max_retries:
+                time.sleep(min(attempt * 2, 10))
+                continue
+            return False
+        if response.status_code == 429:
+            retry_after = parse_retry_after(response)
+            time.sleep(retry_after)
+            continue
+        if should_retry_status(response.status_code) and attempt < settings.max_retries:
+            time.sleep(min(attempt * 2, 10))
+            continue
+        if response.status_code >= 400:
+            LOGGER.warning(
+                "File download failed %s for %s",
+                response.status_code,
+                redact(url),
+            )
+            return False
+        output_path.write_bytes(response.content)
+        return True
+    return False
+
+
 def extract_image_urls(message: dict[str, Any]) -> list[dict[str, str]]:
     images: list[dict[str, str]] = []
     for index, attachment in enumerate(message.get("attachments") or []):
@@ -193,6 +257,30 @@ def extract_image_urls(message: dict[str, Any]) -> list[dict[str, str]]:
             if isinstance(url, str) and url:
                 images.append({"source": f"embed_{key}", "index": str(index), "url": url})
     return images
+
+
+def extract_file_urls(message: dict[str, Any]) -> list[dict[str, str]]:
+    files: list[dict[str, str]] = []
+    for index, attachment in enumerate(message.get("attachments") or []):
+        content_type = str(attachment.get("content_type", ""))
+        url = attachment.get("url")
+        filename = str(attachment.get("filename") or "")
+        suffix = Path(filename).suffix.lower()
+        if not isinstance(url, str) or not url:
+            continue
+        if content_type.startswith(IMAGE_CONTENT_PREFIX):
+            continue
+        if suffix in FILE_SUFFIXES or content_type:
+            files.append(
+                {
+                    "source": "attachment",
+                    "index": str(index),
+                    "url": url,
+                    "filename": filename,
+                    "content_type": content_type,
+                }
+            )
+    return files
 
 
 def normalize_keyword_filters(values: list[str] | None) -> list[str]:
@@ -254,10 +342,14 @@ def should_keep_message(
     mode: str,
     include_image_only: bool,
     image_urls: list[dict[str, str]],
+    include_file_only: bool = False,
+    file_urls: list[dict[str, str]] | None = None,
 ) -> bool:
     if message_matches_keywords(message, keywords, mode):
         return True
-    return include_image_only and bool(image_urls)
+    if include_image_only and bool(image_urls):
+        return True
+    return include_file_only and bool(file_urls)
 
 
 def normalize_message(
@@ -265,6 +357,7 @@ def normalize_message(
     channel_name: str,
     channel_id: str,
     image_paths: list[str],
+    file_paths: list[str] | None = None,
 ) -> dict[str, Any]:
     author = raw.get("author") or {}
     message_id = str(raw.get("id", ""))
@@ -281,6 +374,7 @@ def normalize_message(
         "attachments": raw.get("attachments") or [],
         "embeds": raw.get("embeds") or [],
         "images": image_paths,
+        "files": file_paths or [],
         "message_url": f"https://discord.com/channels/@me/{channel_id}/{message_id}",
         "raw": raw,
     }
@@ -300,12 +394,15 @@ def scrape_channel(
     keyword_filters: list[str] | None = None,
     keyword_mode: str = "any",
     include_image_only: bool = False,
+    include_file_only: bool = False,
     max_pages: int | None = None,
     max_messages: int | None = None,
     download_images: bool = True,
+    download_files: bool = False,
 ) -> dict[str, Any]:
     channel_dir = settings.data_dir / "raw" / channel_name
     image_dir = channel_dir / "images"
+    file_dir = channel_dir / "files"
     ensure_dir(image_dir)
     url = f"{DISCORD_API}/channels/{channel_id}/messages"
     before: str | None = None
@@ -344,16 +441,20 @@ def scrape_channel(
         kept_this_page = 0
         for raw in messages:
             image_urls = extract_image_urls(raw)
+            file_urls = extract_file_urls(raw)
             if not should_keep_message(
                 raw,
                 keywords,
                 keyword_mode,
                 include_image_only,
                 image_urls,
+                include_file_only=include_file_only,
+                file_urls=file_urls,
             ):
                 skipped_count += 1
                 continue
             image_paths: list[str] = []
+            file_paths: list[str] = []
             for image in image_urls:
                 filename = build_image_filename(str(raw.get("id", "")), image)
                 output_path = image_dir / filename
@@ -369,7 +470,30 @@ def scrape_channel(
                     failures.append(
                         {"message_id": str(raw.get("id", "")), "url": image["url"]}
                     )
-            all_rows.append(normalize_message(raw, channel_name, channel_id, image_paths))
+            for file_item in file_urls:
+                filename = build_file_filename(str(raw.get("id", "")), file_item)
+                output_path = file_dir / filename
+                if (
+                    dry_run
+                    or not download_files
+                    or output_path.exists()
+                    or download_file(file_item["url"], output_path, settings)
+                ):
+                    if dry_run or download_files:
+                        file_paths.append(str(output_path))
+                else:
+                    failures.append(
+                        {"message_id": str(raw.get("id", "")), "url": file_item["url"]}
+                    )
+            all_rows.append(
+                normalize_message(
+                    raw,
+                    channel_name,
+                    channel_id,
+                    image_paths,
+                    file_paths=file_paths,
+                )
+            )
             kept_this_page += 1
             if max_messages is not None and len(all_rows) >= max_messages:
                 break
@@ -400,9 +524,11 @@ def scrape_channel(
         "keyword_filters": keywords,
         "keyword_mode": keyword_mode,
         "include_image_only": include_image_only,
+        "include_file_only": include_file_only,
         "max_pages": max_pages,
         "max_messages": max_messages,
         "download_images": download_images,
+        "download_files": download_files,
         "image_failures": failures,
     }
     (channel_dir / "manifest.json").write_text(
@@ -444,6 +570,11 @@ def main() -> int:
         action="store_true",
         help="With keyword filtering, also keep messages that only contain images.",
     )
+    parser.add_argument(
+        "--include-file-only",
+        action="store_true",
+        help="With keyword filtering, also keep messages that only contain files.",
+    )
     parser.add_argument("--max-pages", type=int, help="Stop each channel after N pages.")
     parser.add_argument(
         "--max-messages",
@@ -454,6 +585,11 @@ def main() -> int:
         "--no-images",
         action="store_true",
         help="Save matching messages without downloading image files.",
+    )
+    parser.add_argument(
+        "--download-files",
+        action="store_true",
+        help="Download non-image attachments such as PDFs, CSVs, and spreadsheets.",
     )
     args = parser.parse_args()
     if args.max_pages is not None and args.max_pages < 1:
@@ -478,9 +614,11 @@ def main() -> int:
             keyword_filters=keyword_filters,
             keyword_mode=args.keyword_mode,
             include_image_only=args.include_image_only,
+            include_file_only=args.include_file_only,
             max_pages=args.max_pages,
             max_messages=args.max_messages,
             download_images=not args.no_images,
+            download_files=args.download_files,
         )
         for name, channel_id in channels.items()
     ]
