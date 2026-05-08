@@ -1,7 +1,10 @@
 import json
 from datetime import datetime, timezone
+from pathlib import Path
+from types import SimpleNamespace
 
 from src.core.guard_rails.trading_permission_guard import TradingPermissionGuard
+from src.worker import _resolve_trading_permission_guard_paths
 
 
 def _write_permissions(tmp_path, status: str = "TRADE_NORMAL_RISK") -> tuple:
@@ -118,6 +121,35 @@ def test_guard_blocks_when_required_approved_candidates_missing(tmp_path) -> Non
 
     assert passed is False
     assert reason == "permission_file_missing:approved_candidates.json"
+
+
+def test_worker_does_not_require_approved_candidates_just_because_path_is_configured() -> None:
+    approved, _, _, required = _resolve_trading_permission_guard_paths(
+        SimpleNamespace(
+            approved_candidates_file="/app/scripts/optimization_results/approved_candidates.json",
+            require_approved_candidates_file=False,
+        ),
+        default_approved_candidates_path=Path("default-approved.json"),
+        default_daily_permissions_path=Path("default-daily.json"),
+        default_emergency_stop_path=Path("default-emergency.json"),
+    )
+
+    assert approved == "/app/scripts/optimization_results/approved_candidates.json"
+    assert required is False
+
+
+def test_worker_can_explicitly_require_approved_candidates_file() -> None:
+    _, _, _, required = _resolve_trading_permission_guard_paths(
+        SimpleNamespace(
+            approved_candidates_file="/app/scripts/optimization_results/approved_candidates.json",
+            require_approved_candidates_file=True,
+        ),
+        default_approved_candidates_path=Path("default-approved.json"),
+        default_daily_permissions_path=Path("default-daily.json"),
+        default_emergency_stop_path=Path("default-emergency.json"),
+    )
+
+    assert required is True
 
 
 def test_guard_blocks_when_daily_permissions_missing(tmp_path) -> None:

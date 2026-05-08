@@ -1,9 +1,0 @@
-{
-  "EURUSD": {
-    "status": "failed",
-    "params": {},
-    "source_run_id": null,
-    "timestamp": "2026-04-30T08:46:41.787411",
-    "error_message": "\"TradingView settings dialog is missing Pine input title(s): risk_pct, daily_kill_pct, total_kill_pct, consec_loss_kill, min_hold_minutes, risk_reward_ratio, ai_quality_threshold, min_tp_distance_pips, liq_max_distance_pips_forex, liq_entry_max_dist, max_bars_held, stop_loss_buffer_pips, liq_pivot_len, pvtMax, max_sweep_to_touch_bars, max_peak_to_touch_bars, min_body_perc, max_zones, max_trades_per_day, max_daily_loss_pct, max_daily_profit_pct, trading_start_hour, trading_end_hour. Available canonical titles: ['news_blackout_enabled', 'enable_date_filter', 'invalidate_on_wick', 'use_fvg_confirmation', 'enable_accuracy_zones', 'require_major_liquidity', 'plotLiq', 'show_fractals', 'show_liquidity_connectors', 'zone_label_show_metrics', 'show_blocked_trade_labels', 'showZoneInspector', 'showActiveProfile', 'show_performance_table', 'showResults', 'show_grade_on_zone', 'show_ai_score_on_label', 'use_custom_rr', 'use_break_even', 'enable_double_tp', 'use_half_risk_second_trade', 'enable_trade_limit', 'filter_trading_hours', 'require_htf_flip', 'enable_ai_quality_filter', 'enable_ai_lite_mode', 'enable_grade_filter']\""
-  }
-}

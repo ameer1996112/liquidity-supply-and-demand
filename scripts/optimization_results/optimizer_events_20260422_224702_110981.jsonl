@@ -1,3 +1,0 @@
-{"ts": "2026-04-22T22:47:02.914653+03:00", "run_id": "20260422_224702_110981", "event_type": "run_started", "mode": "bayesian", "workers": 1, "pairs": ["EURUSD"], "dry_run": false, "broker": "fxcm", "backtest_range": "Last 365 days"}
-{"ts": "2026-04-22T22:47:03.296129+03:00", "run_id": "20260422_224702_110981", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "attempt": 1}
-{"ts": "2026-04-22T22:47:37.822583+03:00", "run_id": "20260422_224702_110981", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "attempt": 2}

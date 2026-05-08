@@ -1,9 +1,0 @@
-{"ts": "2026-05-04T16:45:17.687818+03:00", "run_id": "20260504_164517_992aaf", "event_type": "run_started", "mode": "bayesian", "workers": 8, "pairs": ["EURGBP", "EURCHF", "AUDCAD", "NZDCAD", "CADJPY", "CHFJPY", "GBPCAD", "GBPAUD"], "dry_run": false, "broker": "vantage", "backtest_range": "Custom range"}
-{"ts": "2026-05-04T16:45:18.079985+03:00", "run_id": "20260504_164517_992aaf", "event_type": "pair_started", "worker_id": 0, "symbol": "EURGBP", "broker": "vantage", "attempt": 1}
-{"ts": "2026-05-04T16:45:33.082044+03:00", "run_id": "20260504_164517_992aaf", "event_type": "pair_started", "worker_id": 1, "symbol": "EURCHF", "broker": "vantage", "attempt": 1}
-{"ts": "2026-05-04T16:45:48.082225+03:00", "run_id": "20260504_164517_992aaf", "event_type": "pair_started", "worker_id": 2, "symbol": "AUDCAD", "broker": "vantage", "attempt": 1}
-{"ts": "2026-05-04T16:46:03.085588+03:00", "run_id": "20260504_164517_992aaf", "event_type": "pair_started", "worker_id": 3, "symbol": "NZDCAD", "broker": "vantage", "attempt": 1}
-{"ts": "2026-05-04T16:46:18.082461+03:00", "run_id": "20260504_164517_992aaf", "event_type": "pair_started", "worker_id": 4, "symbol": "CADJPY", "broker": "vantage", "attempt": 1}
-{"ts": "2026-05-04T16:46:33.084170+03:00", "run_id": "20260504_164517_992aaf", "event_type": "pair_started", "worker_id": 5, "symbol": "CHFJPY", "broker": "vantage", "attempt": 1}
-{"ts": "2026-05-04T16:46:48.084509+03:00", "run_id": "20260504_164517_992aaf", "event_type": "pair_started", "worker_id": 6, "symbol": "GBPCAD", "broker": "vantage", "attempt": 1}
-{"ts": "2026-05-04T16:47:03.085550+03:00", "run_id": "20260504_164517_992aaf", "event_type": "pair_started", "worker_id": 7, "symbol": "GBPAUD", "broker": "vantage", "attempt": 1}

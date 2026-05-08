@@ -10,16 +10,16 @@ from dotenv import load_dotenv
 
 DEFAULT_CHANNELS: dict[str, str] = {
     "5m-charts-mechanical": "1240929130980053052",
-    "main-pairs": "PASTE_ID",
-    "5m-charts-analysis": "PASTE_ID",
-    "alt-pairs": "PASTE_ID",
-    "30m-signals": "PASTE_ID",
-    "5m-signals": "PASTE_ID",
-    "6-months-chat": "PASTE_ID",
-    "wins": "PASTE_ID",
-    "webinars-and-extras": "PASTE_ID",
-    "market-breakdowns": "PASTE_ID",
-    "daily-forecast": "PASTE_ID",
+    "main-pairs": "1249703205894361109",
+    "5m-charts-analysis": "1485539713011028029",
+    "alt-pairs": "1351594896611344415",
+    "30m-signals": "1160558866807922729",
+    "5m-signals": "1400356518070583428",
+    "6-months-chat": "1341700060609642546",
+    "wins": "1162800326915666041",
+    "webinars-and-extras": "1169627155798446172",
+    "market-breakdowns": "1246790498304262164",
+    "daily-forecast": "1219165120622493756",
 }
 
 INCOMPLETE_CHANNEL_VALUES = {"", "PASTE_ID", "MISSING", "UNKNOWN"}

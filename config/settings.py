@@ -183,6 +183,11 @@ class Settings(BaseSettings):
         description="Path to optimizer approved_candidates.json.",
         validation_alias=AliasChoices("APPROVED_CANDIDATES_FILE", "approved_candidates_file"),
     )
+    require_approved_candidates_file: bool = Field(
+        default=False,
+        description="Fail closed when approved_candidates.json is missing.",
+        validation_alias=AliasChoices("REQUIRE_APPROVED_CANDIDATES_FILE", "require_approved_candidates_file"),
+    )
     daily_trade_permissions_file: str = Field(
         default="",
         description="Path to optimizer daily_trade_permissions.json.",

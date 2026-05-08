@@ -1,3 +1,0 @@
-{"ts": "2026-04-21T19:45:03.231883+03:00", "run_id": "20260421_193622_f06d95", "worker_id": 0, "symbol": "EURJPY", "trial": 1, "outcome": "stale", "params_hash": "d624e896", "results_hash_before": "d41d8cd9", "results_hash_after": "d41d8cd9", "metrics": {}}
-{"ts": "2026-04-21T19:53:47.077728+03:00", "run_id": "20260421_193622_f06d95", "worker_id": 0, "symbol": "EURJPY", "trial": 1, "outcome": "stale", "params_hash": "d624e896", "results_hash_before": "d41d8cd9", "results_hash_after": "d41d8cd9", "metrics": {}}
-{"ts": "2026-04-21T20:02:31.855754+03:00", "run_id": "20260421_193622_f06d95", "worker_id": 0, "symbol": "EURJPY", "trial": 1, "outcome": "stale", "params_hash": "d624e896", "results_hash_before": "d41d8cd9", "results_hash_after": "d41d8cd9", "metrics": {}}

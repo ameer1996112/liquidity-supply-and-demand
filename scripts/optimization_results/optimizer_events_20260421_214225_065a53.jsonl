@@ -1,3 +1,0 @@
-{"ts": "2026-04-21T21:42:25.599983+03:00", "run_id": "20260421_214225_065a53", "event_type": "run_started", "mode": "bayesian", "workers": 1, "pairs": ["EURJPY"], "dry_run": false, "broker": "oanda", "backtest_range": "Last 90 days"}
-{"ts": "2026-04-21T21:42:34.393021+03:00", "run_id": "20260421_214225_065a53", "event_type": "pair_started", "worker_id": 0, "symbol": "EURJPY", "attempt": 1}
-{"ts": "2026-04-21T21:47:00.671259+03:00", "run_id": "20260421_214225_065a53", "event_type": "pair_started", "worker_id": 0, "symbol": "EURJPY", "attempt": 2}
