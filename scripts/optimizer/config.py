@@ -263,30 +263,31 @@ INPUT_INDEX = {
     "stop_loss_buffer_pips": 37,     # SL Buffer Pips
     "use_custom_rr": 38,             # checkbox: Override Use Fixed RR
     "risk_reward_ratio": 39,         # Custom R:R Ratio
-    "min_tp_distance_pips": 40,      # Min TP Distance
-    "take_profit_pips": 41,          # Fixed TP Override
-    "use_break_even": 42,            # checkbox: Break-Even Mode
-    "max_bars_held": 43,             # Time-Based Exit
-    "enable_double_tp": 44,          # checkbox: Double TP Mode
-    "entry_execution_mode": 45,       # market_on_signal / wait_for_next_wick
-    "wick_entry_pullback_pips": 46,   # Backend wick pullback
-    "max_entry_delay_seconds": 47,    # Backend pending entry timeout
-    "entry_poll_interval_seconds": 48, # Backend pending poll interval
-    "max_spread_pips": 49,            # Backend pending max spread
-    "max_position_size_lots": 50,     # 100
-    "max_lots_per_10k": 51,           # 10
-    "max_usd_risk_cap": 52,           # 0
-    "max_daily_loss_pct": 54,         # Daily Loss Limit
-    "max_daily_profit_pct": 55,       # Daily Profit Target
-    "max_trades_per_day": 57,         # Max Trades/Day
-    "trading_start_hour": 59,         # Start Hour
-    "trading_end_hour": 60,           # End Hour
-    "max_peak_to_touch_bars": 61,     # Max Peak to Touch Bars
-    "max_sweep_to_touch_bars": 62,    # Max Sweep to Touch Bars
+    "xau_max_rr": 40,                # XAU/GOLD hard RR cap
+    "min_tp_distance_pips": 41,      # Min TP Distance
+    "take_profit_pips": 42,          # Fixed TP Override
+    "use_break_even": 43,            # checkbox: Break-Even Mode
+    "max_bars_held": 44,             # Time-Based Exit
+    "enable_double_tp": 45,          # checkbox: Double TP Mode
+    "entry_execution_mode": 46,       # market_on_signal / wait_for_next_wick
+    "wick_entry_pullback_pips": 47,   # Backend wick pullback
+    "max_entry_delay_seconds": 48,    # Backend pending entry timeout
+    "entry_poll_interval_seconds": 49, # Backend pending poll interval
+    "max_spread_pips": 50,            # Backend pending max spread
+    "max_position_size_lots": 51,     # 100
+    "max_lots_per_10k": 52,           # 10
+    "max_usd_risk_cap": 53,           # 0
+    "max_daily_loss_pct": 55,         # Daily Loss Limit
+    "max_daily_profit_pct": 56,       # Daily Profit Target
+    "max_trades_per_day": 58,         # Max Trades/Day
+    "trading_start_hour": 60,         # Start Hour
+    "trading_end_hour": 61,           # End Hour
+    "max_peak_to_touch_bars": 62,     # Max Peak to Touch Bars
+    "max_sweep_to_touch_bars": 63,    # Max Sweep to Touch Bars
 }
 
 # CHECKBOX indices — these need special handling (toggle, not fill)
-CHECKBOX_INDICES = {5, 38, 42, 44}
+CHECKBOX_INDICES = {5, 38, 43, 45}
 
 # ─── Hill-climbing params (kept for --smart backward compat) ──────────────────
 
