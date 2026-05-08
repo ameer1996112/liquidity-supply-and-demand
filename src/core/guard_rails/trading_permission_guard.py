@@ -16,7 +16,7 @@ TRADEABLE = {"TRADE_NORMAL_RISK", "TRADE_REDUCED_RISK"}
 
 
 class TradingPermissionGuard:
-    """Fail-closed guard backed by research candidates and daily trade permissions."""
+    """Guard backed by daily trade permissions and optional research candidates."""
 
     def __init__(
         self,
@@ -24,12 +24,14 @@ class TradingPermissionGuard:
         approved_candidates_path: str | Path = DEFAULT_APPROVED_CANDIDATES_PATH,
         daily_permissions_path: str | Path = DEFAULT_DAILY_PERMISSIONS_PATH,
         emergency_stop_path: str | Path = DEFAULT_EMERGENCY_STOP_PATH,
+        approved_candidates_required: bool = False,
         ttl_seconds: int = 30,
         now_provider: Callable[[], datetime] | None = None,
     ) -> None:
         self.approved_candidates_path = Path(approved_candidates_path)
         self.daily_permissions_path = Path(daily_permissions_path)
         self.emergency_stop_path = Path(emergency_stop_path)
+        self.approved_candidates_required = approved_candidates_required
         self.ttl_seconds = ttl_seconds
         self._now_provider = now_provider or (lambda: datetime.now(timezone.utc))
         self._cache: dict[Path, tuple[float, dict[str, Any]]] = {}
@@ -42,17 +44,13 @@ class TradingPermissionGuard:
         emergency = self._load_optional(self.emergency_stop_path, {"active": False})
         if emergency.get("active"):
             return self._reject(symbol, "emergency_stop_active")
-        approved, reason = self._load_required(self.approved_candidates_path)
-        if approved is None:
-            return self._reject(symbol, reason)
         daily, reason = self._load_required(self.daily_permissions_path)
         if daily is None:
             return self._reject(symbol, reason)
+        approved, reason = self._load_approved_candidates()
+        if reason:
+            return self._reject(symbol, reason)
 
-        candidates = approved.get("candidates")
-        if not isinstance(candidates, dict) or symbol not in candidates:
-            return self._reject(symbol, "missing_approved_candidate")
-        candidate = candidates[symbol]
         permissions = daily.get("permissions")
         if not isinstance(permissions, dict) or symbol not in permissions:
             return self._reject(symbol, "missing_daily_permission")
@@ -62,10 +60,15 @@ class TradingPermissionGuard:
             return self._reject(symbol, f"permission_status_not_tradeable:{status or 'missing'}")
         if not self._inside_session(permission):
             return self._reject(symbol, "outside_permission_session")
-        expected_hash = str(candidate.get("params_hash") or "")
-        actual_hash = str(payload.get("params_hash") or payload.get("strategy_params_hash") or "")
-        if not expected_hash or actual_hash != expected_hash:
-            return self._reject(symbol, "stale_params_hash")
+        if approved is not None:
+            candidates = approved.get("candidates")
+            if not isinstance(candidates, dict) or symbol not in candidates:
+                return self._reject(symbol, "missing_approved_candidate")
+            candidate = candidates[symbol]
+            expected_hash = str(candidate.get("params_hash") or "")
+            actual_hash = str(payload.get("params_hash") or payload.get("strategy_params_hash") or "")
+            if not expected_hash or actual_hash != expected_hash:
+                return self._reject(symbol, "stale_params_hash")
         requested_risk = self._num(payload.get("risk_per_trade_pct", payload.get("risk_pct", 0.0)))
         allowed_risk = self._num(permission.get("risk_per_trade_pct"))
         if requested_risk > allowed_risk:
@@ -83,6 +86,19 @@ class TradingPermissionGuard:
         payload["_trading_permission_status"] = status
         payload["_trading_permission_risk_pct"] = allowed_risk
         return True, ""
+
+    def _load_approved_candidates(self) -> tuple[dict[str, Any] | None, str]:
+        try:
+            payload = self._load_optional(self.approved_candidates_path, None)
+        except json.JSONDecodeError as exc:
+            return None, f"permission_file_invalid:{self.approved_candidates_path.name}:{exc}"
+        if payload is None:
+            if self.approved_candidates_required:
+                return None, f"permission_file_missing:{self.approved_candidates_path.name}"
+            return None, ""
+        if not isinstance(payload, dict):
+            return None, f"permission_file_invalid:{self.approved_candidates_path.name}"
+        return payload, ""
 
     def _load_required(self, path: Path) -> tuple[dict[str, Any] | None, str]:
         try:

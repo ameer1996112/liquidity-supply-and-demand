@@ -87,13 +87,30 @@ def test_guard_blocks_excessive_risk_and_outside_session(tmp_path) -> None:
     assert "outside_permission_session" in reason
 
 
-def test_guard_blocks_when_approved_candidates_missing(tmp_path) -> None:
+def test_guard_allows_when_optional_approved_candidates_missing(tmp_path) -> None:
     approved, daily, emergency = _write_permissions(tmp_path)
     approved.unlink()
     guard = TradingPermissionGuard(
         approved_candidates_path=approved,
         daily_permissions_path=daily,
         emergency_stop_path=emergency,
+        now_provider=lambda: datetime(2026, 5, 5, 8, 0, tzinfo=timezone.utc),
+    )
+
+    passed, reason = guard.check({"symbol": "USDJPY", "params_hash": "abc123", "risk_per_trade_pct": 0.2})
+
+    assert passed is True
+    assert reason == ""
+
+
+def test_guard_blocks_when_required_approved_candidates_missing(tmp_path) -> None:
+    approved, daily, emergency = _write_permissions(tmp_path)
+    approved.unlink()
+    guard = TradingPermissionGuard(
+        approved_candidates_path=approved,
+        daily_permissions_path=daily,
+        emergency_stop_path=emergency,
+        approved_candidates_required=True,
         now_provider=lambda: datetime(2026, 5, 5, 8, 0, tzinfo=timezone.utc),
     )
 

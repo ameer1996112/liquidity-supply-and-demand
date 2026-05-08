@@ -47,6 +47,54 @@ def _prefer_run_summary(
         runs[signal_id] = summary
 
 
+def _signal_score_summary(row: Dict[str, Any]) -> Dict[str, Any] | None:
+    """Build a display fallback from the signal's stored score fields."""
+    raw_score = row.get("score")
+    if raw_score is None:
+        raw_score = row.get("ai_confidence")
+    if raw_score is None:
+        return None
+    try:
+        confidence = int(round(float(raw_score)))
+    except (TypeError, ValueError):
+        return None
+    confidence = max(0, min(100, confidence))
+    return {
+        "recommendation": "allow",
+        "confidence": confidence,
+        "votes": {},
+        "status": "complete",
+        "source": "signal_score",
+    }
+
+
+def _fill_signal_score_fallbacks(
+    sb: Any,
+    runs: Dict[str, Any],
+    signal_ids: List[int],
+) -> None:
+    """Fill missing/stuck council summaries from trading_signals score columns."""
+    fallback_ids = [
+        sid
+        for sid in signal_ids
+        if str(sid) not in runs or runs[str(sid)].get("status") == "pending"
+    ]
+    if not fallback_ids:
+        return
+
+    signals_resp = (
+        sb.table("trading_signals")
+        .select("id, score, ai_confidence")
+        .in_("id", fallback_ids)
+        .execute()
+    )
+    for row in signals_resp.data or []:
+        sid = str(row.get("id"))
+        summary = _signal_score_summary(row)
+        if summary:
+            runs[sid] = summary
+
+
 @router.get("", response_model=Dict[str, Any])
 def get_ai_run_by_signal(signal_id: int = Query(..., description="Trading signal ID")):
     """
@@ -192,6 +240,8 @@ def get_ai_runs_bulk(signal_ids: str = Query(..., description="Comma-separated s
                                         _prefer_run_summary(runs, sid, row)
             except Exception:
                 pass  # Fallback failure is silent — never break the main response
+
+        _fill_signal_score_fallbacks(sb, runs, int_ids)
 
         return {"runs": runs}
     except Exception as e:

@@ -1694,15 +1694,18 @@ def process_trade(payload: Dict[str, Any]):
             )
 
             global _trading_permission_guard, _trading_permission_guard_paths
-            approved_candidates_path = str(getattr(s, "approved_candidates_file", "") or DEFAULT_APPROVED_CANDIDATES_PATH)
+            configured_approved_candidates_path = str(getattr(s, "approved_candidates_file", "") or "")
+            approved_candidates_path = configured_approved_candidates_path or str(DEFAULT_APPROVED_CANDIDATES_PATH)
             daily_permissions_path = str(getattr(s, "daily_trade_permissions_file", "") or DEFAULT_DAILY_PERMISSIONS_PATH)
             emergency_stop_path = str(getattr(s, "emergency_stop_file", "") or DEFAULT_EMERGENCY_STOP_PATH)
-            guard_paths = (approved_candidates_path, daily_permissions_path, emergency_stop_path)
+            require_approved_candidates = bool(configured_approved_candidates_path)
+            guard_paths = (approved_candidates_path, daily_permissions_path, emergency_stop_path, require_approved_candidates)
             if _trading_permission_guard is None or _trading_permission_guard_paths != guard_paths:
                 _trading_permission_guard = TradingPermissionGuard(
                     approved_candidates_path=approved_candidates_path,
                     daily_permissions_path=daily_permissions_path,
                     emergency_stop_path=emergency_stop_path,
+                    approved_candidates_required=require_approved_candidates,
                 )
                 _trading_permission_guard_paths = guard_paths
             passed, reason = _trading_permission_guard.check(payload)
