@@ -64,6 +64,25 @@ _trading_permission_guard_paths = None
 # This constant is only used in _build_ml_rejection_reasoning for legacy logging.
 ML_MIN_CONFIDENCE = 0.60
 
+
+def _resolve_trading_permission_guard_paths(
+    settings: Any,
+    *,
+    default_approved_candidates_path: Path,
+    default_daily_permissions_path: Path,
+    default_emergency_stop_path: Path,
+) -> tuple[str, str, str, bool]:
+    configured_approved_candidates_path = str(getattr(settings, "approved_candidates_file", "") or "")
+    approved_candidates_path = configured_approved_candidates_path or str(default_approved_candidates_path)
+    daily_permissions_path = str(
+        getattr(settings, "daily_trade_permissions_file", "") or default_daily_permissions_path
+    )
+    emergency_stop_path = str(
+        getattr(settings, "emergency_stop_file", "") or default_emergency_stop_path
+    )
+    require_approved_candidates = bool(getattr(settings, "require_approved_candidates_file", False))
+    return approved_candidates_path, daily_permissions_path, emergency_stop_path, require_approved_candidates
+
 # ═══════════════════════════════════════════════════════════════
 # SYMBOL WHITELIST: Only trade profitable symbols (3:1 R:R)
 # ═══════════════════════════════════════════════════════════════
@@ -1695,12 +1714,20 @@ def process_trade(payload: Dict[str, Any]):
             )
 
             global _trading_permission_guard, _trading_permission_guard_paths
-            configured_approved_candidates_path = str(getattr(s, "approved_candidates_file", "") or "")
-            approved_candidates_path = configured_approved_candidates_path or str(DEFAULT_APPROVED_CANDIDATES_PATH)
-            daily_permissions_path = str(getattr(s, "daily_trade_permissions_file", "") or DEFAULT_DAILY_PERMISSIONS_PATH)
-            emergency_stop_path = str(getattr(s, "emergency_stop_file", "") or DEFAULT_EMERGENCY_STOP_PATH)
-            require_approved_candidates = bool(configured_approved_candidates_path)
-            guard_paths = (approved_candidates_path, daily_permissions_path, emergency_stop_path, require_approved_candidates)
+            approved_candidates_path, daily_permissions_path, emergency_stop_path, require_approved_candidates = (
+                _resolve_trading_permission_guard_paths(
+                    s,
+                    default_approved_candidates_path=DEFAULT_APPROVED_CANDIDATES_PATH,
+                    default_daily_permissions_path=DEFAULT_DAILY_PERMISSIONS_PATH,
+                    default_emergency_stop_path=DEFAULT_EMERGENCY_STOP_PATH,
+                )
+            )
+            guard_paths = (
+                approved_candidates_path,
+                daily_permissions_path,
+                emergency_stop_path,
+                require_approved_candidates,
+            )
             if _trading_permission_guard is None or _trading_permission_guard_paths != guard_paths:
                 _trading_permission_guard = TradingPermissionGuard(
                     approved_candidates_path=approved_candidates_path,
