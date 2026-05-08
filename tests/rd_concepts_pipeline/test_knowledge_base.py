@@ -12,7 +12,7 @@ def test_build_knowledge_base_summarizes_dashboard_fields() -> None:
         [
             {
                 "pair": "EURUSD",
-                "side": "long",
+                "direction": "long",
                 "timeframe": "5m",
                 "channel": "5m-signals",
                 "session": "london",
@@ -21,7 +21,7 @@ def test_build_knowledge_base_summarizes_dashboard_fields() -> None:
             },
             {
                 "pair": "EURUSD",
-                "side": "short",
+                "direction": "short",
                 "timeframe": "5m",
                 "channel": "5m-signals",
                 "session": "ny_overlap",
@@ -30,7 +30,7 @@ def test_build_knowledge_base_summarizes_dashboard_fields() -> None:
             },
             {
                 "pair": "GBPUSD",
-                "side": "short",
+                "direction": "short",
                 "timeframe": "30m",
                 "channel": "30m-signals",
                 "session": "ny_overlap",
@@ -64,7 +64,7 @@ def test_build_knowledge_base_skips_blank_grouping_keys_and_is_json_serializable
         [
             {
                 "pair": pd.NA,
-                "side": "long",
+                "direction": "long",
                 "timeframe": "",
                 "channel": float("nan"),
                 "session": "",
@@ -73,7 +73,7 @@ def test_build_knowledge_base_skips_blank_grouping_keys_and_is_json_serializable
             },
             {
                 "pair": "EURUSD",
-                "side": "long",
+                "direction": "long",
                 "timeframe": "5m",
                 "channel": "5m-signals",
                 "session": pd.NA,
@@ -92,3 +92,17 @@ def test_build_knowledge_base_skips_blank_grouping_keys_and_is_json_serializable
     assert kb["timeframes"] == {"5m": 1}
     assert kb["channels"] == {"5m-signals": 1}
     json.dumps(kb)
+
+
+def test_build_knowledge_base_falls_back_to_side_when_direction_is_blank() -> None:
+    signals = pd.DataFrame(
+        [
+            {"pair": "EURUSD", "direction": "", "side": "long"},
+            {"pair": "EURUSD", "direction": pd.NA, "side": "short"},
+        ]
+    )
+
+    kb = build_knowledge_base(signals, [], {})
+
+    assert kb["pairs"]["EURUSD"]["long_percent"] == 50.0
+    assert kb["pairs"]["EURUSD"]["short_percent"] == 50.0

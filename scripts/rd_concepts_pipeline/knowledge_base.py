@@ -78,6 +78,13 @@ def _clean_text(value: Any) -> str:
     return str(_json_value(value)).strip()
 
 
+def _direction_value(row: pd.Series) -> str:
+    direction = _clean_text(_column_value(row, "direction"))
+    if direction:
+        return direction
+    return _clean_text(_column_value(row, "side"))
+
+
 def _sorted_strings(values: list[Any]) -> list[str]:
     return sorted({str(value) for value in values if not _is_blank(value)})
 
@@ -106,8 +113,8 @@ def build_knowledge_base(
     pairs: dict[str, dict[str, Any]] = {}
     for pair, rows in sorted(pair_rows.items()):
         total = len(rows)
-        long_count = sum(1 for row in rows if _clean_text(_column_value(row, "side")).lower() == "long")
-        short_count = sum(1 for row in rows if _clean_text(_column_value(row, "side")).lower() == "short")
+        long_count = sum(1 for row in rows if _direction_value(row).lower() == "long")
+        short_count = sum(1 for row in rows if _direction_value(row).lower() == "short")
         channels: list[Any] = []
         sessions: list[Any] = []
         setup_tags: list[Any] = []
