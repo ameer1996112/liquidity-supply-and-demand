@@ -27,6 +27,7 @@ from scripts.rd_concepts_pipeline.config import (
     configured_channels,
     get_settings,
 )
+from scripts.rd_concepts_pipeline.list_channels import fetch_channels
 
 IMAGE_CONTENT_PREFIX = "image/"
 DISCORD_API = "https://discord.com/api/v10"
@@ -44,6 +45,7 @@ FILE_SUFFIXES = {
     ".xlsm",
     ".xlsx",
 }
+MESSAGE_CHANNEL_TYPES = {0, 5, 10, 11, 12}
 MAX_RETRY_AFTER_SECONDS = 60.0
 LOGGER = get_logger("rd_concepts.scraper")
 DEFAULT_TRADING_KEYWORDS = [
@@ -99,6 +101,50 @@ DEFAULT_TRADING_KEYWORDS = [
     "PDF",
     "XLSX",
     "CSV",
+]
+DEFAULT_EDUCATION_KEYWORDS = [
+    "RULE",
+    "RULES",
+    "SETUP",
+    "ENTRY",
+    "CONFLUENCE",
+    "STRUCTURE",
+    "MECHANICAL",
+    "ANALYSIS",
+    "CONDITION",
+    "MUST",
+    "ALWAYS",
+    "NEVER",
+    "5M",
+    "30M",
+    "EMA",
+    "FIB",
+    "LIQUIDITY",
+    "LIQUIDITY DISTANCE",
+    "DISTANCE",
+    "DISTANCES",
+    "BOS",
+    "CHOCH",
+    "SWEEP",
+    "DISPLACEMENT",
+    "IMBALANCE",
+    "OB",
+    "ORDER BLOCK",
+    "FAIR VALUE GAP",
+    "FVG",
+    "PD ARRAY",
+    "TP",
+    "STOP LOSS",
+    "NEWS",
+    "BACKTEST",
+    "BACKTESTING",
+    "SPREADSHEET",
+    "SHEET",
+    "XLSX",
+    "CSV",
+    "PDF",
+    "WEBINAR",
+    "MENTORING",
 ]
 
 
@@ -294,6 +340,24 @@ def normalize_keyword_filters(values: list[str] | None) -> list[str]:
                 keywords.append(keyword)
                 seen.add(key)
     return keywords
+
+
+def build_discovered_channel_map(
+    channels: list[dict[str, Any]],
+) -> dict[str, str]:
+    discovered: dict[str, str] = {}
+    for channel in channels:
+        if channel.get("type") not in MESSAGE_CHANNEL_TYPES:
+            continue
+        channel_id = str(channel.get("id") or "")
+        if not channel_id:
+            continue
+        base_name = safe_filename(str(channel.get("name") or channel_id))
+        channel_name = base_name
+        if channel_name in discovered:
+            channel_name = f"{base_name}_{channel_id}"
+        discovered[channel_name] = channel_id
+    return dict(sorted(discovered.items()))
 
 
 def message_search_text(message: dict[str, Any]) -> str:
@@ -549,9 +613,19 @@ def main() -> int:
     )
     parser.add_argument("--channel", help="Only scrape one configured channel name.")
     parser.add_argument(
+        "--all-visible-channels",
+        action="store_true",
+        help="Discover and scan all visible message channels in the server.",
+    )
+    parser.add_argument(
         "--trading-only",
         action="store_true",
         help="Keep only messages matching the built-in trading keyword list.",
+    )
+    parser.add_argument(
+        "--education-only",
+        action="store_true",
+        help="Keep only messages matching the built-in education/rules/backtesting keyword list.",
     )
     parser.add_argument(
         "--keyword",
@@ -596,15 +670,35 @@ def main() -> int:
         parser.error("--max-pages must be 1 or greater")
     if args.max_messages is not None and args.max_messages < 1:
         parser.error("--max-messages must be 1 or greater")
-    settings = get_settings()
-    channels = configured_channels(settings)
-    if args.channel:
-        channels = {args.channel: channels[args.channel]}
+    if args.channel and args.all_visible_channels:
+        parser.error("--channel cannot be combined with --all-visible-channels")
     keyword_filters = normalize_keyword_filters(args.keyword)
     if args.trading_only:
         keyword_filters = normalize_keyword_filters(
             [*DEFAULT_TRADING_KEYWORDS, *keyword_filters]
         )
+    if args.education_only:
+        keyword_filters = normalize_keyword_filters(
+            [*DEFAULT_EDUCATION_KEYWORDS, *keyword_filters]
+        )
+    if (
+        args.all_visible_channels
+        and not keyword_filters
+        and not args.include_image_only
+        and not args.include_file_only
+    ):
+        parser.error(
+            "--all-visible-channels requires --keyword, --trading-only, "
+            "--education-only, --include-image-only, or --include-file-only"
+        )
+    settings = get_settings()
+    channels = (
+        build_discovered_channel_map(fetch_channels())
+        if args.all_visible_channels
+        else configured_channels(settings)
+    )
+    if args.channel:
+        channels = {args.channel: channels[args.channel]}
     summaries = [
         scrape_channel(
             name,

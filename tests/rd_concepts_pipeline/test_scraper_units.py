@@ -1,10 +1,12 @@
 import json
 
+import pytest
 import requests
 
 from scripts.rd_concepts_pipeline import scraper
 from scripts.rd_concepts_pipeline.config import PipelineSettings
 from scripts.rd_concepts_pipeline.scraper import (
+    build_discovered_channel_map,
     build_image_filename,
     build_file_filename,
     extract_file_urls,
@@ -152,6 +154,21 @@ def test_build_file_filename_preserves_allowed_extension() -> None:
     assert filename == "123_Liquidity_distances.xlsx"
 
 
+def test_build_discovered_channel_map_sanitizes_and_deduplicates_names() -> None:
+    channels = [
+        {"id": "1", "name": "🧠︱webinars-and-extras", "type": 0},
+        {"id": "2", "name": "webinars-and-extras", "type": 0},
+        {"id": "3", "name": "voice", "type": 2},
+        {"id": "4", "name": "announcements", "type": 5},
+    ]
+
+    assert build_discovered_channel_map(channels) == {
+        "announcements": "4",
+        "webinars-and-extras": "1",
+        "webinars-and-extras_2": "2",
+    }
+
+
 def test_should_retry_status_marks_rate_limits_and_server_errors() -> None:
     assert should_retry_status(429) is True
     assert should_retry_status(500) is True
@@ -251,6 +268,51 @@ def test_scrape_channel_keeps_only_keyword_matches(monkeypatch, tmp_path) -> Non
     assert manifest["message_count"] == 1
     assert manifest["fetched_message_count"] == 2
     assert manifest["skipped_message_count"] == 1
+
+
+def test_main_all_visible_channels_requires_filter(
+    monkeypatch,
+    capsys,
+) -> None:
+    monkeypatch.setattr("sys.argv", ["scraper.py", "--all-visible-channels"])
+
+    with pytest.raises(SystemExit) as exc:
+        scraper.main()
+
+    assert exc.value.code == 2
+    assert "--all-visible-channels requires" in capsys.readouterr().err
+
+
+def test_main_all_visible_channels_scrapes_discovered_channels(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    settings = PipelineSettings(
+        discord_authorization="token",
+        discord_server_id="guild-123",
+        data_dir=tmp_path,
+    )
+    calls = []
+
+    monkeypatch.setattr(scraper, "get_settings", lambda: settings)
+    monkeypatch.setattr(
+        scraper,
+        "fetch_channels",
+        lambda: [
+            {"id": "1", "name": "🧠︱webinars-and-extras", "type": 0},
+            {"id": "2", "name": "voice", "type": 2},
+        ],
+    )
+    monkeypatch.setattr("sys.argv", ["scraper.py", "--all-visible-channels", "--education-only", "--max-pages", "1"])
+
+    def fake_scrape_channel(channel_name, channel_id, settings, **kwargs):
+        calls.append((channel_name, channel_id, kwargs["keyword_filters"][:3]))
+        return {"channel": channel_name, "message_count": 0}
+
+    monkeypatch.setattr(scraper, "scrape_channel", fake_scrape_channel)
+
+    assert scraper.main() == 0
+    assert calls == [("webinars-and-extras", "1", ["RULE", "RULES", "SETUP"])]
 
 
 def test_parse_retry_after_clamps_unsafe_values() -> None:
