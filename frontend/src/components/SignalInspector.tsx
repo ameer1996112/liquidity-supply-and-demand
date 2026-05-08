@@ -848,6 +848,116 @@ function TradePlanPanel({ items }: { items: TradePlanItem[] }) {
   );
 }
 
+function SectionShell({
+  title,
+  icon,
+  children,
+  testId,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  testId?: string;
+}) {
+  return (
+    <section data-testid={testId} className='rounded-md border border-border bg-card/80'>
+      <div className='flex items-center gap-2 border-b border-border px-3 py-2'>
+        <span className='text-muted-foreground'>{icon}</span>
+        <span className='text-[11px] uppercase tracking-[0.16em] text-muted-foreground'>
+          {title}
+        </span>
+      </div>
+      <div className='p-3'>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function AiDecisionPanel({
+  ai,
+  decisionValue,
+  rejectedRuleMessage,
+  llmStatus,
+  llmContextMessage,
+  traceRules,
+  failingRules,
+}: {
+  ai: AIReasoning;
+  decisionValue: string;
+  rejectedRuleMessage: string;
+  llmStatus: string;
+  llmContextMessage: string | null;
+  traceRules: Array<Record<string, unknown>>;
+  failingRules: Array<Record<string, unknown>>;
+}) {
+  const visibleRules = decisionValue === 'NO_GO' && failingRules.length > 0 ? failingRules : traceRules;
+
+  return (
+    <SectionShell
+      title='AI Decision'
+      icon={<Brain className='h-4 w-4' />}
+      testId='ai-decision-panel'
+    >
+      <div className='space-y-3'>
+        <div className='flex min-w-0 flex-col gap-2'>
+          <Badge className='w-fit border border-border bg-muted px-2 py-0.5 font-mono text-xs text-foreground'>
+            {decisionValue}
+          </Badge>
+          <p className='text-sm leading-relaxed text-foreground/90 break-words [overflow-wrap:anywhere]'>
+            {decisionValue === 'GO'
+              ? 'Approved: all active gates passed.'
+              : decisionValue === 'MODEL_ERROR'
+                ? `Model error: ${rejectedRuleMessage}`
+                : `Rejected: ${rejectedRuleMessage}`}
+          </p>
+        </div>
+
+        {(llmStatus || visibleRules.some((rule) => rule?.rule_id === 'llm_context')) && (
+          <div className='rounded border border-border bg-background/40 px-2.5 py-2 text-xs text-muted-foreground'>
+            <span className='font-semibold text-foreground'>LLM Context: </span>
+            <span className={cn('font-semibold', llmStatus === 'ok' ? 'text-[var(--to-long)]' : 'text-[var(--to-warning)]')}>
+              {llmStatus === 'ok' ? 'OK' : llmStatus === 'error' ? 'ERROR (NON-BLOCKING)' : 'SKIPPED'}
+            </span>
+            {llmContextMessage && <span className='ml-2'>{llmContextMessage}</span>}
+          </div>
+        )}
+
+        {visibleRules.length > 0 && (
+          <div className='space-y-2'>
+            {visibleRules.map((rule, idx) => {
+              const badge = getRuleBadge(rule, ai);
+              const ruleMessage = rule?.message != null ? String(rule.message) : '';
+              return (
+                <div
+                  key={`${getRuleDisplayId(rule)}-${idx}`}
+                  className={cn('rounded border px-2.5 py-2 text-xs', badge.rowClass)}
+                >
+                  <div className='flex min-w-0 items-start justify-between gap-3'>
+                    <div className='min-w-0'>
+                      <div className='font-mono text-foreground/90 break-words [overflow-wrap:anywhere]'>
+                        {getRuleDisplayId(rule)}
+                      </div>
+                      {ruleMessage && (
+                        <div className='mt-0.5 text-muted-foreground break-words [overflow-wrap:anywhere]'>
+                          {ruleMessage}
+                        </div>
+                      )}
+                    </div>
+                    <span className={cn('shrink-0 text-[10px] font-semibold uppercase', badge.textClass)}>
+                      {badge.label}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </SectionShell>
+  );
+}
+
 export function SignalInspector({
   signal,
   open,
@@ -1107,203 +1217,78 @@ export function SignalInspector({
               <TabsContent value='ai' className='space-y-4 mt-0'>
                 {ai ? (
                   <>
-                    {/* Ensemble Decision Summary */}
-                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
-                      <div className='px-4 py-2.5 border-b border-border flex items-center gap-2'>
-                        <Shield className='w-4 h-4 text-muted-foreground' />
-                        <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
-                          Ensemble Decision
+                    <AiDecisionPanel
+                      ai={ai}
+                      decisionValue={decisionValue}
+                      rejectedRuleMessage={rejectedRuleMessage}
+                      llmStatus={llmStatus}
+                      llmContextMessage={llmContextMessage}
+                      traceRules={traceRules as Array<Record<string, unknown>>}
+                      failingRules={failingRules as Array<Record<string, unknown>>}
+                    />
+
+                    {ai.narrative && (
+                      <div className='text-xs text-muted-foreground leading-relaxed'>
+                        <span className='block text-[11px] text-muted-foreground uppercase tracking-wider mb-1'>
+                          Market Narrative
                         </span>
+                        <p>{ai.narrative}</p>
                       </div>
-                      <div className='p-4 space-y-4'>
-                        <div className='flex min-w-0 flex-col items-start gap-3'>
-                          <div className='min-w-0'>
-                            <div className='text-[11px] text-muted-foreground uppercase tracking-wider mb-1'>
-                              Decision Summary
-                            </div>
-                            <div className='text-sm text-foreground/90 break-words [overflow-wrap:anywhere]'>
-                              {decisionValue === 'GO'
-                                ? 'Approved: all active gates passed.'
-                                : decisionValue === 'MODEL_ERROR'
-                                ? `Model error: ${rejectedRuleMessage}`
-                                : `Rejected: ${rejectedRuleMessage}`}
-                            </div>
-                          </div>
-                          <span
-                            className={cn(
-                              'max-w-full truncate font-mono text-sm font-bold px-2.5 py-1 rounded',
-                              decisionValue === 'GO' &&
-                                'bg-[var(--to-long)]/20 text-[var(--to-long)]',
-                              decisionValue === 'NO_GO' &&
-                                'bg-rose-500/20 text-rose-400',
-                              decisionValue === 'MODEL_ERROR' &&
-                                'bg-amber-500/20 text-amber-400',
-                              !['GO', 'NO_GO', 'MODEL_ERROR'].includes(
-                                decisionValue
-                              ) && 'bg-muted text-muted-foreground'
-                            )}
-                          >
-                            {decisionValue}
-                          </span>
+                    )}
+
+                    {Array.isArray(ai.rules) && ai.rules.length > 0 && (
+                      <div className='text-xs text-foreground/90'>
+                        <span className='block text-[11px] text-muted-foreground uppercase tracking-wider mb-1'>
+                          RAG Rules (Top {Math.min(ai.rules.length, 5)})
+                        </span>
+                        <ul className='list-disc pl-4 space-y-1'>
+                          {ai.rules.slice(0, 5).map((rule, idx) => (
+                            <li key={idx}>{String(rule)}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <button
+                      type='button'
+                      onClick={() => setShowDebug((v) => !v)}
+                      className='inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors'
+                    >
+                      <Bug className='w-3.5 h-3.5' />
+                      {showDebug ? 'Hide Debug' : 'Show Debug'}
+                    </button>
+
+                    {showDebug && (
+                      <div className='space-y-2 rounded border border-border bg-background/50 p-3'>
+                        <div className='inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-amber-400'>
+                          <AlertTriangle className='w-3 h-3' />
+                          Debug View (Dev)
                         </div>
-
-                        {decisionTrace?.rf_probability_pct != null &&
-                          decisionTrace?.threshold_pct != null && (
-                            <div className='text-xs text-muted-foreground'>
-                              RF Gate:{' '}
-                              {formatNum(decisionTrace.rf_probability_pct, 1)}%
-                              {' vs '}
-                              {formatNum(decisionTrace.threshold_pct, 1)}%
-                              threshold
-                            </div>
-                          )}
-
-                        {(llmStatus ||
-                          traceRules.some(
-                            (r) => r?.rule_id === 'llm_context'
-                          )) && (
-                          <div className='text-xs text-muted-foreground'>
-                            LLM Context:{' '}
-                            <span
-                              className={cn(
-                                'font-semibold',
-                                llmStatus === 'ok' && 'text-[var(--to-long)]',
-                                llmStatus === 'skipped' && 'text-amber-400',
-                                llmStatus === 'error' && 'text-amber-400'
-                              )}
-                            >
-                              {llmStatus === 'ok'
-                                ? 'OK'
-                                : llmStatus === 'error'
-                                ? 'ERROR (NON-BLOCKING)'
-                                : 'SKIPPED'}
-                            </span>
-                            {llmContextMessage && (
-                              <span className='ml-2'>{llmContextMessage}</span>
-                            )}
-                          </div>
+                        <JsonViewer
+                          data={{
+                            rf_prob: ai.rf_prob,
+                            rf_threshold: ai.rf_threshold,
+                            llm_status: ai.llm_status,
+                            llm_model_used: ai.llm_model_used,
+                            llm_error_code: ai.llm_error_code,
+                            llm_error_message_short:
+                              ai.llm_error_message_short,
+                            decision_trace: ai.decision_trace,
+                          }}
+                          title='Model Output'
+                        />
+                        {ai.llm_error_raw && (
+                          <JsonViewer
+                            data={ai.llm_error_raw}
+                            title='LLM Raw Error (Debug Only)'
+                          />
                         )}
-
-                        {traceRules.length > 0 && (
-                          <div className='space-y-2'>
-                            <div className='text-[11px] text-muted-foreground uppercase tracking-wider'>
-                              Decision Breakdown
-                            </div>
-                            {(decisionValue === 'NO_GO' &&
-                            failingRules.length > 0
-                              ? failingRules
-                              : traceRules
-                            ).map((rule, idx) => {
-                              const badge = getRuleBadge(
-                                rule as Record<string, unknown>,
-                                ai
-                              );
-                              const ruleMessage =
-                                rule?.message != null
-                                  ? String(rule.message)
-                                  : '';
-                              return (
-                                 
-                                <div
-                                  key={`${getRuleDisplayId(
-                                    rule as Record<string, unknown>
-                                  )}-${idx}`}
-                                  className={cn(
-                                    'text-xs rounded border px-2.5 py-2 flex items-start justify-between gap-3',
-                                    badge.rowClass
-                                  )}
-                                >
-                                  <div className='min-w-0'>
-                                    <div className='font-mono text-foreground/90 break-words [overflow-wrap:anywhere]'>
-                                      {getRuleDisplayId(
-                                        rule as Record<string, unknown>
-                                      )}
-                                    </div>
-                                    {ruleMessage && (
-                                      <div className='text-muted-foreground mt-0.5 break-words [overflow-wrap:anywhere]'>
-                                        {ruleMessage}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div
-                                    className={cn(
-                                      'shrink-0 text-[10px] font-semibold uppercase whitespace-nowrap',
-                                      badge.textClass
-                                    )}
-                                  >
-                                    {badge.label}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {ai.narrative && (
-                          <div className='text-xs text-muted-foreground leading-relaxed'>
-                            <span className='block text-[11px] text-muted-foreground uppercase tracking-wider mb-1'>
-                              Market Narrative
-                            </span>
-                            <p>{ai.narrative}</p>
-                          </div>
-                        )}
-
-                        {Array.isArray(ai.rules) && ai.rules.length > 0 && (
-                          <div className='text-xs text-foreground/90'>
-                            <span className='block text-[11px] text-muted-foreground uppercase tracking-wider mb-1'>
-                              RAG Rules (Top {Math.min(ai.rules.length, 5)})
-                            </span>
-                            <ul className='list-disc pl-4 space-y-1'>
-                              {ai.rules.slice(0, 5).map((rule, idx) => (
-                                 
-                                <li key={idx}>{String(rule)}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        <button
-                          type='button'
-                          onClick={() => setShowDebug((v) => !v)}
-                          className='inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors'
-                        >
-                          <Bug className='w-3.5 h-3.5' />
-                          {showDebug ? 'Hide Debug' : 'Show Debug'}
-                        </button>
-
-                        {showDebug && (
-                          <div className='space-y-2 rounded border border-border bg-background/50 p-3'>
-                            <div className='inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-amber-400'>
-                              <AlertTriangle className='w-3 h-3' />
-                              Debug View (Dev)
-                            </div>
-                            <JsonViewer
-                              data={{
-                                rf_prob: ai.rf_prob,
-                                rf_threshold: ai.rf_threshold,
-                                llm_status: ai.llm_status,
-                                llm_model_used: ai.llm_model_used,
-                                llm_error_code: ai.llm_error_code,
-                                llm_error_message_short:
-                                  ai.llm_error_message_short,
-                                decision_trace: ai.decision_trace,
-                              }}
-                              title='Model Output'
-                            />
-                            {ai.llm_error_raw && (
-                              <JsonViewer
-                                data={ai.llm_error_raw}
-                                title='LLM Raw Error (Debug Only)'
-                              />
-                            )}
-                            <JsonViewer
-                              data={ai.decision_trace?.features_snapshot || {}}
-                              title='Feature Snapshot'
-                            />
-                          </div>
-                        )}
+                        <JsonViewer
+                          data={ai.decision_trace?.features_snapshot || {}}
+                          title='Feature Snapshot'
+                        />
                       </div>
-                    </div>
+                    )}
 
                     {/* Zone Analysis */}
                     <div className='rounded-lg bg-card border border-border overflow-hidden'>

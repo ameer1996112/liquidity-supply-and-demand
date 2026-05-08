@@ -86,10 +86,11 @@ describe('SignalInspector decision summary', () => {
       aiTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(document.body.textContent).toContain('Decision Summary');
+    expect(document.querySelector('[data-testid="ai-decision-panel"]')).not.toBeNull();
+    expect(document.body.textContent).toContain('AI Decision');
     expect(document.body.textContent).toContain('NO_GO');
-    expect(document.body.textContent).toContain('Decision Breakdown');
-    expect(document.body.textContent).toContain('RF Gate:');
+    expect(document.body.textContent).toContain('rf_threshold');
+    expect(document.body.textContent).toContain('RF probability 33.6% < 63% threshold');
     expect(document.body.textContent).toContain('Show Debug');
   });
 
@@ -563,5 +564,55 @@ describe('SignalInspector decision summary', () => {
     expect(document.body.textContent).toContain('+1.75%');
     expect(document.body.textContent).toContain('Exit Type');
     expect(document.body.textContent).toContain('take profit');
+  });
+
+  it('renders AI brain as diagnostic evidence with the failing reason preserved', () => {
+    const signal: TradingSignal = {
+      id: 'sig-ai-evidence',
+      created_at: '2026-05-08T07:55:02.000Z',
+      symbol: 'GBPUSD',
+      side: 'sell',
+      status: 'ai_rejected',
+      price: 1.35852,
+      ai_reasoning: {
+        decision: 'NO_GO',
+        reason: 'RF probability 33.6% < 63% threshold',
+        llm_status: 'skipped',
+        decision_trace: {
+          rf_probability_pct: 33.6,
+          threshold_pct: 63,
+          rules: [
+            {
+              rule_id: 'rf_threshold',
+              passed: false,
+              message: 'RF probability 33.6% < 63% threshold',
+            },
+          ],
+        },
+      },
+    };
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    const aiTab = Array.from(document.querySelectorAll('button')).find((el) =>
+      el.textContent?.includes('AI Brain')
+    );
+    act(() => {
+      aiTab?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+      aiTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('[data-testid="ai-decision-panel"]')).not.toBeNull();
+    expect(document.body.textContent).toContain('AI Decision');
+    expect(document.body.textContent).toContain('NO_GO');
+    expect(document.body.textContent).toContain('RF probability 33.6% < 63% threshold');
+    expect(document.body.textContent).toContain('LLM Context');
   });
 });
