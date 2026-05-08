@@ -179,7 +179,10 @@ draw_zone_labels = show_zone_labels
 draw_liquidity_lines = show_liquidity_connectors
 draw_liquidity_connectors = show_liquidity_connectors and not use_myrtille_visuals
 draw_liquidity_targets = show_liquidity_connectors and not use_myrtille_visuals
-liq_line_color = use_myrtille_visuals ? color.new(#ff2d6f, 0) : color.new(color.gray, 35)
+liq_line_color = use_myrtille_visuals ? color.new(#F59E0B, 8) : color.new(color.gray, 35)
+liq_line_swept_color = use_myrtille_visuals ? color.new(#F97316, 0) : color.new(color.orange, 0)
+liq_connector_color = use_myrtille_visuals ? color.new(#B45309, 18) : color.new(color.gray, 35)
+liq_target_color = use_myrtille_visuals ? color.new(#64748B, 18) : color.new(color.gray, 25)
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
 liq_link_lookback_bars = 400
@@ -2417,12 +2420,13 @@ updateDemandLiquidityVisual(idx) =>
                 line.delete(z.inducementHLine)
 
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                color indColor = use_myrtille_visuals ? liq_line_color : (z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50))
-                int lineEnd = bar_index + 20
+                color indColor = use_myrtille_visuals ? (z.liquiditySwept ? liq_line_swept_color : liq_line_color) : (z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50))
+                lineStyle = z.liquiditySwept ? line.style_solid : line.style_dashed
+                int lineEnd = bar_index + 36
                 z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                                x2 = lineEnd, y2 = z.liqLowPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
-                                               color = indColor, style = line.style_dashed, width = 1)
+                                               color = indColor, style = lineStyle, width = 2)
 
             if not na(z.targetHLine)
                 line.delete(z.targetHLine)
@@ -2455,7 +2459,7 @@ updateDemandLiquidityVisual(idx) =>
             lineWidth = z.liquiditySwept ? 2 : 1
             z.connectorLine := line.new(x1 = z.createdBarIndex, y1 = mid, x2 = z.liquidityBarIndex, y2 = z.liquidityPrice,
                                   xloc = xloc.bar_index, extend = extend.none,
-                                  color = liq_line_color, style = lineStyle, width = lineWidth)
+                                  color = z.liquiditySwept ? liq_line_swept_color : liq_connector_color, style = lineStyle, width = lineWidth)
         true
 
 clearSupplyLiquidityVisual(idx) =>
@@ -2483,12 +2487,13 @@ updateSupplyLiquidityVisual(idx) =>
                 line.delete(z.inducementHLine)
 
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
-                color indColor = use_myrtille_visuals ? liq_line_color : (z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50))
-                int lineEnd = bar_index + 20
+                color indColor = use_myrtille_visuals ? (z.liquiditySwept ? liq_line_swept_color : liq_line_color) : (z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50))
+                lineStyle = z.liquiditySwept ? line.style_solid : line.style_dashed
+                int lineEnd = bar_index + 36
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = lineEnd, y2 = z.liqHighPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
-                                               color = indColor, style = line.style_dashed, width = 1)
+                                               color = indColor, style = lineStyle, width = 2)
 
             if not na(z.targetHLine)
                 line.delete(z.targetHLine)
@@ -2525,13 +2530,13 @@ updateSupplyLiquidityVisual(idx) =>
             indWidth = z.liquiditySwept ? 2 : 1
             z.connectorLine := line.new(x1 = z.createdBarIndex, y1 = zBottom, x2 = z.liqHighBar, y2 = z.liqHighPrice,
                                   xloc = xloc.bar_index, extend = extend.none,
-                                  color = liq_line_color, style = indStyle, width = indWidth)
+                                  color = z.liquiditySwept ? liq_line_swept_color : liq_connector_color, style = indStyle, width = indWidth)
 
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
                 if not na(z.targetLine)
                     line.delete(z.targetLine)
 
-                targetColor = color.new(color.gray, 25)
+                targetColor = liq_target_color
                 targetStyle = line.style_solid
                 targetWidth = z.targetSwept ? 2 : 1
                 z.targetLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice, x2 = z.liqLowBar, y2 = z.liqLowPrice,
