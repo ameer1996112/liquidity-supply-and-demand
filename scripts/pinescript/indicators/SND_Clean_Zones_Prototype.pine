@@ -71,3 +71,88 @@ type CleanZone
 
 var CleanZone[] zones = array.new<CleanZone>()
 var int[] next_zone_id = array.new_int(1, 1)
+
+f_pip_size() =>
+    bool is_jpy_pair = str.contains(syminfo.ticker, "JPY")
+    syminfo.type == "forex" ? (is_jpy_pair ? 0.01 : 0.0001) : syminfo.mintick
+
+pip_size = f_pip_size()
+
+f_body_pct(int off) =>
+    float candleRange = high[off] - low[off]
+    candleRange > 0.0 ? math.abs(close[off] - open[off]) / candleRange * 100.0 : 100.0
+
+f_is_base_candle(int off) =>
+    float candleRange = high[off] - low[off]
+    bool smallBody = f_body_pct(off) <= base_body_max_pct
+    bool controlledRange = na(atr14) or atr14 <= 0.0 ? true : candleRange <= atr14 * base_range_atr_max
+    smallBody and controlledRange
+
+f_base_count() =>
+    int count = 0
+    for off = 1 to base_max_candles
+        if off > bar_index
+            break
+        if f_is_base_candle(off)
+            count += 1
+        else
+            break
+    count
+
+f_base_bounds(int baseCount) =>
+    float bodyHigh = math.max(open[1], close[1])
+    float bodyLow = math.min(open[1], close[1])
+    float wickHigh = high[1]
+    float wickLow = low[1]
+
+    if baseCount > 1
+        for off = 2 to baseCount
+            bodyHigh := math.max(bodyHigh, math.max(open[off], close[off]))
+            bodyLow := math.min(bodyLow, math.min(open[off], close[off]))
+            wickHigh := math.max(wickHigh, high[off])
+            wickLow := math.min(wickLow, low[off])
+
+    [bodyHigh, bodyLow, wickHigh, wickLow]
+
+f_displacement_ok(bool isDemand, float bodyHigh, float bodyLow, float wickHigh, float wickLow) =>
+    float candleRange = high - low
+    bool rangeOk = na(atr14) or atr14 <= 0.0 ? true : candleRange >= atr14 * displacement_atr_min
+    bool directionOk = isDemand ? close > open : close < open
+    bool leftBase = isDemand ? close > wickHigh : close < wickLow
+    rangeOk and directionOk and leftBase and bodyHigh >= bodyLow
+
+f_bos_level(bool isDemand, int baseCount) =>
+    int startOffset = baseCount + 1
+    float level = isDemand ? high[startOffset] : low[startOffset]
+    int levelBar = bar_index - startOffset
+
+    for off = startOffset to startOffset + bos_lookback - 1
+        if off > bar_index
+            break
+        if isDemand
+            if high[off] > level
+                level := high[off]
+                levelBar := bar_index - off
+        else
+            if low[off] < level
+                level := low[off]
+                levelBar := bar_index - off
+
+    [level, levelBar]
+
+f_breaks_bos(bool isDemand, float level) =>
+    if na(level)
+        false
+    else if strict_bos_close_beyond_level
+        isDemand ? close > level : close < level
+    else
+        isDemand ? high > level : low < level
+
+f_state_name(int state) =>
+    state == STATE_WAITING_BOS ? "WAITING_BOS" :
+      state == STATE_VALID ? "VALID" :
+      state == STATE_TESTED ? "TESTED" :
+      state == STATE_INVALID ? "INVALID" : "UNKNOWN"
+
+f_side_name(int side) =>
+    side == SIDE_DEMAND ? "DEMAND" : "SUPPLY"
