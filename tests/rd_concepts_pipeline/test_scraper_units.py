@@ -7,7 +7,9 @@ from scripts.rd_concepts_pipeline.config import PipelineSettings
 from scripts.rd_concepts_pipeline.scraper import (
     build_image_filename,
     extract_image_urls,
+    message_matches_keywords,
     next_before_id,
+    normalize_keyword_filters,
     normalize_message,
     should_retry_status,
 )
@@ -114,6 +116,25 @@ def test_should_retry_status_marks_rate_limits_and_server_errors() -> None:
     assert should_retry_status(403) is False
 
 
+def test_normalize_keyword_filters_splits_and_deduplicates() -> None:
+    assert normalize_keyword_filters(["EURUSD, liquidity", "eurusd", " FVG "]) == [
+        "EURUSD",
+        "liquidity",
+        "FVG",
+    ]
+
+
+def test_message_matches_keywords_searches_content_and_embeds() -> None:
+    message = {
+        "content": "clean entry from demand",
+        "embeds": [{"description": "EURUSD long setup"}],
+    }
+
+    assert message_matches_keywords(message, ["eurusd", "liquidity"]) is True
+    assert message_matches_keywords(message, ["eurusd", "long"], mode="all") is True
+    assert message_matches_keywords(message, ["eurusd", "short"], mode="all") is False
+
+
 def test_scrape_channel_persists_forbidden_manifest(monkeypatch, tmp_path) -> None:
     settings = PipelineSettings(
         discord_authorization="token",
@@ -145,6 +166,49 @@ def test_scrape_channel_persists_forbidden_manifest(monkeypatch, tmp_path) -> No
     assert messages_path.exists()
     assert messages_path.read_text(encoding="utf-8") == ""
     assert json.loads(manifest_path.read_text(encoding="utf-8")) == manifest
+
+
+def test_scrape_channel_keeps_only_keyword_matches(monkeypatch, tmp_path) -> None:
+    settings = PipelineSettings(
+        discord_authorization="token",
+        discord_server_id="guild-123",
+        data_dir=tmp_path,
+        channels={"signals": "channel-123"},
+    )
+    responses = [
+        [
+            {"id": "2", "content": "random weekend chat", "attachments": []},
+            {"id": "1", "content": "EURUSD long entry from liquidity", "attachments": []},
+        ],
+        [],
+    ]
+
+    def fake_request_json_with_retries(url, settings, params=None):
+        return 200, responses.pop(0)
+
+    monkeypatch.setattr(
+        scraper,
+        "request_json_with_retries",
+        fake_request_json_with_retries,
+    )
+
+    manifest = scraper.scrape_channel(
+        "signals",
+        "channel-123",
+        settings,
+        keyword_filters=["EURUSD", "liquidity"],
+        download_images=False,
+    )
+    messages_path = tmp_path / "raw" / "signals" / "messages.jsonl"
+    rows = [
+        json.loads(line)
+        for line in messages_path.read_text(encoding="utf-8").splitlines()
+    ]
+
+    assert [row["id"] for row in rows] == ["1"]
+    assert manifest["message_count"] == 1
+    assert manifest["fetched_message_count"] == 2
+    assert manifest["skipped_message_count"] == 1
 
 
 def test_parse_retry_after_clamps_unsafe_values() -> None:
