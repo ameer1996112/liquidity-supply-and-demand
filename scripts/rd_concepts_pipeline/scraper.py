@@ -177,7 +177,20 @@ def scrape_channel(
         status_code, messages = request_json_with_retries(url, settings, params=params)
         if status_code == 403:
             LOGGER.warning("Skipping %s: Discord returned 403", channel_name)
-            return {"channel": channel_name, "status": "forbidden", "message_count": 0}
+            write_jsonl(channel_dir / "messages.jsonl", [])
+            manifest = {
+                "channel": channel_name,
+                "channel_id": channel_id,
+                "status": "forbidden",
+                "scraped_at": now_iso(),
+                "message_count": 0,
+                "image_failures": [],
+            }
+            (channel_dir / "manifest.json").write_text(
+                json.dumps(manifest, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+            return manifest
         if not messages:
             break
         page += 1
