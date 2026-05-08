@@ -87,13 +87,13 @@ scripts/rd_concepts_pipeline/run_all.sh
 
 Default outputs are written under `data/rd_concepts`:
 
-- Raw Discord messages: `raw/messages.jsonl`
-- Raw downloaded images: `raw/images/`
-- Scrape manifest: `manifest.json`
+- Raw Discord messages: `raw/<channel>/messages.jsonl`
+- Raw downloaded images: `raw/<channel>/images/`
+- Scrape manifest: `raw/<channel>/manifest.json`
 - Processed signals: `processed/signals.csv`
 - Image index: `processed/image_index.csv`
 - Extracted rules: `processed/rules.jsonl`
 - Extracted concepts: `processed/concepts.json`
-- Knowledge base: `knowledge_base.json`
+- Knowledge base: `processed/knowledge_base.json`
 
 These files are local research artifacts only. They are not read by the live trading worker and do not change bot state.
