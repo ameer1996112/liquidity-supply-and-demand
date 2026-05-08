@@ -65,3 +65,17 @@ def test_safe_image_path_rejects_unsafe_paths_and_accepts_data_dir_image(
     assert module._safe_image_path(tmp_path / "../outside.png", tmp_path) is None
     assert module._safe_image_path("/tmp/outside.png", tmp_path) is None
     assert module._safe_image_path("raw/images/chart.txt", tmp_path) is None
+
+
+def test_safe_image_path_accepts_pipeline_generated_relative_path(
+    tmp_path: Path,
+) -> None:
+    module = importlib.import_module("scripts.rd_concepts_pipeline.dashboard")
+    data_dir = tmp_path / "data" / "rd_concepts"
+    valid_image = data_dir / "raw" / "fixture" / "images" / "a.png"
+    valid_image.parent.mkdir(parents=True)
+    valid_image.write_bytes(b"image")
+
+    raw_path = str(Path("data/rd_concepts/raw/fixture/images/a.png"))
+
+    assert module._safe_image_path(raw_path, data_dir) == valid_image.resolve()

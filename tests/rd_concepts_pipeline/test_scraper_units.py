@@ -20,18 +20,29 @@ class FakeResponse:
         payload=None,
         text: str = "",
         content: bytes = b"",
+        headers: dict[str, str] | None = None,
+        chunks: list[bytes] | None = None,
         json_exc: Exception | None = None,
     ) -> None:
         self.status_code = status_code
         self._payload = payload
         self.text = text
         self.content = content
+        self.headers = headers or {}
+        self._chunks = chunks
         self._json_exc = json_exc
 
     def json(self):
         if self._json_exc is not None:
             raise self._json_exc
         return self._payload
+
+    def iter_content(self, chunk_size=1):
+        if self._chunks is not None:
+            yield from self._chunks
+            return
+        for index in range(0, len(self.content), chunk_size):
+            yield self.content[index : index + chunk_size]
 
 
 def test_extract_image_urls_from_attachments_and_embeds() -> None:
@@ -169,6 +180,7 @@ def test_download_image_does_not_send_authorization_header(monkeypatch, tmp_path
 
     def fake_get(url, **kwargs):
         seen_headers.append(kwargs.get("headers"))
+        assert kwargs["stream"] is True
         return FakeResponse(200, content=b"image-bytes")
 
     monkeypatch.setattr(scraper.requests, "get", fake_get)
@@ -179,6 +191,57 @@ def test_download_image_does_not_send_authorization_header(monkeypatch, tmp_path
         settings,
     )
     assert seen_headers == [None]
+
+
+def test_download_image_rejects_non_image_content_type(monkeypatch, tmp_path) -> None:
+    settings = PipelineSettings(
+        discord_authorization="secret-token",
+        discord_server_id="guild-123",
+        data_dir=tmp_path,
+    )
+
+    def fake_get(url, **kwargs):
+        return FakeResponse(
+            200,
+            content=b"not-image",
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+
+    monkeypatch.setattr(scraper.requests, "get", fake_get)
+
+    output_path = tmp_path / "chart.png"
+    assert (
+        scraper.download_image("https://images.example/chart.png", output_path, settings)
+        is False
+    )
+    assert not output_path.exists()
+    assert not output_path.with_name("chart.png.part").exists()
+
+
+def test_download_image_rejects_oversized_stream(monkeypatch, tmp_path) -> None:
+    settings = PipelineSettings(
+        discord_authorization="secret-token",
+        discord_server_id="guild-123",
+        data_dir=tmp_path,
+    )
+
+    def fake_get(url, **kwargs):
+        return FakeResponse(
+            200,
+            headers={"content-type": "image/png"},
+            chunks=[b"a" * 4, b"b" * 4],
+        )
+
+    monkeypatch.setattr(scraper.requests, "get", fake_get)
+    monkeypatch.setattr(scraper, "MAX_IMAGE_BYTES", 6)
+
+    output_path = tmp_path / "chart.png"
+    assert (
+        scraper.download_image("https://images.example/chart.png", output_path, settings)
+        is False
+    )
+    assert not output_path.exists()
+    assert not output_path.with_name("chart.png.part").exists()
 
 
 def test_request_json_with_retries_retries_timeout_then_succeeds(monkeypatch, tmp_path) -> None:

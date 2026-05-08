@@ -175,11 +175,27 @@ def _safe_image_path(raw_path: Any, data_dir: Path) -> Path | None:
         return None
 
     data_root = data_dir.resolve()
-    resolved = (
-        candidate.resolve()
-        if candidate.is_absolute()
-        else (data_root / candidate).resolve()
-    )
+    if candidate.is_absolute():
+        resolved = candidate.resolve()
+    else:
+        cwd_candidate = candidate.resolve()
+        try:
+            cwd_candidate.relative_to(data_root)
+            resolved = cwd_candidate
+        except ValueError:
+            data_root_parts = data_root.parts
+            candidate_parts = candidate.parts
+            root_prefix_length = 0
+            for length in range(min(len(data_root_parts), len(candidate_parts)), 0, -1):
+                if candidate_parts[:length] == data_root_parts[-length:]:
+                    root_prefix_length = length
+                    break
+            if root_prefix_length:
+                resolved = data_root.joinpath(
+                    *candidate_parts[root_prefix_length:]
+                ).resolve()
+            else:
+                resolved = (data_root / candidate).resolve()
 
     try:
         resolved.relative_to(data_root)

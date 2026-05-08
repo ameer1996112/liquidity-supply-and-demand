@@ -72,11 +72,14 @@ data/rd_concepts/
 Required settings:
 - `RD_DISCORD_AUTHORIZATION`: Discord API authorization value.
 - `RD_DISCORD_SERVER_ID`: RD Concepts server ID.
-- `RD_CHANNELS`: mapping of channel names to IDs.
 - `RD_DATA_DIR`: default `data/rd_concepts`.
 - `RD_REQUEST_TIMEOUT_SECONDS`, `RD_MAX_RETRIES`, and download retry settings.
 
-Incomplete channel IDs are skipped with a warning. `list_channels.py` lists visible text/forum channels in the configured server so the channel map can be completed.
+Channel names and IDs are configured in `scripts/rd_concepts_pipeline/config.py`.
+`list_channels.py` lists visible text/forum channels in the configured server so
+the channel map can be completed without guessing.
+
+Incomplete channel IDs are skipped with a warning.
 
 All logs must redact token-like values and authorization headers.
 

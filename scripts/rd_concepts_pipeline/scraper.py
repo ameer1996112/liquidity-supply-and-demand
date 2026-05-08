@@ -31,6 +31,7 @@ from scripts.rd_concepts_pipeline.config import (
 IMAGE_CONTENT_PREFIX = "image/"
 DISCORD_API = "https://discord.com/api/v10"
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+MAX_IMAGE_BYTES = 25 * 1024 * 1024
 MAX_RETRY_AFTER_SECONDS = 60.0
 LOGGER = get_logger("rd_concepts.scraper")
 
@@ -107,13 +108,16 @@ def request_json_with_retries(
 
 def download_image(url: str, output_path: Path, settings: PipelineSettings) -> bool:
     ensure_dir(output_path.parent)
+    partial_path = output_path.with_name(f"{output_path.name}.part")
     for attempt in range(1, settings.max_retries + 1):
         try:
             response = requests.get(
                 url,
+                stream=True,
                 timeout=settings.request_timeout_seconds,
             )
         except requests.RequestException:
+            partial_path.unlink(missing_ok=True)
             if attempt < settings.max_retries:
                 time.sleep(min(attempt * 2, 10))
                 continue
@@ -131,9 +135,42 @@ def download_image(url: str, output_path: Path, settings: PipelineSettings) -> b
                 response.status_code,
                 redact(url),
             )
+            partial_path.unlink(missing_ok=True)
             return False
-        output_path.write_bytes(response.content)
-        return True
+
+        content_type = response.headers.get("content-type", "").strip().lower()
+        if content_type and not content_type.startswith(IMAGE_CONTENT_PREFIX):
+            LOGGER.warning(
+                "Image download rejected non-image content for %s",
+                redact(url),
+            )
+            partial_path.unlink(missing_ok=True)
+            return False
+
+        bytes_written = 0
+        exceeded_cap = False
+        try:
+            with partial_path.open("wb") as handle:
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    if not chunk:
+                        continue
+                    bytes_written += len(chunk)
+                    if bytes_written > MAX_IMAGE_BYTES:
+                        exceeded_cap = True
+                        break
+                    handle.write(chunk)
+            if exceeded_cap:
+                partial_path.unlink(missing_ok=True)
+                LOGGER.warning(
+                    "Image download exceeded byte cap for %s",
+                    redact(url),
+                )
+                return False
+            partial_path.replace(output_path)
+            return True
+        except (OSError, requests.RequestException):
+            partial_path.unlink(missing_ok=True)
+            return False
     return False
 
 
