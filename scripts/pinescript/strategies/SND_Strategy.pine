@@ -179,10 +179,10 @@ draw_zone_labels = show_zone_labels
 draw_liquidity_lines = show_liquidity_connectors
 draw_liquidity_connectors = show_liquidity_connectors and not use_myrtille_visuals
 draw_liquidity_targets = show_liquidity_connectors and not use_myrtille_visuals
-liq_line_color = use_myrtille_visuals ? color.new(#F59E0B, 8) : color.new(color.gray, 35)
-liq_line_swept_color = use_myrtille_visuals ? color.new(#F97316, 0) : color.new(color.orange, 0)
-liq_connector_color = use_myrtille_visuals ? color.new(#B45309, 18) : color.new(color.gray, 35)
-liq_target_color = use_myrtille_visuals ? color.new(#64748B, 18) : color.new(color.gray, 25)
+liq_line_color = use_myrtille_visuals ? color.new(#B98A2E, 16) : color.new(color.gray, 35)
+liq_line_swept_color = use_myrtille_visuals ? color.new(#8A5A16, 4) : color.new(color.orange, 0)
+liq_connector_color = use_myrtille_visuals ? color.new(#7A5A24, 42) : color.new(color.gray, 35)
+liq_target_color = use_myrtille_visuals ? color.new(#68717E, 32) : color.new(color.gray, 25)
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
 liq_link_lookback_bars = 400
@@ -417,19 +417,19 @@ if news_blackout_enabled
         if time >= _pf_ts - 2 * 60 * 1000 and time <= _pf_ts + 2 * 60 * 1000
             pf_is_news_blackout := true
 
-col_demand_bg     = use_myrtille_visuals ? color.new(#2DD4BF, 88) : color.new(#26a69a, 88)
-col_demand_border = use_myrtille_visuals ? color.new(#0F766E, 22) : color.new(#26a69a, 40)
+col_demand_bg     = use_myrtille_visuals ? color.new(#6BB7AE, 84) : color.new(#26a69a, 88)
+col_demand_border = use_myrtille_visuals ? color.new(#2F6F6A, 28) : color.new(#26a69a, 40)
 
-col_supply_bg     = use_myrtille_visuals ? color.new(#FB7185, 89) : color.new(#ef5350, 88)
-col_supply_border = use_myrtille_visuals ? color.new(#BE123C, 20) : color.new(#ef5350, 40)
+col_supply_bg     = use_myrtille_visuals ? color.new(#DFA0AA, 86) : color.new(#ef5350, 88)
+col_supply_border = use_myrtille_visuals ? color.new(#9C4856, 28) : color.new(#ef5350, 40)
 
-col_acc_demand_bg     = use_myrtille_visuals ? color.new(#60A5FA, 86) : color.new(#2196F3, 70)
-col_acc_demand_border = use_myrtille_visuals ? color.new(#2563EB, 4) : #42A5F5
-col_acc_supply_bg     = use_myrtille_visuals ? color.new(#C084FC, 86) : color.new(#AB47BC, 70)
-col_acc_supply_border = use_myrtille_visuals ? color.new(#9333EA, 4) : #BA68C8
+col_acc_demand_bg     = use_myrtille_visuals ? color.new(#8EA9CF, 85) : color.new(#2196F3, 70)
+col_acc_demand_border = use_myrtille_visuals ? color.new(#365F91, 18) : #42A5F5
+col_acc_supply_bg     = use_myrtille_visuals ? color.new(#B7A0C9, 85) : color.new(#AB47BC, 70)
+col_acc_supply_border = use_myrtille_visuals ? color.new(#6A4A7C, 18) : #BA68C8
 
 col_label_clear         = color.new(color.white, 100)
-col_label_text          = color.new(color.black, 12)
+col_label_text          = color.new(#1F2933, 18)
 
 float tol = pip_size * 1.0
 
