@@ -23,6 +23,7 @@ DEFAULT_CHANNELS: dict[str, str] = {
 }
 
 INCOMPLETE_CHANNEL_VALUES = {"", "PASTE_ID", "MISSING", "UNKNOWN"}
+PACKAGE_ENV_PATH = Path(__file__).with_name(".env")
 
 
 @dataclass(frozen=True)
@@ -42,7 +43,7 @@ class PipelineSettings:
 
 
 def get_settings() -> PipelineSettings:
-    load_dotenv()
+    load_dotenv(PACKAGE_ENV_PATH)
     return PipelineSettings(
         discord_authorization=os.getenv("RD_DISCORD_AUTHORIZATION", ""),
         discord_server_id=os.getenv("RD_DISCORD_SERVER_ID", "1160558784314343484"),
@@ -56,7 +57,7 @@ def get_settings() -> PipelineSettings:
 
 def configured_channels(settings: PipelineSettings) -> dict[str, str]:
     return {
-        name: channel_id
+        name: channel_id.strip()
         for name, channel_id in settings.channels.items()
         if channel_id.strip() not in INCOMPLETE_CHANNEL_VALUES
     }
