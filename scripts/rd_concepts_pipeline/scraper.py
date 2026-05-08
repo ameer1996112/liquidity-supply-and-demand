@@ -9,13 +9,13 @@ def extract_image_urls(message: dict[str, Any]) -> list[dict[str, str]]:
     images: list[dict[str, str]] = []
     for index, attachment in enumerate(message.get("attachments") or []):
         content_type = str(attachment.get("content_type", ""))
-        url = str(attachment.get("url", ""))
-        if url and content_type.startswith(IMAGE_CONTENT_PREFIX):
+        url = attachment.get("url")
+        if isinstance(url, str) and url and content_type.startswith(IMAGE_CONTENT_PREFIX):
             images.append({"source": "attachment", "index": str(index), "url": url})
     for index, embed in enumerate(message.get("embeds") or []):
         for key in ("image", "thumbnail"):
-            url = str((embed.get(key) or {}).get("url", ""))
-            if url:
+            url = (embed.get(key) or {}).get("url")
+            if isinstance(url, str) and url:
                 images.append({"source": f"embed_{key}", "index": str(index), "url": url})
     return images
 

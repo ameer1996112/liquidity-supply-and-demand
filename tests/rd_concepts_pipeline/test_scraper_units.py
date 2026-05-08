@@ -25,6 +25,27 @@ def test_extract_image_urls_from_attachments_and_embeds() -> None:
     ]
 
 
+def test_extract_image_urls_skips_none_and_empty_urls() -> None:
+    message = {
+        "id": "43",
+        "attachments": [
+            {"id": "a1", "url": None, "content_type": "image/png"},
+            {"id": "a2", "url": "", "content_type": "image/png"},
+            {"id": "a3", "url": "https://cdn/valid.png", "content_type": "image/png"},
+        ],
+        "embeds": [
+            {"image": {"url": None}},
+            {"thumbnail": {"url": ""}},
+            {"image": {"url": "https://cdn/embed-valid.jpg"}},
+        ],
+    }
+
+    assert [item["url"] for item in extract_image_urls(message)] == [
+        "https://cdn/valid.png",
+        "https://cdn/embed-valid.jpg",
+    ]
+
+
 def test_normalize_message_preserves_required_fields() -> None:
     raw = {
         "id": "100",
