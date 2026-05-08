@@ -77,7 +77,7 @@ def extract_rules_from_files(paths: list[Path]) -> tuple[list[dict[str, Any]], d
             if record is None:
                 continue
             rules.append(record)
-            for tag in record["concept_tags"] + record["keyword_hits"]:
+            for tag in dict.fromkeys(record["concept_tags"] + record["keyword_hits"]):
                 counts[tag] += 1
                 if len(examples[tag]) < 5:
                     examples[tag].append(record["rule_id"])

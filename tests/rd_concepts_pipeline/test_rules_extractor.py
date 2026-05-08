@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from scripts.rd_concepts_pipeline.rules_extractor import extract_rule_record, extract_rules_from_files, keyword_hits
@@ -46,3 +47,23 @@ def test_extract_rules_from_files_counts_concepts() -> None:
         assert set(entry) == {"count", "examples"}
         assert isinstance(entry["count"], int)
         assert isinstance(entry["examples"], list)
+
+
+def test_extract_rules_from_files_counts_overlapping_concepts_once_per_rule(tmp_path: Path) -> None:
+    path = tmp_path / "messages.jsonl"
+    row = {
+        "id": "20",
+        "channel": "webinars-and-extras",
+        "timestamp": "2026-05-08T09:00:00+00:00",
+        "author": {"username": "mentor"},
+        "content": "Rule: liquidity sweep into FVG.",
+        "images": [],
+        "message_url": "https://discord.com/channels/@me/20/20",
+    }
+    path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+    _, concepts = extract_rules_from_files([path])
+
+    assert concepts["liquidity"] == {"count": 1, "examples": ["webinars-and-extras:20"]}
+    assert concepts["sweep"] == {"count": 1, "examples": ["webinars-and-extras:20"]}
+    assert concepts["fvg"] == {"count": 1, "examples": ["webinars-and-extras:20"]}
