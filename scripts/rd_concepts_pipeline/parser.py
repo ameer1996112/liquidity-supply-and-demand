@@ -18,6 +18,38 @@ from scripts.rd_concepts_pipeline.config import get_settings
 
 LOGGER = get_logger("rd_concepts.parser")
 
+SIGNAL_COLUMNS = [
+    "signal_id",
+    "message_id",
+    "timestamp",
+    "channel",
+    "pair",
+    "direction",
+    "timeframe",
+    "entry",
+    "stop_loss",
+    "take_profit",
+    "rr_ratio",
+    "setup_notes",
+    "setup_tags",
+    "confluence_tags",
+    "session",
+    "has_chart",
+    "chart_paths",
+    "quality_flags",
+    "raw_message",
+    "message_url",
+]
+IMAGE_INDEX_COLUMNS = [
+    "message_id",
+    "timestamp",
+    "channel",
+    "image_path",
+    "pair",
+    "direction",
+    "setup_tags",
+]
+
 PAIRS = {
     "EURUSD",
     "GBPUSD",
@@ -187,6 +219,26 @@ def parse_raw_files(
     return signals, image_index
 
 
+def write_outputs(
+    signals: list[dict[str, Any]],
+    image_index: list[dict[str, Any]],
+    processed_dir: Path,
+) -> None:
+    import pandas as pd
+
+    output_dir = ensure_dir(processed_dir)
+    pd.DataFrame(signals, columns=SIGNAL_COLUMNS).to_csv(
+        output_dir / "signals.csv",
+        index=False,
+        quoting=csv.QUOTE_MINIMAL,
+    )
+    pd.DataFrame(image_index, columns=IMAGE_INDEX_COLUMNS).to_csv(
+        output_dir / "image_index.csv",
+        index=False,
+        quoting=csv.QUOTE_MINIMAL,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Parse RD Concepts raw messages into signal and image indexes."
@@ -197,15 +249,7 @@ def main() -> int:
     raw_paths = sorted((settings.data_dir / "raw").glob("*/messages.jsonl"))
     signals, image_index = parse_raw_files(raw_paths)
 
-    import pandas as pd
-
-    processed_dir = ensure_dir(settings.data_dir / "processed")
-    pd.DataFrame(signals).to_csv(processed_dir / "signals.csv", index=False)
-    pd.DataFrame(image_index).to_csv(
-        processed_dir / "image_index.csv",
-        index=False,
-        quoting=csv.QUOTE_MINIMAL,
-    )
+    write_outputs(signals, image_index, settings.data_dir / "processed")
     LOGGER.info("Parsed %s signals and %s images", len(signals), len(image_index))
     return 0
 

@@ -1,6 +1,12 @@
 from pathlib import Path
 
-from scripts.rd_concepts_pipeline.parser import parse_message, parse_raw_files
+from scripts.rd_concepts_pipeline.parser import (
+    IMAGE_INDEX_COLUMNS,
+    SIGNAL_COLUMNS,
+    parse_message,
+    parse_raw_files,
+    write_outputs,
+)
 
 
 def test_parse_pattern_a_long_signal() -> None:
@@ -63,3 +69,43 @@ def test_parse_raw_files_returns_signals_and_image_index() -> None:
 
     assert len(signals) == 3
     assert len(images) == 2
+
+
+def test_parse_raw_files_returns_image_index_shape() -> None:
+    fixture = Path("tests/rd_concepts_pipeline/fixtures/raw_messages.jsonl")
+    _, images = parse_raw_files([fixture])
+
+    assert images == [
+        {
+            "message_id": "1",
+            "timestamp": "2026-05-08T08:30:00+00:00",
+            "channel": "5m-signals",
+            "image_path": "data/rd_concepts/raw/5m-signals/images/1.png",
+            "pair": "EURUSD",
+            "direction": "long",
+            "setup_tags": ["fvg", "liquidity", "sweep"],
+        },
+        {
+            "message_id": "3",
+            "timestamp": "2026-05-08T20:00:00+00:00",
+            "channel": "main-pairs",
+            "image_path": "data/rd_concepts/raw/main-pairs/images/3.png",
+            "pair": "XAUUSD",
+            "direction": "long",
+            "setup_tags": ["liquidity", "structure", "sweep"],
+        },
+    ]
+
+
+def test_write_outputs_creates_empty_csvs_with_headers(tmp_path: Path) -> None:
+    write_outputs([], [], tmp_path)
+
+    signals_header = (
+        (tmp_path / "signals.csv").read_text(encoding="utf-8").splitlines()[0]
+    )
+    image_header = (
+        tmp_path / "image_index.csv"
+    ).read_text(encoding="utf-8").splitlines()[0]
+
+    assert signals_header == ",".join(SIGNAL_COLUMNS)
+    assert image_header == ",".join(IMAGE_INDEX_COLUMNS)
