@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -19,12 +20,17 @@ DISCORD_API = "https://discord.com/api/v10"
 VISIBLE_CHANNEL_TYPES = {0, 5, 10, 11, 12, 15, 16}
 
 
+def format_cli_error(exc: Exception) -> str:
+    return re.sub(r"\s+", " ", redact(str(exc))).strip()
+
+
 def normalize_channel(raw: dict[str, Any]) -> dict[str, Any]:
+    parent_id = raw.get("parent_id")
     return {
         "id": str(raw.get("id", "")),
         "name": str(raw.get("name", "")),
         "type": int(raw.get("type", -1)),
-        "parent_id": raw.get("parent_id"),
+        "parent_id": str(parent_id) if parent_id is not None else None,
     }
 
 
@@ -52,7 +58,7 @@ def main() -> int:
     try:
         channels = sorted(fetch_channels(), key=lambda item: item["name"])
     except (RuntimeError, ValueError, requests.RequestException, json.JSONDecodeError) as exc:
-        print(f"error: {redact(str(exc))}", file=sys.stderr)
+        print(f"error: {format_cli_error(exc)}", file=sys.stderr)
         return 1
     if args.json:
         print(json.dumps(channels, indent=2, sort_keys=True))

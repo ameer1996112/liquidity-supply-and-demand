@@ -19,6 +19,33 @@ def test_normalize_channel_keeps_text_channel_fields() -> None:
     }
 
 
+def test_normalize_channel_converts_numeric_parent_id_to_string() -> None:
+    raw = {"id": 123, "name": "main-pairs", "type": 0, "parent_id": 999}
+    assert normalize_channel(raw) == {
+        "id": "123",
+        "name": "main-pairs",
+        "type": 0,
+        "parent_id": "999",
+    }
+
+
+def test_normalize_channel_preserves_missing_or_null_parent_id() -> None:
+    assert normalize_channel({"id": "123", "name": "main-pairs", "type": 0}) == {
+        "id": "123",
+        "name": "main-pairs",
+        "type": 0,
+        "parent_id": None,
+    }
+    assert normalize_channel(
+        {"id": "123", "name": "main-pairs", "type": 0, "parent_id": None}
+    ) == {
+        "id": "123",
+        "name": "main-pairs",
+        "type": 0,
+        "parent_id": None,
+    }
+
+
 def test_fetch_channels_filters_visible_channel_types(monkeypatch: pytest.MonkeyPatch) -> None:
     class Settings:
         discord_server_id = "guild-123"
@@ -109,4 +136,23 @@ def test_main_redacts_cli_errors(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "error: Discord failed with [REDACTED]\n" == captured.err
+    assert token not in captured.err
+
+
+def test_main_collapses_cli_error_whitespace(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    token = "abcdefghijklmnopqrstuv.abcdef.abcdefghijklmnopqrstuv"
+
+    def fail_fetch() -> list[dict[str, Any]]:
+        raise RuntimeError(f"Discord failed\nwith\t {token}\nsecond line")
+
+    monkeypatch.setattr(list_channels, "fetch_channels", fail_fetch)
+    monkeypatch.setattr("sys.argv", ["list_channels.py"])
+
+    assert list_channels.main() == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "error: Discord failed with [REDACTED] second line\n"
     assert token not in captured.err
