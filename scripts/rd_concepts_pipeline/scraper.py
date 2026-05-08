@@ -45,7 +45,20 @@ FILE_SUFFIXES = {
     ".xlsm",
     ".xlsx",
 }
+FILE_CONTENT_TYPES = {
+    "application/csv",
+    "application/msword",
+    "application/pdf",
+    "application/vnd.ms-excel",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/csv",
+    "text/plain",
+}
 MESSAGE_CHANNEL_TYPES = {0, 5, 10, 11, 12}
+DEFAULT_MAX_FILE_BYTES = 50 * 1024 * 1024
 MAX_RETRY_AFTER_SECONDS = 60.0
 LOGGER = get_logger("rd_concepts.scraper")
 DEFAULT_TRADING_KEYWORDS = [
@@ -261,11 +274,21 @@ def download_image(url: str, output_path: Path, settings: PipelineSettings) -> b
     return False
 
 
-def download_file(url: str, output_path: Path, settings: PipelineSettings) -> bool:
+def download_file(
+    url: str,
+    output_path: Path,
+    settings: PipelineSettings,
+    max_bytes: int = DEFAULT_MAX_FILE_BYTES,
+) -> bool:
     ensure_dir(output_path.parent)
+    partial_path = output_path.with_suffix(f"{output_path.suffix}.part")
     for attempt in range(1, settings.max_retries + 1):
         try:
-            response = requests.get(url, timeout=settings.request_timeout_seconds)
+            response = requests.get(
+                url,
+                timeout=settings.request_timeout_seconds,
+                stream=True,
+            )
         except requests.RequestException:
             if attempt < settings.max_retries:
                 time.sleep(min(attempt * 2, 10))
@@ -285,8 +308,33 @@ def download_file(url: str, output_path: Path, settings: PipelineSettings) -> bo
                 redact(url),
             )
             return False
-        output_path.write_bytes(response.content)
-        return True
+        content_type = response.headers.get("content-type", "").split(";")[0].lower()
+        if content_type and content_type not in FILE_CONTENT_TYPES:
+            LOGGER.info("Skipping non-document attachment %s from %s", content_type, redact(url))
+            return False
+        try:
+            total = 0
+            with partial_path.open("wb") as handle:
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    if not chunk:
+                        continue
+                    total += len(chunk)
+                    if total > max_bytes:
+                        LOGGER.warning(
+                            "Skipping oversized attachment over %.1f MB from %s",
+                            max_bytes / (1024 * 1024),
+                            redact(url),
+                        )
+                        return False
+                    handle.write(chunk)
+            partial_path.replace(output_path)
+            return True
+        except OSError as exc:
+            LOGGER.warning("File download failed for %s: %s", redact(url), exc)
+            return False
+        finally:
+            if partial_path.exists():
+                partial_path.unlink(missing_ok=True)
     return False
 
 
@@ -316,7 +364,8 @@ def extract_file_urls(message: dict[str, Any]) -> list[dict[str, str]]:
             continue
         if content_type.startswith(IMAGE_CONTENT_PREFIX):
             continue
-        if suffix in FILE_SUFFIXES or content_type:
+        normalized_content_type = content_type.split(";")[0].lower()
+        if suffix in FILE_SUFFIXES or normalized_content_type in FILE_CONTENT_TYPES:
             files.append(
                 {
                     "source": "attachment",
@@ -463,6 +512,7 @@ def scrape_channel(
     max_messages: int | None = None,
     download_images: bool = True,
     download_files: bool = False,
+    max_file_bytes: int = DEFAULT_MAX_FILE_BYTES,
 ) -> dict[str, Any]:
     channel_dir = settings.data_dir / "raw" / channel_name
     image_dir = channel_dir / "images"
@@ -541,7 +591,12 @@ def scrape_channel(
                     dry_run
                     or not download_files
                     or output_path.exists()
-                    or download_file(file_item["url"], output_path, settings)
+                    or download_file(
+                        file_item["url"],
+                        output_path,
+                        settings,
+                        max_bytes=max_file_bytes,
+                    )
                 ):
                     if dry_run or download_files:
                         file_paths.append(str(output_path))
@@ -593,6 +648,7 @@ def scrape_channel(
         "max_messages": max_messages,
         "download_images": download_images,
         "download_files": download_files,
+        "max_file_bytes": max_file_bytes,
         "image_failures": failures,
     }
     (channel_dir / "manifest.json").write_text(
@@ -665,11 +721,19 @@ def main() -> int:
         action="store_true",
         help="Download non-image attachments such as PDFs, CSVs, and spreadsheets.",
     )
+    parser.add_argument(
+        "--max-file-mb",
+        type=float,
+        default=DEFAULT_MAX_FILE_BYTES / (1024 * 1024),
+        help="Maximum non-image attachment size to download in MB.",
+    )
     args = parser.parse_args()
     if args.max_pages is not None and args.max_pages < 1:
         parser.error("--max-pages must be 1 or greater")
     if args.max_messages is not None and args.max_messages < 1:
         parser.error("--max-messages must be 1 or greater")
+    if args.max_file_mb <= 0:
+        parser.error("--max-file-mb must be greater than 0")
     if args.channel and args.all_visible_channels:
         parser.error("--channel cannot be combined with --all-visible-channels")
     keyword_filters = normalize_keyword_filters(args.keyword)
@@ -713,6 +777,7 @@ def main() -> int:
             max_messages=args.max_messages,
             download_images=not args.no_images,
             download_files=args.download_files,
+            max_file_bytes=int(args.max_file_mb * 1024 * 1024),
         )
         for name, channel_id in channels.items()
     ]

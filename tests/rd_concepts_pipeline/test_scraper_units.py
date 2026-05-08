@@ -26,18 +26,24 @@ class FakeResponse:
         payload=None,
         text: str = "",
         content: bytes = b"",
+        headers: dict[str, str] | None = None,
         json_exc: Exception | None = None,
     ) -> None:
         self.status_code = status_code
         self._payload = payload
         self.text = text
         self.content = content
+        self.headers = headers or {}
         self._json_exc = json_exc
 
     def json(self):
         if self._json_exc is not None:
             raise self._json_exc
         return self._payload
+
+    def iter_content(self, chunk_size: int = 1024):
+        for index in range(0, len(self.content), chunk_size):
+            yield self.content[index : index + chunk_size]
 
 
 def test_extract_image_urls_from_attachments_and_embeds() -> None:
@@ -138,6 +144,28 @@ def test_extract_file_urls_from_non_image_attachments() -> None:
     assert len(files) == 1
     assert files[0]["url"] == "https://cdn/backtest.xlsx"
     assert files[0]["filename"] == "backtest.xlsx"
+
+
+def test_extract_file_urls_skips_video_or_unknown_binary_attachments() -> None:
+    message = {
+        "id": "45",
+        "attachments": [
+            {
+                "id": "video",
+                "url": "https://cdn/recording.bin",
+                "filename": "recording.bin",
+                "content_type": "video/mp4",
+            },
+            {
+                "id": "unknown",
+                "url": "https://cdn/download",
+                "filename": "",
+                "content_type": "",
+            },
+        ],
+    }
+
+    assert extract_file_urls(message) == []
 
 
 def test_build_file_filename_preserves_allowed_extension() -> None:
@@ -359,7 +387,11 @@ def test_download_file_saves_non_image_attachment(monkeypatch, tmp_path) -> None
 
     def fake_get(url, **kwargs):
         seen_headers.append(kwargs.get("headers"))
-        return FakeResponse(200, content=b"pair,win_rate\nEURUSD,55\n")
+        return FakeResponse(
+            200,
+            content=b"pair,win_rate\nEURUSD,55\n",
+            headers={"content-type": "text/csv"},
+        )
 
     monkeypatch.setattr(scraper.requests, "get", fake_get)
     output_path = tmp_path / "files" / "backtest.csv"
@@ -371,6 +403,62 @@ def test_download_file_saves_non_image_attachment(monkeypatch, tmp_path) -> None
     )
     assert output_path.read_bytes() == b"pair,win_rate\nEURUSD,55\n"
     assert seen_headers == [None]
+
+
+def test_download_file_rejects_oversized_attachment(monkeypatch, tmp_path) -> None:
+    settings = PipelineSettings(
+        discord_authorization="secret-token",
+        discord_server_id="guild-123",
+        data_dir=tmp_path,
+    )
+
+    def fake_get(url, **kwargs):
+        return FakeResponse(
+            200,
+            content=b"abcdef",
+            headers={"content-type": "text/csv"},
+        )
+
+    monkeypatch.setattr(scraper.requests, "get", fake_get)
+    output_path = tmp_path / "files" / "too-large.csv"
+
+    assert (
+        scraper.download_file(
+            "https://cdn.example/too-large.csv",
+            output_path,
+            settings,
+            max_bytes=3,
+        )
+        is False
+    )
+    assert not output_path.exists()
+    assert not output_path.with_suffix(".csv.part").exists()
+
+
+def test_download_file_rejects_non_document_content_type(monkeypatch, tmp_path) -> None:
+    settings = PipelineSettings(
+        discord_authorization="secret-token",
+        discord_server_id="guild-123",
+        data_dir=tmp_path,
+    )
+
+    def fake_get(url, **kwargs):
+        return FakeResponse(
+            200,
+            content=b"video",
+            headers={"content-type": "video/mp4"},
+        )
+
+    monkeypatch.setattr(scraper.requests, "get", fake_get)
+
+    assert (
+        scraper.download_file(
+            "https://cdn.example/video.bin",
+            tmp_path / "files" / "video.bin",
+            settings,
+        )
+        is False
+    )
 
 
 def test_request_json_with_retries_retries_timeout_then_succeeds(monkeypatch, tmp_path) -> None:
