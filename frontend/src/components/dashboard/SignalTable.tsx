@@ -167,14 +167,15 @@ function getStatusStyle(status: SignalStatus): { label: string; bg: string; text
   if (style) return style;
 
   if (normalized.includes('trading_permission') || normalized.includes('trade_permission')) {
+    const isBlocked = normalized.includes('denied') || normalized.includes('blocked');
     return {
-      label: normalized.includes('denied') || normalized.includes('blocked') ? 'NO TRADE' : 'PERMIT',
-      bg: normalized.includes('denied') || normalized.includes('blocked')
+      label: isBlocked ? 'NO TRADE' : 'NO ENTRY',
+      bg: isBlocked
         ? 'bg-[var(--to-short)]/12'
-        : 'bg-[var(--to-long)]/12',
-      text: normalized.includes('denied') || normalized.includes('blocked')
+        : 'bg-[var(--to-warning)]/12',
+      text: isBlocked
         ? 'text-[var(--to-short)]'
-        : 'text-[var(--to-long)]',
+        : 'text-[var(--to-warning)]',
     };
   }
 

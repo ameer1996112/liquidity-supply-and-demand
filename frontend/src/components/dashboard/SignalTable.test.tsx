@@ -292,17 +292,24 @@ describe('SignalTable', () => {
   });
 
   it('renders trading permission statuses as compact table badges', () => {
-    const signal: TradingSignal = {
+    const blockedSignal: TradingSignal = {
       ...signals[0],
       id: 'permission-sig',
       status: 'trading_permission_denied' as TradingSignal['status'],
     };
+    const allowedSignal: TradingSignal = {
+      ...signals[1],
+      id: 'allowed-permission-sig',
+      status: 'trading_permission_allowed' as TradingSignal['status'],
+    };
 
     act(() => {
-      root.render(<SignalTable signals={[signal]} />);
+      root.render(<SignalTable signals={[blockedSignal, allowedSignal]} />);
     });
 
     expect(container.textContent).toContain('NO TRADE');
+    expect(container.textContent).toContain('NO ENTRY');
     expect(container.textContent).not.toContain('TRADING_PERMISSION_DENIED');
+    expect(container.textContent).not.toContain('TRADING_PERMISSION_ALLOWED');
   });
 });
