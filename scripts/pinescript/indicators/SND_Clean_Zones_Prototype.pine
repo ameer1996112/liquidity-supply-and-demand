@@ -1,0 +1,73 @@
+// This Pine Script code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// Clean SND detector prototype.
+// Visual-only shadow indicator. It does not place trades and does not emit production alerts.
+
+//@version=6
+indicator("SND Clean Zones Prototype", shorttitle="SND Clean Zones", overlay=true, max_boxes_count=120, max_lines_count=240, max_labels_count=120, max_bars_back=1000)
+
+const int SIDE_DEMAND = 1
+const int SIDE_SUPPLY = -1
+
+const int STATE_WAITING_BOS = 1
+const int STATE_VALID = 2
+const int STATE_TESTED = 3
+const int STATE_INVALID = 4
+
+const int LIQ_NONE = 0
+const int LIQ_INTERNAL = 1
+const int LIQ_EXTERNAL = 2
+
+grpDetection = "Zone Detection"
+max_zones = input.int(8, "Max Zones", minval=1, maxval=30, group=grpDetection)
+base_max_candles = input.int(4, "Max Base Candles", minval=1, maxval=8, group=grpDetection)
+base_body_max_pct = input.float(50.0, "Max Base Body %", minval=5.0, maxval=90.0, step=1.0, group=grpDetection)
+base_range_atr_max = input.float(1.15, "Max Base Range ATR", minval=0.1, maxval=5.0, step=0.05, group=grpDetection)
+displacement_atr_min = input.float(0.80, "Min Displacement ATR", minval=0.1, maxval=5.0, step=0.05, group=grpDetection)
+bos_lookback = input.int(20, "BOS Lookback", minval=5, maxval=100, group=grpDetection)
+strict_bos_close_beyond_level = input.bool(false, "Strict BOS Close Beyond Level", group=grpDetection)
+enable_accuracy_zones = input.bool(true, "Enable Accuracy Zones", group=grpDetection)
+
+grpLiquidity = "Liquidity Detection"
+enable_one_candle_liquidity = input.bool(true, "Enable One Candle Liquidity", group=grpLiquidity)
+liquidity_scan_bars = input.int(120, "Liquidity Scan Bars", minval=20, maxval=500, group=grpLiquidity)
+max_internal_liquidity_atr = input.float(0.618, "Max Internal Liquidity Distance ATR", minval=0.05, maxval=5.0, step=0.001, group=grpLiquidity)
+max_external_liquidity_atr = input.float(1.414, "Max External Liquidity Distance ATR", minval=0.05, maxval=8.0, step=0.001, group=grpLiquidity)
+external_structure_max_percent_of_move = input.float(30.0, "External Structure Max % Of Move", minval=1.0, maxval=100.0, step=1.0, group=grpLiquidity)
+show_target_liquidity = input.bool(true, "Show Target Liquidity", group=grpLiquidity)
+
+grpDisplay = "Display"
+show_waiting_bos = input.bool(false, "Show Waiting BOS Zones", group=grpDisplay)
+show_invalid_zones = input.bool(false, "Show Invalid Zones", group=grpDisplay)
+show_state_labels = input.bool(false, "Show State Labels", group=grpDisplay)
+show_debug = input.bool(false, "Debug Mode", group=grpDisplay)
+
+atr14 = ta.atr(14)
+
+type CleanZone
+    int id
+    int side
+    int state
+    int createdBar
+    int baseStartBar
+    int baseEndBar
+    float top
+    float bottom
+    float bosLevel
+    int bosBar
+    bool isAccuracy
+    float inducementPrice
+    int inducementBar
+    int liquidityMode
+    bool inducementSwept
+    float targetPrice
+    int targetBar
+    bool targetSwept
+    int touchCount
+    int lastTouchBar
+    box zoneBox
+    line inducementLine
+    line targetLine
+    label stateLabel
+
+var CleanZone[] zones = array.new<CleanZone>()
+var int[] next_zone_id = array.new_int(1, 1)
