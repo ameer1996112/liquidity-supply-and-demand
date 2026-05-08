@@ -892,6 +892,19 @@ function AiDecisionPanel({
   failingRules: Array<Record<string, unknown>>;
 }) {
   const visibleRules = decisionValue === 'NO_GO' && failingRules.length > 0 ? failingRules : traceRules;
+  const rfProbabilityPct = ai.decision_trace?.rf_probability_pct;
+  const thresholdPct = ai.decision_trace?.threshold_pct;
+  const hasRfGate = rfProbabilityPct != null && thresholdPct != null;
+  const hasLlmContext =
+    llmStatus || traceRules.some((rule) => rule?.rule_id === 'llm_context');
+  const decisionBadgeClass =
+    decisionValue === 'GO'
+      ? 'border-[var(--to-long)]/30 bg-[var(--to-long)]/15 text-[var(--to-long)]'
+      : decisionValue === 'NO_GO'
+        ? 'border-rose-500/30 bg-rose-500/15 text-rose-400'
+        : decisionValue === 'MODEL_ERROR'
+          ? 'border-amber-500/30 bg-amber-500/15 text-amber-400'
+          : 'border-border bg-muted text-muted-foreground';
 
   return (
     <SectionShell
@@ -901,7 +914,7 @@ function AiDecisionPanel({
     >
       <div className='space-y-3'>
         <div className='flex min-w-0 flex-col gap-2'>
-          <Badge className='w-fit border border-border bg-muted px-2 py-0.5 font-mono text-xs text-foreground'>
+          <Badge className={cn('w-fit border px-2 py-0.5 font-mono text-xs', decisionBadgeClass)}>
             {decisionValue}
           </Badge>
           <p className='text-sm leading-relaxed text-foreground/90 break-words [overflow-wrap:anywhere]'>
@@ -913,7 +926,16 @@ function AiDecisionPanel({
           </p>
         </div>
 
-        {(llmStatus || visibleRules.some((rule) => rule?.rule_id === 'llm_context')) && (
+        {hasRfGate && (
+          <div className='rounded border border-border bg-background/40 px-2.5 py-2 text-xs text-muted-foreground'>
+            <span className='font-semibold text-foreground'>RF Gate: </span>
+            <span>
+              {formatNum(rfProbabilityPct, 1)}% vs {formatNum(thresholdPct, 1)}% threshold
+            </span>
+          </div>
+        )}
+
+        {hasLlmContext && (
           <div className='rounded border border-border bg-background/40 px-2.5 py-2 text-xs text-muted-foreground'>
             <span className='font-semibold text-foreground'>LLM Context: </span>
             <span className={cn('font-semibold', llmStatus === 'ok' ? 'text-[var(--to-long)]' : 'text-[var(--to-warning)]')}>

@@ -615,4 +615,102 @@ describe('SignalInspector decision summary', () => {
     expect(document.body.textContent).toContain('RF probability 33.6% < 63% threshold');
     expect(document.body.textContent).toContain('LLM Context');
   });
+
+  it('shows RF gate diagnostics from structured trace values without a rule message', () => {
+    const signal: TradingSignal = {
+      id: 'sig-rf-structured',
+      created_at: '2026-05-08T07:55:02.000Z',
+      symbol: 'GBPUSD',
+      side: 'sell',
+      status: 'ai_rejected',
+      price: 1.35852,
+      ai_reasoning: {
+        decision: 'NO_GO',
+        reason: 'Model threshold not met.',
+        decision_trace: {
+          rf_probability_pct: 33.6,
+          threshold_pct: 63,
+          rules: [
+            {
+              rule_id: 'rf_threshold',
+              passed: false,
+            },
+          ],
+        },
+      },
+    };
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    const aiTab = Array.from(document.querySelectorAll('button')).find((el) =>
+      el.textContent?.includes('AI Brain')
+    );
+    act(() => {
+      aiTab?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+      aiTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.body.textContent).toContain('RF Gate:');
+    expect(document.body.textContent).toContain('33.6% vs 63.0% threshold');
+  });
+
+  it('keeps skipped LLM context visible for NO_GO when it is not the failing rule', () => {
+    const signal: TradingSignal = {
+      id: 'sig-llm-visible',
+      created_at: '2026-05-08T07:55:02.000Z',
+      symbol: 'GBPUSD',
+      side: 'sell',
+      status: 'ai_rejected',
+      price: 1.35852,
+      ai_reasoning: {
+        decision: 'NO_GO',
+        reason: 'RF probability 33.6% < 63% threshold',
+        decision_trace: {
+          rf_probability_pct: 33.6,
+          threshold_pct: 63,
+          rules: [
+            {
+              rule_id: 'rf_threshold',
+              passed: false,
+              message: 'RF probability 33.6% < 63% threshold',
+            },
+            {
+              rule_id: 'llm_context',
+              status: 'skipped',
+              non_blocking: true,
+              message: 'Context unavailable — treated as neutral.',
+            },
+          ],
+        },
+      },
+    };
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    const aiTab = Array.from(document.querySelectorAll('button')).find((el) =>
+      el.textContent?.includes('AI Brain')
+    );
+    act(() => {
+      aiTab?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+      aiTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.body.textContent).toContain('LLM Context:');
+    expect(document.body.textContent).toContain('SKIPPED');
+    expect(document.body.textContent).toContain('RF probability 33.6% < 63% threshold');
+  });
 });
