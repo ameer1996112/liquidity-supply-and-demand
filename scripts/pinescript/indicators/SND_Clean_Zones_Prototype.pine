@@ -85,7 +85,7 @@ f_body_pct(int off) =>
 f_is_base_candle(int off) =>
     float candleRange = high[off] - low[off]
     bool smallBody = f_body_pct(off) <= base_body_max_pct
-    bool controlledRange = na(atr14) or atr14 <= 0.0 ? true : candleRange <= atr14 * base_range_atr_max
+    bool controlledRange = not na(atr14) and atr14 > 0.0 and candleRange <= atr14 * base_range_atr_max
     smallBody and controlledRange
 
 f_base_count() =>
@@ -100,13 +100,21 @@ f_base_count() =>
     count
 
 f_base_bounds(int baseCount) =>
-    float bodyHigh = math.max(open[1], close[1])
-    float bodyLow = math.min(open[1], close[1])
-    float wickHigh = high[1]
-    float wickLow = low[1]
+    float bodyHigh = na
+    float bodyLow = na
+    float wickHigh = na
+    float wickLow = na
 
-    if baseCount > 1
+    if baseCount > 0 and bar_index >= 1
+        bodyHigh := math.max(open[1], close[1])
+        bodyLow := math.min(open[1], close[1])
+        wickHigh := high[1]
+        wickLow := low[1]
+
+    if baseCount > 1 and bar_index >= 1
         for off = 2 to baseCount
+            if off > bar_index
+                break
             bodyHigh := math.max(bodyHigh, math.max(open[off], close[off]))
             bodyLow := math.min(bodyLow, math.min(open[off], close[off]))
             wickHigh := math.max(wickHigh, high[off])
@@ -116,27 +124,31 @@ f_base_bounds(int baseCount) =>
 
 f_displacement_ok(bool isDemand, float bodyHigh, float bodyLow, float wickHigh, float wickLow) =>
     float candleRange = high - low
-    bool rangeOk = na(atr14) or atr14 <= 0.0 ? true : candleRange >= atr14 * displacement_atr_min
+    bool rangeOk = not na(atr14) and atr14 > 0.0 and candleRange >= atr14 * displacement_atr_min
     bool directionOk = isDemand ? close > open : close < open
     bool leftBase = isDemand ? close > wickHigh : close < wickLow
     rangeOk and directionOk and leftBase and bodyHigh >= bodyLow
 
 f_bos_level(bool isDemand, int baseCount) =>
     int startOffset = baseCount + 1
-    float level = isDemand ? high[startOffset] : low[startOffset]
-    int levelBar = bar_index - startOffset
+    float level = na
+    int levelBar = na
 
-    for off = startOffset to startOffset + bos_lookback - 1
-        if off > bar_index
-            break
-        if isDemand
-            if high[off] > level
-                level := high[off]
-                levelBar := bar_index - off
-        else
-            if low[off] < level
-                level := low[off]
-                levelBar := bar_index - off
+    if startOffset <= bar_index
+        level := isDemand ? high[startOffset] : low[startOffset]
+        levelBar := bar_index - startOffset
+
+        for off = startOffset to startOffset + bos_lookback - 1
+            if off > bar_index
+                break
+            if isDemand
+                if high[off] > level
+                    level := high[off]
+                    levelBar := bar_index - off
+            else
+                if low[off] < level
+                    level := low[off]
+                    levelBar := bar_index - off
 
     [level, levelBar]
 
@@ -155,4 +167,5 @@ f_state_name(int state) =>
       state == STATE_INVALID ? "INVALID" : "UNKNOWN"
 
 f_side_name(int side) =>
-    side == SIDE_DEMAND ? "DEMAND" : "SUPPLY"
+    side == SIDE_DEMAND ? "DEMAND" :
+      side == SIDE_SUPPLY ? "SUPPLY" : "UNKNOWN"
