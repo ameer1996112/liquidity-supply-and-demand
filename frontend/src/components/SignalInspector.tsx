@@ -243,7 +243,7 @@ function deriveExecutionStages(
     {
       id: 'broker',
       label: 'Broker Execution',
-      state: brokerExecuted ? 'pass' : executionFailed ? 'fail' : permissionBlocked || aiRejected || permissionAllowed ? 'skipped' : 'unknown',
+      state: brokerExecuted ? 'pass' : executionFailed ? 'fail' : permissionBlocked || aiRejected ? 'skipped' : 'unknown',
       detail: brokerExecuted
         ? 'Broker execution is recorded.'
         : executionFailed
@@ -688,7 +688,7 @@ export function SignalInspector({
           <span>{outcome.reason}</span>
           {executionStages.map((stage) => (
             <span key={stage.id}>
-              {stage.label}: {stage.detail}
+              {stage.label} [{stage.state}]: {stage.detail}
             </span>
           ))}
         </div>

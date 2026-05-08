@@ -354,6 +354,8 @@ describe('SignalInspector decision summary', () => {
 
     expect(document.body.textContent).toContain('No Entry');
     expect(document.body.textContent).toContain('Broker Execution');
+    expect(document.body.textContent).toContain('Broker Execution [unknown]');
+    expect(document.body.textContent).not.toContain('Broker Execution [skipped]');
     expect(document.body.textContent).toContain('broker execution not recorded');
     expect(document.body.textContent).not.toContain('Opened trade');
   });
