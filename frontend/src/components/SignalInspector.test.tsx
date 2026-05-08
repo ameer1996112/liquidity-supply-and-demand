@@ -807,4 +807,30 @@ describe('SignalInspector decision summary', () => {
     expect(document.body.textContent).toContain('Skipped after permission gate stopped the signal.');
     expect(document.body.textContent).not.toContain('AI rejected this signal.');
   });
+
+  it('shows broker-executed permission signals as open', () => {
+    const signal: TradingSignal = {
+      id: 'sig-permission-allowed-executed',
+      created_at: '2026-05-08T10:15:00.000Z',
+      symbol: 'GBPUSD',
+      side: 'buy',
+      status: 'trading_permission_allowed' as TradingSignal['status'],
+      price: 1.35852,
+      execution_source: 'metaapi',
+    };
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    expect(document.body.textContent).toContain('Open');
+    expect(document.body.textContent).toContain('Broker Position Active');
+    expect(document.body.textContent).toContain('Broker execution is recorded.');
+    expect(document.body.textContent).not.toContain('Signal State');
+  });
 });

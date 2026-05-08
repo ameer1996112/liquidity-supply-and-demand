@@ -166,7 +166,12 @@ function deriveOutcome(signal: TradingSignal, ai: AIReasoning | null): OutcomeVi
     };
   }
 
-  if (status === 'active' || status === 'open' || status === 'executed') {
+  if (
+    status === 'active' ||
+    status === 'open' ||
+    status === 'executed' ||
+    (isPermissionStatus(status) && isBrokerExecuted(signal))
+  ) {
     return {
       label: 'Open',
       eyebrow: 'Broker Position Active',
@@ -1115,33 +1120,33 @@ export function SignalInspector({
 
             {/* Tabs */}
             <Tabs defaultValue='overview' className='w-full'>
-              <TabsList className='w-full rounded-md border border-border bg-card/80 p-1 mb-4'>
+              <TabsList className='grid h-auto w-full grid-cols-2 gap-1 rounded-md border border-border bg-card/80 p-1 mb-4 sm:grid-cols-4'>
                 <TabsTrigger
                   value='overview'
-                  className='flex-1 data-[state=active]:bg-muted text-xs font-mono uppercase'
+                  className='min-w-0 justify-center data-[state=active]:bg-muted text-[11px] font-mono uppercase sm:text-xs'
                 >
-                  <Activity className='w-3 h-3 mr-1.5' />
+                  <Activity className='w-3 h-3 mr-1.5 shrink-0' />
                   Overview
                 </TabsTrigger>
                 <TabsTrigger
                   value='ai'
-                  className='flex-1 data-[state=active]:bg-muted text-xs font-mono uppercase'
+                  className='min-w-0 justify-center data-[state=active]:bg-muted text-[11px] font-mono uppercase sm:text-xs'
                 >
-                  <Brain className='w-3 h-3 mr-1.5' />
+                  <Brain className='w-3 h-3 mr-1.5 shrink-0' />
                   AI Brain
                 </TabsTrigger>
                 <TabsTrigger
                   value='ai-memo'
-                  className='flex-1 data-[state=active]:bg-muted text-xs font-mono uppercase'
+                  className='min-w-0 justify-center data-[state=active]:bg-muted text-[11px] font-mono uppercase sm:text-xs'
                 >
-                  <MessageSquare className='w-3 h-3 mr-1.5' />
+                  <MessageSquare className='w-3 h-3 mr-1.5 shrink-0' />
                   AI Memo
                 </TabsTrigger>
                 <TabsTrigger
                   value='raw'
-                  className='flex-1 data-[state=active]:bg-muted text-xs font-mono uppercase'
+                  className='min-w-0 justify-center data-[state=active]:bg-muted text-[11px] font-mono uppercase sm:text-xs'
                 >
-                  <Code2 className='w-3 h-3 mr-1.5' />
+                  <Code2 className='w-3 h-3 mr-1.5 shrink-0' />
                   Raw Data
                 </TabsTrigger>
               </TabsList>
