@@ -1,0 +1,69 @@
+import json
+from pathlib import Path
+
+from scripts.rd_concepts_pipeline.rules_extractor import extract_rule_record, extract_rules_from_files, keyword_hits
+
+
+def test_extract_rule_record_matches_must_and_liquidity() -> None:
+    row = {
+        "id": "10",
+        "channel": "webinars-and-extras",
+        "timestamp": "2026-05-08T09:00:00+00:00",
+        "author": {"username": "mentor"},
+        "content": "Rule: price must sweep liquidity before entry into order block.",
+        "images": ["chart.png"],
+        "message_url": "https://discord.com/channels/@me/10/10",
+    }
+
+    record = extract_rule_record(row)
+
+    assert record is not None
+    assert "must" in record["keyword_hits"]
+    assert {"liquidity", "sweep", "order_block"} <= set(record["concept_tags"])
+
+
+def test_extract_rule_record_ignores_ob_inside_unrelated_words() -> None:
+    row = {
+        "id": "11",
+        "channel": "main-pairs",
+        "timestamp": "2026-05-08T10:00:00+00:00",
+        "author": {"username": "student"},
+        "content": "This problem is obvious to observe",
+        "images": [],
+        "message_url": "https://discord.com/channels/@me/11/11",
+    }
+
+    assert "ob" not in keyword_hits(row["content"])
+    assert extract_rule_record(row) is None
+
+
+def test_extract_rules_from_files_counts_concepts() -> None:
+    rules, concepts = extract_rules_from_files([Path("tests/rd_concepts_pipeline/fixtures/raw_messages.jsonl")])
+
+    assert isinstance(rules, list)
+    assert "liquidity" in concepts
+    assert concepts["liquidity"]["examples"][0] == "5m-signals:1"
+    for entry in concepts.values():
+        assert set(entry) == {"count", "examples"}
+        assert isinstance(entry["count"], int)
+        assert isinstance(entry["examples"], list)
+
+
+def test_extract_rules_from_files_counts_overlapping_concepts_once_per_rule(tmp_path: Path) -> None:
+    path = tmp_path / "messages.jsonl"
+    row = {
+        "id": "20",
+        "channel": "webinars-and-extras",
+        "timestamp": "2026-05-08T09:00:00+00:00",
+        "author": {"username": "mentor"},
+        "content": "Rule: liquidity sweep into FVG.",
+        "images": [],
+        "message_url": "https://discord.com/channels/@me/20/20",
+    }
+    path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+    _, concepts = extract_rules_from_files([path])
+
+    assert concepts["liquidity"] == {"count": 1, "examples": ["webinars-and-extras:20"]}
+    assert concepts["sweep"] == {"count": 1, "examples": ["webinars-and-extras:20"]}
+    assert concepts["fvg"] == {"count": 1, "examples": ["webinars-and-extras:20"]}
