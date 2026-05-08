@@ -460,4 +460,37 @@ describe('SignalInspector decision summary', () => {
     expect(document.body.textContent).toContain('Signal Received');
     expect(document.body.textContent).toContain('Broker Execution');
   });
+
+  it('renders compact trade plan facts in the overview tab', () => {
+    const signal: TradingSignal = {
+      id: 'sig-plan',
+      created_at: '2026-05-08T09:00:00.000Z',
+      symbol: 'USDJPY',
+      side: 'buy',
+      status: 'active',
+      entry: 156.659,
+      sl: 156.579,
+      tp: 156.859,
+      risk_usd: 125.11,
+      position_size: 0.4,
+      execution_source: 'metaapi',
+      run_mode: 'LIVE',
+    } as TradingSignal;
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    expect(document.querySelector('[data-testid="trade-plan-panel"]')).not.toBeNull();
+    expect(document.body.textContent).toContain('Trade Plan');
+    expect(document.body.textContent).toContain('Entry');
+    expect(document.body.textContent).toContain('156.659');
+    expect(document.body.textContent).toContain('$125.11');
+    expect(document.body.textContent).toContain('MetaApi MT5 bridge');
+  });
 });

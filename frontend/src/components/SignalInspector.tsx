@@ -253,6 +253,40 @@ function deriveExecutionStages(
   ];
 }
 
+function formatSignalPrice(symbol: string, value?: number | null): string {
+  if (value == null) return '--';
+  const normalized = symbol.toUpperCase();
+  const decimals = normalized.includes('JPY')
+    ? 3
+    : normalized.includes('XAU') || normalized.includes('GOLD') || normalized.includes('BTC')
+      ? 2
+      : 5;
+  return Number(value).toFixed(decimals);
+}
+
+function deriveTradePlanItems(
+  signal: TradingSignal,
+  symbol: string,
+  executionPlan: ReturnType<typeof deriveExecutionPlan>,
+  pnl: number | null
+): TradePlanItem[] {
+  const entry = signal.price ?? signal.entry;
+  const stopLoss = signal.stop_loss ?? signal.sl;
+  const takeProfit = signal.take_profit ?? signal.tp;
+  const risk = signal.risk_usd ?? signal.target_risk_usd;
+
+  return [
+    { label: 'Action', value: executionPlan.actionLabel },
+    { label: 'Mode / Broker', value: executionPlan.brokerLabel },
+    { label: 'Entry', value: formatSignalPrice(symbol, entry) },
+    { label: 'Stop Loss', value: formatSignalPrice(symbol, stopLoss), tone: 'danger' },
+    { label: 'Take Profit', value: formatSignalPrice(symbol, takeProfit), tone: 'success' },
+    { label: 'Risk', value: risk != null ? `$${formatNum(risk, 2)}` : '--', tone: risk != null ? 'danger' : 'muted' },
+    { label: 'Size', value: signal.position_size != null ? `${signal.position_size} lots` : '--' },
+    { label: 'PnL', value: pnl != null ? `${pnl >= 0 ? '+' : ''}$${formatNum(pnl, 2)}` : '--', tone: pnl == null ? 'muted' : pnl >= 0 ? 'success' : 'danger' },
+  ];
+}
+
 const toneClasses: Record<InspectorTone, { rail: string; text: string; bg: string; border: string }> = {
   success: {
     rail: 'bg-[var(--to-long)]',
@@ -752,6 +786,33 @@ function ExecutionPath({ stages }: { stages: PipelineStageViewModel[] }) {
   );
 }
 
+function TradePlanPanel({ items }: { items: TradePlanItem[] }) {
+  return (
+    <section data-testid='trade-plan-panel' className='rounded-md border border-border bg-card/80'>
+      <div className='border-b border-border px-3 py-2'>
+        <span className='text-[11px] uppercase tracking-[0.16em] text-muted-foreground'>
+          Trade Plan
+        </span>
+      </div>
+      <div className='grid grid-cols-2 gap-px bg-border/60'>
+        {items.map((item) => {
+          const tone = item.tone ? toneClasses[item.tone] : null;
+          return (
+            <div key={item.label} className='min-w-0 bg-card px-3 py-2'>
+              <div className='text-[10px] uppercase tracking-[0.14em] text-muted-foreground'>
+                {item.label}
+              </div>
+              <div className={cn('mt-1 min-w-0 font-mono text-xs text-foreground break-words [overflow-wrap:anywhere]', tone?.text)}>
+                {item.value}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export function SignalInspector({
   signal,
   open,
@@ -800,8 +861,6 @@ export function SignalInspector({
       signal.adx != null ||
       signal.rvol != null);
   const entryPrice = signal.price ?? signal.entry;
-  const stopLoss = signal.stop_loss ?? signal.sl;
-  const takeProfit = signal.take_profit ?? signal.tp;
   const setupEvidence = signal.setup_evidence;
   const setupImageUrl = setupEvidence?.focus_image?.url;
   const setupZoneId =
@@ -830,6 +889,7 @@ export function SignalInspector({
   const executionPlan = deriveExecutionPlan(signal);
   const outcome = deriveOutcome(signal, ai);
   const executionStages = deriveExecutionStages(signal, ai);
+  const tradePlanItems = deriveTradePlanItems(signal, symbol, executionPlan, pnl);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -913,6 +973,8 @@ export function SignalInspector({
 
               {/* Overview Tab */}
               <TabsContent value='overview' className='space-y-4 mt-0'>
+                <TradePlanPanel items={tradePlanItems} />
+
                 {/* AI Reasoning / Notes */}
                 {notes && (
                   <div className='p-3 rounded-lg bg-card border border-border'>
@@ -943,94 +1005,6 @@ export function SignalInspector({
                       </p>
                     </div>
                   )}
-
-                {/* Technical Setup */}
-                <div className='rounded-lg bg-card border border-border overflow-hidden'>
-                  <div className='px-4 py-2.5 border-b border-border flex items-center gap-2'>
-                    <Target className='w-4 h-4 text-muted-foreground' />
-                    <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
-                      Technical Setup
-                    </span>
-                  </div>
-                  <div className='p-4 space-y-1'>
-                    {entryPrice && (
-                      <InfoRow
-                        label='Entry'
-                        value={`$${formatNum(entryPrice, 5)}`}
-                      />
-                    )}
-                    {stopLoss && (
-                      <InfoRow
-                        label='Stop Loss'
-                        value={`$${formatNum(stopLoss, 5)}`}
-                        valueClass='text-rose-400'
-                      />
-                    )}
-                    {takeProfit && (
-                      <InfoRow
-                        label='Take Profit'
-                        value={`$${formatNum(takeProfit, 5)}`}
-                        valueClass='text-[var(--to-long)]'
-                      />
-                    )}
-                    <Separator className='my-2 bg-border' />
-                    {signal.position_size && (
-                      <InfoRow
-                        label='Position Size'
-                        value={`${signal.position_size} lots`}
-                      />
-                    )}
-                    {signal.rr_ratio && (
-                      <InfoRow
-                        label='Risk:Reward'
-                        value={`1:${formatNum(signal.rr_ratio, 2)}`}
-                      />
-                    )}
-                    {signal.sl_pips && (
-                      <InfoRow
-                        label='SL Distance'
-                        value={`${formatNum(signal.sl_pips, 1)} ${
-                          /NAS|US30|SPX|UK100|GER|FRA|JPN225|AUS200|NDX|USTEC/.test(symbol?.toUpperCase() ?? '')
-                            ? 'pts'
-                            : 'pips'
-                        }`}
-                      />
-                    )}
-
-                    {/* PnL Section */}
-                    {pnl !== null && (
-                      <>
-                        <Separator className='my-2 bg-border' />
-                        <InfoRow
-                          label='Realized PnL'
-                          value={`${pnl >= 0 ? '+' : ''}$${formatNum(pnl, 2)}`}
-                          valueClass={
-                            pnl >= 0 ? 'text-[var(--to-long)]' : 'text-rose-400'
-                          }
-                        />
-                        {signal.pnl_percentage != null && (
-                          <InfoRow
-                            label='PnL %'
-                            value={`${
-                              signal.pnl_percentage >= 0 ? '+' : ''
-                            }${formatNum(signal.pnl_percentage, 2)}%`}
-                            valueClass={
-                              signal.pnl_percentage >= 0
-                                ? 'text-[var(--to-long)]'
-                                : 'text-rose-400'
-                            }
-                          />
-                        )}
-                        {signal.exit_type && (
-                          <InfoRow
-                            label='Exit Type'
-                            value={signal.exit_type.replace('_', ' ')}
-                          />
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
 
                 {setupImageUrl && (
                   <div className='rounded-lg bg-card border border-border overflow-hidden'>
