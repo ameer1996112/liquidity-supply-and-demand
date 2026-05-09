@@ -30,7 +30,7 @@ import ameer_1996112/SND_Utils/23 as Utils
 import ameer_1996112/SND_Core/26 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
-     shorttitle                      = "S&D Algo [Pro]",
+     shorttitle                      = "S&D Pro",
      overlay                         = true,
      max_bars_back                   = 5000,
      initial_capital                 = 50000,
