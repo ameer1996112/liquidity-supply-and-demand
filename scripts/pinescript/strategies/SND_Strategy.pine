@@ -218,8 +218,8 @@ zone_label_show_metrics = input.bool(true, "Zone Label: Show Grade/Score", group
 show_blocked_trade_labels = input.bool(false, "Show Blocked Trade Labels", group = "🎨 Display")
 long_label_offset_atr = 0.60
 long_label_offset_ticks = 0
-extend_bars          = 50
-zone_projection_bars = input.int(20, "Zone Forward Projection", minval = 5, maxval = 100, group = "🎨 Display", tooltip = "Keeps active zones projected forward from the current bar, similar to premium S/D indicators.")
+extend_bars          = 6
+zone_projection_bars = 6
 
 f_zone_right_bar(int leftBar) =>
     math.max(leftBar + extend_bars, bar_index + zone_projection_bars)
