@@ -187,11 +187,11 @@ liq_max_distance_pips_gold  = input.float(150.0, "Max Distance - Gold (pips)", m
 liq_max_distance_pips_index = input.float(500.0, "Max Distance - Indices (pips)", minval = 100.0, group = "💧 Liquidity")
 
 fractalsPeriod = 2  // Williams Fractals period
-plotLiq    = input.bool(true, "Show Liquidity Pivot Lines", group = "🎨 Display")
-show_fractals = input.bool(true, "Show Fractal Triangles", group = "🎨 Display")
-pvtTopColor = color.red  // Visual colors
-pvtBtmColor = color.green
-pvtStyle    = line.style_solid
+plotLiq    = false  // Raw pivot liquidity lines disabled for clean production chart
+show_fractals = false  // Raw fractal triangles disabled for clean production chart
+pvtTopColor = color.new(#9C4856, 45)
+pvtBtmColor = color.new(#2F6F6A, 45)
+pvtStyle    = line.style_dotted
 show_liquidity_connectors = input.bool(true, "Show Liquidity Connectors & Lines", group = "🎨 Display")
 liq_line_color = color.new(#B98A2E, 16)
 liq_line_swept_color = color.new(#8A5A16, 4)
@@ -2534,12 +2534,14 @@ updateDemandLiquidityVisual(idx) =>
                 line.delete(z.targetHLine)
 
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
-                color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
-                int lineEnd = bar_index + 20
+                color tgtColor = z.targetSwept ? color.new(#68717E, 12) : liq_target_color
+                int projectedTargetEnd = bar_index + 20
+                int lineEnd = z.targetSwept and not na(z.targetSweptBarIndex) ? z.targetSweptBarIndex : projectedTargetEnd
+                lineEnd := math.max(lineEnd, z.liqHighBar + 1)
                 z.targetHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                            x2 = lineEnd, y2 = z.liqHighPrice,
                                            xloc = xloc.bar_index, extend = extend.none,
-                                           color = tgtColor, style = line.style_solid, width = 1)
+                                           color = tgtColor, style = line.style_dotted, width = 1)
         else
             if not na(z.inducementHLine)
                 line.delete(z.inducementHLine)
@@ -2603,12 +2605,14 @@ updateSupplyLiquidityVisual(idx) =>
                 line.delete(z.targetHLine)
 
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
-                int lineEnd = bar_index + 20
+                color tgtColor = z.targetSwept ? color.new(#68717E, 12) : liq_target_color
+                int projectedTargetEnd = bar_index + 20
+                int lineEnd = z.targetSwept and not na(z.targetSweptBarIndex) ? z.targetSweptBarIndex : projectedTargetEnd
+                lineEnd := math.max(lineEnd, z.liqLowBar + 1)
                 z.targetHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                            x2 = lineEnd, y2 = z.liqLowPrice,
                                            xloc = xloc.bar_index, extend = extend.none,
-                                           color = tgtColor, style = line.style_solid, width = 1)
+                                           color = tgtColor, style = line.style_dotted, width = 1)
         else
             if not na(z.inducementHLine)
                 line.delete(z.inducementHLine)
