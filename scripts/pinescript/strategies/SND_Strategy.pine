@@ -192,11 +192,11 @@ show_fractals = false  // Raw fractal triangles disabled for clean production ch
 pvtTopColor = color.new(#9C4856, 45)
 pvtBtmColor = color.new(#2F6F6A, 45)
 pvtStyle    = line.style_dotted
-show_liquidity_connectors = input.bool(true, "Show Liquidity Connectors & Lines", group = "🎨 Display")
-liq_line_color = color.new(#B98A2E, 16)
-liq_line_swept_color = color.new(#8A5A16, 4)
-liq_connector_color = color.new(#7A5A24, 42)
-liq_target_color = color.new(#68717E, 32)
+show_liquidity_connectors = input.bool(false, "Show Liquidity Debug Lines", group = "🎨 Display", tooltip = "Shows inducement, connector, and target liquidity helper lines used for zone debugging.")
+liq_line_color = color.new(#53606C, 36)
+liq_line_swept_color = color.new(#314154, 18)
+liq_connector_color = color.new(#53606C, 66)
+liq_target_color = color.new(#53606C, 58)
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
 liq_link_lookback_bars = 400
