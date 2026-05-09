@@ -1728,7 +1728,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         if proceed_creation
             // Zone boundary logic (matches good-marking reference):
             //   Accuracy zones: proximal = baseOpen, distal = wick extreme
-            //   Normal zones: proximal = base cluster bodies, distal = wick extreme
+            //   Normal zones: full base cluster, with confirmed one-candle liquidity wick extension
             if isAccuracy
                 if isDemand
                     // Demand Accuracy: Top = OPEN (body top), Bottom = LOW (extreme)
@@ -1740,13 +1740,23 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                     zBottom := baseOpen
             else
                 if isDemand
-                    // Demand: buy-side boundary is the highest base body; risk boundary is the lowest wick.
-                    zTop := clusterBodyHigh
-                    zBottom := clusterWickLow
+                    // Demand: use the full base range, and include a one-candle liquidity wick
+                    // when the immediate departure candle sweeps below the base then closes above it.
+                    int reactionIdxForZone = baseIdx - 1
+                    bool hasDemandReaction = reactionIdxForZone >= 0
+                    bool demandReactionConfirms = hasDemandReaction and close[reactionIdxForZone] > clusterHigh
+                    bool demandReactionSweeps = demandReactionConfirms and low[reactionIdxForZone] < clusterLow
+                    zTop := clusterHigh
+                    zBottom := demandReactionSweeps ? low[reactionIdxForZone] : clusterLow
                 else
-                    // Supply: sell-side boundary is the lowest base body; risk boundary is the highest wick.
-                    zTop := clusterWickHigh
-                    zBottom := clusterBodyLow
+                    // Supply: use the full base range, and include a one-candle liquidity wick
+                    // when the immediate departure candle sweeps above the base then closes below it.
+                    int reactionIdxForZone = baseIdx - 1
+                    bool hasSupplyReaction = reactionIdxForZone >= 0
+                    bool supplyReactionConfirms = hasSupplyReaction and close[reactionIdxForZone] < clusterLow
+                    bool supplyReactionSweeps = supplyReactionConfirms and high[reactionIdxForZone] > clusterHigh
+                    zTop := supplyReactionSweeps ? high[reactionIdxForZone] : clusterHigh
+                    zBottom := clusterLow
 
             // Cap zone size
             float max_zone_size = 50.0 * pip_size
