@@ -185,6 +185,7 @@ useOneCandleLiquidity = true  // Always allow — 1-candle liq filtering is hand
 liq_max_distance_pips_forex = input.float(20.0, "Max Distance - Forex (pips)", minval = 5.0, group = "💧 Liquidity")
 liq_max_distance_pips_gold  = input.float(150.0, "Max Distance - Gold (pips)", minval = 5.0, group = "💧 Liquidity")
 liq_max_distance_pips_index = input.float(500.0, "Max Distance - Indices (pips)", minval = 100.0, group = "💧 Liquidity")
+liq_min_distance_pips       = input.float(1.0, "Min Distance From Zone (pips)", minval = 0.0, step = 0.1, group = "💧 Liquidity", tooltip = "Rejects liquidity pivots that are too close to the zone edge. This removes weak inside/edge levels that can make the chart look like it found liquidity where there is none.")
 
 fractalsPeriod = 2  // Williams Fractals period
 plotLiq    = false  // Raw pivot liquidity lines disabled for clean production chart
@@ -281,6 +282,7 @@ float effective_sl_buffer = stop_loss_buffer_pips * pip_scale_factor
 float effective_min_tp_dist = min_tp_distance_pips  // No pip_scale_factor — matches good-marking reference
 float effective_liq_entry_max_dist = liq_entry_max_dist * pip_scale_factor  // Base value — updated dynamically per bar below using RVOL
 float effective_liq_max_dist = is_index ? liq_max_distance_pips_index : ((is_gold or is_xpt) ? liq_max_distance_pips_gold : liq_max_distance_pips_forex)
+float effective_liq_min_dist = liq_min_distance_pips
 float effective_tp_pips = take_profit_pips * pip_scale_factor
 
 
@@ -1282,8 +1284,11 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
                                 distFromZone := z.bottom - pLow
 
                             if isValidLocation
+                                float minDistPrice = effective_liq_min_dist * pip_size
                                 float maxDistPrice = effective_liq_max_dist * pip_size
-                                bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
+                                bool minDistOK = na(minDistPrice) or minDistPrice <= 0 or distFromZone >= minDistPrice
+                                bool maxDistOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
+                                bool distOK = minDistOK and maxDistOK
 
                                 if distOK
                                     if pLow < bestLiqPrice
@@ -1400,8 +1405,11 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
 
                             if isValidLocation
                                 float distFromZoneCheck = distFromZone
+                                float minDistPrice = effective_liq_min_dist * pip_size
                                 float maxDistPrice = effective_liq_max_dist * pip_size
-                                bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZoneCheck <= maxDistPrice
+                                bool minDistOK = na(minDistPrice) or minDistPrice <= 0 or distFromZoneCheck >= minDistPrice
+                                bool maxDistOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZoneCheck <= maxDistPrice
+                                bool distOK = minDistOK and maxDistOK
 
                                 if distOK
                                     if pHigh > bestLiqPrice
