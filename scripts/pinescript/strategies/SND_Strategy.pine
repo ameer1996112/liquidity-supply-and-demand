@@ -1728,7 +1728,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         if proceed_creation
             // Zone boundary logic (matches good-marking reference):
             //   Accuracy zones: proximal = baseOpen, distal = wick extreme
-            //   Normal zones: full base candle range (baseHigh to baseLow)
+            //   Normal zones: proximal = base cluster bodies, distal = wick extreme
             if isAccuracy
                 if isDemand
                     // Demand Accuracy: Top = OPEN (body top), Bottom = LOW (extreme)
@@ -1739,9 +1739,14 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                     zTop := baseHigh
                     zBottom := baseOpen
             else
-                // Normal zones: full candle range
-                zTop := baseHigh
-                zBottom := baseLow
+                if isDemand
+                    // Demand: buy-side boundary is the highest base body; risk boundary is the lowest wick.
+                    zTop := clusterBodyHigh
+                    zBottom := clusterWickLow
+                else
+                    // Supply: sell-side boundary is the lowest base body; risk boundary is the highest wick.
+                    zTop := clusterWickHigh
+                    zBottom := clusterBodyLow
 
             // Cap zone size
             float max_zone_size = 50.0 * pip_size
