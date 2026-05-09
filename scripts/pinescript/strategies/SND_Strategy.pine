@@ -1724,6 +1724,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
 
         float zTop = na
         float zBottom = na
+        bool preBosDepartureInvalidated = false
 
         if proceed_creation
             // Zone boundary logic (matches good-marking reference):
@@ -1746,6 +1747,8 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                     bool hasDemandReaction = reactionIdxForZone >= 0
                     bool demandReactionConfirms = hasDemandReaction and close[reactionIdxForZone] > baseHigh
                     bool demandReactionSweeps = demandReactionConfirms and low[reactionIdxForZone] < baseLow
+                    bool demandReactionTouchesInterior = demandReactionConfirms and not demandReactionSweeps and low[reactionIdxForZone] < baseHigh and low[reactionIdxForZone] > baseLow
+                    preBosDepartureInvalidated := demandReactionTouchesInterior
                     zTop := baseHigh
                     zBottom := demandReactionSweeps ? low[reactionIdxForZone] : baseLow
                 else
@@ -1755,10 +1758,16 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                     bool hasSupplyReaction = reactionIdxForZone >= 0
                     bool supplyReactionConfirms = hasSupplyReaction and close[reactionIdxForZone] < baseLow
                     bool supplyReactionSweeps = supplyReactionConfirms and high[reactionIdxForZone] > baseHigh
+                    bool supplyReactionTouchesInterior = supplyReactionConfirms and not supplyReactionSweeps and high[reactionIdxForZone] > baseLow and high[reactionIdxForZone] < baseHigh
+                    preBosDepartureInvalidated := supplyReactionTouchesInterior
                     zTop := supplyReactionSweeps ? high[reactionIdxForZone] : baseHigh
                     zBottom := baseLow
 
             // Cap zone size
+            if preBosDepartureInvalidated
+                zTop := na
+                zBottom := na
+
             float max_zone_size = 50.0 * pip_size
             if (zTop - zBottom) > max_zone_size
                 true  // No-op, keep current range
@@ -2925,8 +2934,12 @@ if cached_demand_size > 0 and barstate.isconfirmed
                     if is_liq_bar or delayed_retouch
                         z.touchedPreSweep := true
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
+                bool pre_sweep_touch_invalidates = closes_inside or breaches_zone or (invalidate_on_wick and wicks_into_zone)
+                if is_future_bar and z.leftZone and not z.liquiditySwept and pre_sweep_touch_invalidates and not current_bar_sweeping
                     z.mitigated := true
+                    z.inactiveReason := "PRE_SWEEP_ZONE_TOUCH"
+                    array.set(demandZones, i, z)
+                    db_markInactive(z.id, z.inactiveReason)
 
 if cached_supply_size > 0 and barstate.isconfirmed
     current_close = close
@@ -3009,8 +3022,12 @@ if cached_supply_size > 0 and barstate.isconfirmed
                         array.set(supplyZones, i, z)
                         db_updateZoneLiquidity(z)
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
+                bool pre_sweep_touch_invalidates = closes_inside or breaches_zone or (invalidate_on_wick and wicks_into_zone)
+                if is_future_bar and z.leftZone and not z.liquiditySwept and pre_sweep_touch_invalidates and not current_bar_sweeping
                     z.mitigated := true
+                    z.inactiveReason := "PRE_SWEEP_ZONE_TOUCH"
+                    array.set(supplyZones, i, z)
+                    db_markInactive(z.id, z.inactiveReason)
 
 int demandSize = array.size(demandZones)
 if demandSize > 0
@@ -3037,7 +3054,8 @@ if demandSize > 0
                 bool close_below_zone     = current_close < z.bottom
                 bool wick_below_zone = current_low < z.bottom
 
-                if bearish_close_inside or close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
+                bool pre_sweep_invalidated = z.mitigated and z.inactiveReason == "PRE_SWEEP_ZONE_TOUCH"
+                if pre_sweep_invalidated or bearish_close_inside or close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
                     remove_zone_all_arrays(true, i)
 
 int supplySize = array.size(supplyZones)
@@ -3057,7 +3075,8 @@ if supplySize > 0
             bool close_above_zone     = current_close > z.top
             bool wick_above_zone = current_high > z.top
 
-            if bullish_close_inside or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
+            bool pre_sweep_invalidated = z.mitigated and z.inactiveReason == "PRE_SWEEP_ZONE_TOUCH"
+            if pre_sweep_invalidated or bullish_close_inside or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
                 remove_zone_all_arrays(false, i)
 
 if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isconfirmed
