@@ -192,11 +192,12 @@ show_fractals = false  // Raw fractal triangles disabled for clean production ch
 pvtTopColor = color.new(#9C4856, 45)
 pvtBtmColor = color.new(#2F6F6A, 45)
 pvtStyle    = line.style_dotted
-show_liquidity_connectors = input.bool(false, "Show Liquidity Debug Lines", group = "🎨 Display", tooltip = "Shows inducement, connector, and target liquidity helper lines used for zone debugging.")
-liq_line_color = color.new(#53606C, 36)
-liq_line_swept_color = color.new(#314154, 18)
+show_liquidity_levels = input.bool(true, "Show Liquidity Lines", group = "🎨 Display", tooltip = "Shows clean horizontal liquidity levels for each detected zone.")
+show_liquidity_connectors = input.bool(false, "Show Liquidity Debug Connectors", group = "🎨 Display", tooltip = "Shows zone-to-liquidity connector paths used for debugging zone selection.")
+liq_line_color = color.new(#E04F76, 18)
+liq_line_swept_color = color.new(#6B7480, 28)
 liq_connector_color = color.new(#53606C, 66)
-liq_target_color = color.new(#53606C, 58)
+liq_target_color = color.new(#5B6573, 58)
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
 liq_link_lookback_bars = 400
@@ -2515,20 +2516,20 @@ updateDemandLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(demandZones)
         Core.Zone z = array.get(demandZones, idx)
 
-        if show_liquidity_connectors
+        if show_liquidity_levels
             if not na(z.inducementHLine)
                 line.delete(z.inducementHLine)
 
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
                 color indColor = z.liquiditySwept ? liq_line_swept_color : liq_line_color
-                lineStyle = z.liquiditySwept ? line.style_solid : line.style_dashed
+                lineStyle = z.liquiditySwept ? line.style_dotted : line.style_dashed
                 int projectedEnd = bar_index + 36
                 int lineEnd = z.liquiditySwept and not na(z.liquiditySweptBarIndex) ? z.liquiditySweptBarIndex : projectedEnd
                 lineEnd := math.max(lineEnd, z.liqLowBar + 1)
                 z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                                x2 = lineEnd, y2 = z.liqLowPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
-                                               color = indColor, style = lineStyle, width = 2)
+                                               color = indColor, style = lineStyle, width = 1)
 
             if not na(z.targetHLine)
                 line.delete(z.targetHLine)
@@ -2586,20 +2587,20 @@ updateSupplyLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(supplyZones)
         Core.Zone z = array.get(supplyZones, idx)
 
-        if show_liquidity_connectors
+        if show_liquidity_levels
             if not na(z.inducementHLine)
                 line.delete(z.inducementHLine)
 
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
                 color indColor = z.liquiditySwept ? liq_line_swept_color : liq_line_color
-                lineStyle = z.liquiditySwept ? line.style_solid : line.style_dashed
+                lineStyle = z.liquiditySwept ? line.style_dotted : line.style_dashed
                 int projectedEnd = bar_index + 36
                 int lineEnd = z.liquiditySwept and not na(z.liquiditySweptBarIndex) ? z.liquiditySweptBarIndex : projectedEnd
                 lineEnd := math.max(lineEnd, z.liqHighBar + 1)
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = lineEnd, y2 = z.liqHighPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
-                                               color = indColor, style = lineStyle, width = 2)
+                                               color = indColor, style = lineStyle, width = 1)
 
             if not na(z.targetHLine)
                 line.delete(z.targetHLine)
