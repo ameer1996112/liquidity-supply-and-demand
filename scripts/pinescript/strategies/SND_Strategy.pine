@@ -522,6 +522,9 @@ col_acc_demand_border = color.new(#365F91, 18)
 col_acc_supply_bg     = color.new(#B7A0C9, 85)
 col_acc_supply_border = color.new(#6A4A7C, 18)
 
+col_tested_bg         = color.new(#8FA8CE, 84)
+col_tested_border     = color.new(#3F6695, 22)
+
 col_waiting_bos_bg     = color.new(#D9A548, 78)
 col_waiting_bos_border = color.new(#B8791B, 22)
 
@@ -1504,7 +1507,8 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
     if not na(z.liqLowPrice) and not z.liquiditySwept
         float sweepTolerance = syminfo.mintick * 20
         float sweepLevel = z.liqLowPrice + sweepTolerance
-        bool is_sweeping_now = low <= sweepLevel
+        bool can_sweep_liquidity = not na(z.liqLowBar) and bar_index > z.liqLowBar
+        bool is_sweeping_now = can_sweep_liquidity and low <= sweepLevel
 
         if is_sweeping_now
             z.liquiditySwept := true
@@ -1515,7 +1519,8 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
     if z.liquidityValid and not na(z.liqHighPrice) and not na(z.liqHighBar) and not z.targetSwept
         float targetSweepTolerance = 0.0
         float targetSweepLevel = z.liqHighPrice - targetSweepTolerance
-        bool is_tgt_sweeping_now = high >= targetSweepLevel
+        bool can_sweep_target = z.liquiditySwept and not na(z.liquiditySweptBarIndex) and bar_index > z.liquiditySweptBarIndex and bar_index > z.liqHighBar
+        bool is_tgt_sweeping_now = can_sweep_target and high >= targetSweepLevel
 
         if is_tgt_sweeping_now
             z.targetSwept := true
@@ -1536,7 +1541,8 @@ f_check_supply_sweeps(int zoneArrayIndex) =>
     if not na(z.liqHighPrice) and not z.liquiditySwept
         float sweepTolerance = syminfo.mintick * 20
         float sweepLevel = z.liqHighPrice - sweepTolerance
-        bool is_sweeping_now = high >= sweepLevel
+        bool can_sweep_liquidity = not na(z.liqHighBar) and bar_index > z.liqHighBar
+        bool is_sweeping_now = can_sweep_liquidity and high >= sweepLevel
 
         if is_sweeping_now
             z.liquiditySwept := true
@@ -1547,7 +1553,8 @@ f_check_supply_sweeps(int zoneArrayIndex) =>
     if z.liquidityValid and not na(z.liqLowPrice) and not na(z.liqLowBar) and not z.targetSwept
         float targetSweepTolerance = 0.0
         float targetSweepLevel = z.liqLowPrice + targetSweepTolerance
-        bool is_tgt_sweeping_now = low <= targetSweepLevel
+        bool can_sweep_target = z.liquiditySwept and not na(z.liquiditySweptBarIndex) and bar_index > z.liquiditySweptBarIndex and bar_index > z.liqLowBar
+        bool is_tgt_sweeping_now = can_sweep_target and low <= targetSweepLevel
 
         if is_tgt_sweeping_now
             z.targetSwept := true
@@ -1728,17 +1735,17 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
 
         if proceed_creation
             // Zone boundary logic (matches good-marking reference):
-            //   Accuracy zones: proximal = baseOpen, distal = wick extreme
+            //   Accuracy zones: proximal = base-cluster body edge, distal = base-cluster wick extreme
             //   Normal zones: base candle range, with confirmed one-candle liquidity wick extension
             if isAccuracy
                 if isDemand
-                    // Demand Accuracy: Top = OPEN (body top), Bottom = LOW (extreme)
-                    zTop := baseOpen
-                    zBottom := baseLow
+                    // Demand Accuracy: Top = highest base body, Bottom = lowest base wick
+                    zTop := clusterBodyHigh
+                    zBottom := clusterWickLow
                 else
-                    // Supply Accuracy: Top = HIGH (extreme), Bottom = OPEN (body bottom)
-                    zTop := baseHigh
-                    zBottom := baseOpen
+                    // Supply Accuracy: Top = highest base wick, Bottom = lowest base body
+                    zTop := clusterWickHigh
+                    zBottom := clusterBodyLow
             else
                 if isDemand
                     // Demand: use the selected base candle, and include a one-candle liquidity wick
@@ -1747,8 +1754,9 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                     bool hasDemandReaction = reactionIdxForZone >= 0
                     bool demandReactionConfirms = hasDemandReaction and close[reactionIdxForZone] > baseHigh
                     bool demandReactionSweeps = demandReactionConfirms and low[reactionIdxForZone] < baseLow
-                    bool demandReactionTouchesInterior = demandReactionConfirms and not demandReactionSweeps and low[reactionIdxForZone] < baseHigh and low[reactionIdxForZone] > baseLow
-                    preBosDepartureInvalidated := demandReactionTouchesInterior
+                    // The immediate departure candle is part of zone formation.
+                    // Later retouches before liquidity sweep are handled by the active-zone lifecycle.
+                    preBosDepartureInvalidated := false
                     zTop := baseHigh
                     zBottom := demandReactionSweeps ? low[reactionIdxForZone] : baseLow
                 else
@@ -1758,8 +1766,9 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                     bool hasSupplyReaction = reactionIdxForZone >= 0
                     bool supplyReactionConfirms = hasSupplyReaction and close[reactionIdxForZone] < baseLow
                     bool supplyReactionSweeps = supplyReactionConfirms and high[reactionIdxForZone] > baseHigh
-                    bool supplyReactionTouchesInterior = supplyReactionConfirms and not supplyReactionSweeps and high[reactionIdxForZone] > baseLow and high[reactionIdxForZone] < baseHigh
-                    preBosDepartureInvalidated := supplyReactionTouchesInterior
+                    // The immediate departure candle is part of zone formation.
+                    // Later retouches before liquidity sweep are handled by the active-zone lifecycle.
+                    preBosDepartureInvalidated := false
                     zTop := supplyReactionSweeps ? high[reactionIdxForZone] : baseHigh
                     zBottom := baseLow
 
@@ -1847,6 +1856,11 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             z.score := Core.calculate_zone_score(isDemand, zTop, zBottom, baseIdx, legCandles, false, false, actualCandlesInBase, isAccuracy, is_uptrend, is_downtrend, time[baseIdx])
             z.grade := Core.get_grade_from_score(z.score)
 
+            bool hideLowGradeDebugLabel = str.startswith(z.grade, "C")
+            if hideLowGradeDebugLabel and not na(z.idLabel)
+                label.delete(z.idLabel)
+                z.idLabel := na
+
             int baseEndAbsolute = baseBarIdx + actualCandlesInBase - 1
             z.baseEndBarIndex := baseEndAbsolute
             float temp_base_quality = Core.calculate_base_quality(baseEndAbsolute, baseBarIdx, bar_index, high, low, open, close)
@@ -1912,6 +1926,40 @@ remove_zone_all_arrays(bool isDemand, int idx) =>
                 label.delete(z.idLabel)
                 z.idLabel := na  // Explicitly free memory
             array.remove(supplyZones, idx)
+
+archive_tested_zone(bool isDemand, int idx, string reason) =>
+    if isDemand
+        if idx >= 0 and idx < array.size(demandZones)
+            Core.Zone z = array.get(demandZones, idx)
+            z.active := false
+            z.mitigated := true
+            z.inactiveReason := reason
+            db_markInactive(z.id, reason)
+            if not na(z.boxId)
+                box.set_right(z.boxId, bar_index)
+                box.set_bgcolor(z.boxId, col_tested_bg)
+                box.set_border_color(z.boxId, col_tested_border)
+                box.set_border_width(z.boxId, 1)
+            if not na(z.idLabel)
+                label.delete(z.idLabel)
+                z.idLabel := na
+            array.set(demandZones, idx, z)
+    else
+        if idx >= 0 and idx < array.size(supplyZones)
+            Core.Zone z = array.get(supplyZones, idx)
+            z.active := false
+            z.mitigated := true
+            z.inactiveReason := reason
+            db_markInactive(z.id, reason)
+            if not na(z.boxId)
+                box.set_right(z.boxId, bar_index)
+                box.set_bgcolor(z.boxId, col_tested_bg)
+                box.set_border_color(z.boxId, col_tested_border)
+                box.set_border_width(z.boxId, 1)
+            if not na(z.idLabel)
+                label.delete(z.idLabel)
+                z.idLabel := na
+            array.set(supplyZones, idx, z)
 
 getLiquidityDistance(Core.Zone z, bool isSupply) =>
     float dist = na
@@ -3055,7 +3103,10 @@ if demandSize > 0
                 bool wick_below_zone = current_low < z.bottom
 
                 bool pre_sweep_invalidated = z.mitigated and z.inactiveReason == "PRE_SWEEP_ZONE_TOUCH"
-                if pre_sweep_invalidated or bearish_close_inside or close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
+                bool demand_tested_or_broken = pre_sweep_invalidated or bearish_close_inside or close_below_zone or (invalidate_on_wick and wick_below_zone)
+                if demand_tested_or_broken
+                    archive_tested_zone(true, i, pre_sweep_invalidated ? "PRE_SWEEP_ZONE_TOUCH" : "TESTED_PAST")
+                else if isTooOld
                     remove_zone_all_arrays(true, i)
 
 int supplySize = array.size(supplyZones)
@@ -3076,7 +3127,10 @@ if supplySize > 0
             bool wick_above_zone = current_high > z.top
 
             bool pre_sweep_invalidated = z.mitigated and z.inactiveReason == "PRE_SWEEP_ZONE_TOUCH"
-            if pre_sweep_invalidated or bullish_close_inside or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
+            bool supply_tested_or_broken = pre_sweep_invalidated or bullish_close_inside or close_above_zone or (invalidate_on_wick and wick_above_zone)
+            if supply_tested_or_broken
+                archive_tested_zone(false, i, pre_sweep_invalidated ? "PRE_SWEEP_ZONE_TOUCH" : "TESTED_PAST")
+            else if isTooOld
                 remove_zone_all_arrays(false, i)
 
 if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isconfirmed
