@@ -227,6 +227,9 @@ f_zone_right_bar(int leftBar) =>
 f_zone_label_bar(int leftBar, int rightBar) =>
     leftBar + int(math.round((rightBar - leftBar) * 0.45))
 
+f_zone_waiting_bos(Core.Zone z) =>
+    not z.isHistorical and not z.leftZone
+
 
 trade_direction       = input.string("Both", "Trade Direction", options = ["Both", "Long Only", "Short Only"], group = "🎯 Quick Setup")
 allow_long_trades     = trade_direction == "Both" or trade_direction == "Long Only"
@@ -518,6 +521,9 @@ col_acc_demand_bg     = color.new(#8EA9CF, 85)
 col_acc_demand_border = color.new(#365F91, 18)
 col_acc_supply_bg     = color.new(#B7A0C9, 85)
 col_acc_supply_border = color.new(#6A4A7C, 18)
+
+col_waiting_bos_bg     = color.new(#D9A548, 78)
+col_waiting_bos_border = color.new(#B8791B, 22)
 
 col_label_clear        = color.new(color.white, 100)
 col_label_text         = color.new(#1F2933, 18)
@@ -1749,7 +1755,13 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         if not na(zTop) and not na(zBottom)
             zoneBorderWidth := isAccuracy ? 2 : 1  // Slightly thicker border for accuracy zones
 
-            if isAccuracy
+            bool isWaitingBosAtCreate = not isHistorical
+
+            if isWaitingBosAtCreate
+                zoneBgColor := col_waiting_bos_bg
+                zoneBorderColorFinal := col_waiting_bos_border
+                zoneBorderWidth := 1
+            else if isAccuracy
                 if isDemand
                     zoneBgColor := col_acc_demand_bg
                     zoneBorderColorFinal := col_acc_demand_border
@@ -1930,6 +1942,10 @@ validate_entry_conditions(bool isDemand, int idx) =>
         if not z.active
             canEnter := false
             reason := isDemand ? "Demand zone inactive" : "Supply zone inactive"
+
+    if canEnter and f_zone_waiting_bos(z)
+        canEnter := false
+        reason := isDemand ? "Waiting BOS confirmation (Demand)" : "Waiting BOS confirmation (Supply)"
 
     if canEnter and is_time_dead_zone()
         canEnter := false
@@ -3040,7 +3056,12 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
                 int right_bar_index = f_zone_right_bar(left_bar_index)
                 if not na(z.boxId)
                     box.set_right(z.boxId,right_bar_index)
-                    if z.isAccuracy
+                    bool waitingBos = f_zone_waiting_bos(z)
+                    if waitingBos
+                        box.set_bgcolor(z.boxId,col_waiting_bos_bg)
+                        box.set_border_width(z.boxId,1)
+                        box.set_border_color(z.boxId,col_waiting_bos_border)
+                    else if z.isAccuracy
                         box.set_bgcolor(z.boxId,col_acc_demand_bg)  // Blue for demand ACC
                         box.set_border_width(z.boxId,2)
                         box.set_border_color(z.boxId,col_acc_demand_border)
@@ -3054,7 +3075,7 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
                         int lbl_bar_index = f_zone_label_bar(left_bar_index, right_bar_index)
                         label.set_x(z.idLabel, lbl_bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        string demandPrefix = z.isAccuracy ? "D-ACC-" : "D-"
+                        string demandPrefix = waitingBos ? "BOS D-" : (z.isAccuracy ? "D-ACC-" : "D-")
                         string demandGrade = show_grade_on_zone ? ("  " + z.grade) : ""
                         string demandCompact = demandPrefix + str.tostring(z.id) + demandGrade
                         string demandDetailed = "Demand " + demandCompact
@@ -3078,7 +3099,12 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
                 int right_bar_index = f_zone_right_bar(left_bar_index)
                 if not na(z.boxId)
                     box.set_right(z.boxId,right_bar_index)
-                    if z.isAccuracy
+                    bool waitingBos = f_zone_waiting_bos(z)
+                    if waitingBos
+                        box.set_bgcolor(z.boxId,col_waiting_bos_bg)
+                        box.set_border_width(z.boxId,1)
+                        box.set_border_color(z.boxId,col_waiting_bos_border)
+                    else if z.isAccuracy
                         box.set_bgcolor(z.boxId,col_acc_supply_bg)  // Purple for supply ACC
                         box.set_border_width(z.boxId,2)
                         box.set_border_color(z.boxId,col_acc_supply_border)
@@ -3092,7 +3118,7 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
                         int lbl_bar_index = f_zone_label_bar(left_bar_index, right_bar_index)
                         label.set_x(z.idLabel, lbl_bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        string supplyPrefix = z.isAccuracy ? "S-ACC-" : "S-"
+                        string supplyPrefix = waitingBos ? "BOS S-" : (z.isAccuracy ? "S-ACC-" : "S-")
                         string supplyGrade = show_grade_on_zone ? ("  " + z.grade) : ""
                         string supplyCompact = supplyPrefix + str.tostring(z.id) + supplyGrade
                         string supplyDetailed = "Supply " + supplyCompact
