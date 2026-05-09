@@ -218,6 +218,13 @@ show_blocked_trade_labels = input.bool(false, "Show Blocked Trade Labels", group
 long_label_offset_atr = 0.60
 long_label_offset_ticks = 0
 extend_bars          = 50
+zone_projection_bars = input.int(20, "Zone Forward Projection", minval = 5, maxval = 100, group = "🎨 Display", tooltip = "Keeps active zones projected forward from the current bar, similar to premium S/D indicators.")
+
+f_zone_right_bar(int leftBar) =>
+    math.max(leftBar + extend_bars, bar_index + zone_projection_bars)
+
+f_zone_label_bar(int leftBar, int rightBar) =>
+    leftBar + int(math.round((rightBar - leftBar) * 0.45))
 
 
 trade_direction       = input.string("Both", "Trade Direction", options = ["Both", "Long Only", "Short Only"], group = "🎯 Quick Setup")
@@ -1745,7 +1752,8 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 zoneBgColor := isDemand ? col_demand_bg : col_supply_bg
                 zoneBorderColorFinal := isDemand ? col_demand_border : col_supply_border
 
-            box b = box.new(left = baseBarIdx, top = zTop, right = baseBarIdx + extend_bars, bottom = zBottom,
+            int initialRightBar = f_zone_right_bar(baseBarIdx)
+            box b = box.new(left = baseBarIdx, top = zTop, right = initialRightBar, bottom = zBottom,
                  border_color = zoneBorderColorFinal,
                  border_width = zoneBorderWidth,
                  bgcolor = zoneBgColor,
@@ -1771,7 +1779,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             string detailedText = (isDemand ? "Demand " : "Supply ") + compactText
             string id_text = " " + (zone_label_style == "Detailed" ? detailedText : compactText) + " "
             float mid = (zTop + zBottom) / 2.0
-            int lbl_bar_index = baseBarIdx + int(math.round(extend_bars * 0.45))
+            int lbl_bar_index = f_zone_label_bar(baseBarIdx, initialRightBar)
             label idLbl = label.new(x = lbl_bar_index, y = mid, text = id_text,
                  style = label.style_none, textcolor = col_label_text, color = col_label_clear,
                  size = size.tiny,
@@ -3021,7 +3029,7 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
         if z.active
             if not na(z.createdBarIndex)
                 int left_bar_index = z.createdBarIndex
-                int right_bar_index = left_bar_index + extend_bars
+                int right_bar_index = f_zone_right_bar(left_bar_index)
                 if not na(z.boxId)
                     box.set_right(z.boxId,right_bar_index)
                     if z.isAccuracy
@@ -3035,7 +3043,7 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
 
                     if not na(z.idLabel)
                         float lbl_mid = (z.top + z.bottom) / 2
-                        int lbl_bar_index = left_bar_index + int(math.round(extend_bars * 0.45))
+                        int lbl_bar_index = f_zone_label_bar(left_bar_index, right_bar_index)
                         label.set_x(z.idLabel, lbl_bar_index)
                         label.set_y(z.idLabel, lbl_mid)
                         string demandPrefix = z.isAccuracy ? "D-ACC-" : "D-"
@@ -3059,7 +3067,7 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
         if z.active
             if not na(z.createdBarIndex)
                 int left_bar_index = z.createdBarIndex
-                int right_bar_index = left_bar_index + extend_bars
+                int right_bar_index = f_zone_right_bar(left_bar_index)
                 if not na(z.boxId)
                     box.set_right(z.boxId,right_bar_index)
                     if z.isAccuracy
@@ -3073,7 +3081,7 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
 
                     if not na(z.idLabel)
                         float lbl_mid = (z.top + z.bottom) / 2
-                        int lbl_bar_index = left_bar_index + int(math.round(extend_bars * 0.45))
+                        int lbl_bar_index = f_zone_label_bar(left_bar_index, right_bar_index)
                         label.set_x(z.idLabel, lbl_bar_index)
                         label.set_y(z.idLabel, lbl_mid)
                         string supplyPrefix = z.isAccuracy ? "S-ACC-" : "S-"
