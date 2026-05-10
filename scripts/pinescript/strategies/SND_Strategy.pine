@@ -230,7 +230,6 @@ f_zone_label_bar(int leftBar, int rightBar) =>
 f_zone_waiting_bos(Core.Zone z) =>
     not z.isHistorical and not z.leftZone
 
-
 trade_direction       = input.string("Both", "Trade Direction", options = ["Both", "Long Only", "Short Only"], group = "🎯 Quick Setup")
 allow_long_trades     = trade_direction == "Both" or trade_direction == "Long Only"
 allow_short_trades    = trade_direction == "Both" or trade_direction == "Short Only"
@@ -318,9 +317,15 @@ enable_webhook_alerts = true  // Always enabled
 webhook_include_zone_id = true  // Always include zone ID
 
 show_grade_on_zone  = input.bool(true, "Show Grade on Zones", group = "🎨 Display")
+show_tested_past_zones = input.bool(false, "Show Tested Past Zones", group = "🎨 Display")
+show_waiting_bos_zones = input.bool(false, "Show Waiting BOS Zones", group = "🎨 Display")
+show_unconfirmed_accuracy_zones = input.bool(false, "Show Unconfirmed Accuracy Zones", group = "🎨 Display")
 show_ai_score_on_label = input.bool(false, "Show AI Score on Labels", group = "🎨 Display")
 enable_v6_v7_features = true
 ema_trend_length = 200  // Trend EMA (hardcoded)
+
+f_zone_show_accuracy_visual(Core.Zone z) =>
+    z.isAccuracy and (show_unconfirmed_accuracy_zones or not z.isHistorical or (z.liquiditySwept and z.targetSwept))
 
 var float[] _plot_id               = array.new_float(1, na)
 var float[] _plot_type             = array.new_float(1, na)  // 1=Demand, -1=Supply
@@ -527,6 +532,7 @@ col_tested_border     = color.new(#3F6695, 22)
 
 col_waiting_bos_bg     = color.new(#D9A548, 78)
 col_waiting_bos_border = color.new(#B8791B, 22)
+col_hidden_zone        = color.new(color.white, 100)
 
 col_label_clear        = color.new(color.white, 100)
 col_label_text         = color.new(#1F2933, 18)
@@ -1789,12 +1795,13 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             zoneBorderWidth := isAccuracy ? 2 : 1  // Slightly thicker border for accuracy zones
 
             bool isWaitingBosAtCreate = not isHistorical
+            bool showAccuracyAtCreate = isAccuracy and (show_unconfirmed_accuracy_zones or not isHistorical)
 
             if isWaitingBosAtCreate
-                zoneBgColor := col_waiting_bos_bg
-                zoneBorderColorFinal := col_waiting_bos_border
+                zoneBgColor := show_waiting_bos_zones ? col_waiting_bos_bg : col_hidden_zone
+                zoneBorderColorFinal := show_waiting_bos_zones ? col_waiting_bos_border : col_hidden_zone
                 zoneBorderWidth := 1
-            else if isAccuracy
+            else if showAccuracyAtCreate
                 if isDemand
                     zoneBgColor := col_acc_demand_bg
                     zoneBorderColorFinal := col_acc_demand_border
@@ -1827,10 +1834,10 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
 
                 accTag := accTag + debugInfo
 
-            string sideTag = isDemand ? (isAccuracy ? "D-ACC-" : "D-") : (isAccuracy ? "S-ACC-" : "S-")
+            string sideTag = isDemand ? (showAccuracyAtCreate ? "D-ACC-" : "D-") : (showAccuracyAtCreate ? "S-ACC-" : "S-")
             string compactText = sideTag + str.tostring(zoneUZID)
             string detailedText = (isDemand ? "Demand " : "Supply ") + compactText
-            string id_text = " " + (zone_label_style == "Detailed" ? detailedText : compactText) + " "
+            string id_text = isWaitingBosAtCreate and not show_waiting_bos_zones ? "" : " " + (zone_label_style == "Detailed" ? detailedText : compactText) + " "
             float mid = (zTop + zBottom) / 2.0
             int lbl_bar_index = f_zone_label_bar(baseBarIdx, initialRightBar)
             label idLbl = label.new(x = lbl_bar_index, y = mid, text = id_text,
@@ -1931,35 +1938,47 @@ archive_tested_zone(bool isDemand, int idx, string reason) =>
     if isDemand
         if idx >= 0 and idx < array.size(demandZones)
             Core.Zone z = array.get(demandZones, idx)
-            z.active := false
-            z.mitigated := true
-            z.inactiveReason := reason
-            db_markInactive(z.id, reason)
-            if not na(z.boxId)
-                box.set_right(z.boxId, bar_index)
-                box.set_bgcolor(z.boxId, col_tested_bg)
-                box.set_border_color(z.boxId, col_tested_border)
-                box.set_border_width(z.boxId, 1)
-            if not na(z.idLabel)
-                label.delete(z.idLabel)
-                z.idLabel := na
-            array.set(demandZones, idx, z)
+            bool keepAsTestedPast = show_tested_past_zones and reason == "TESTED_PAST" and z.liquiditySwept and z.targetSwept and not str.startswith(z.grade, "C")
+            if keepAsTestedPast
+                z.active := false
+                z.mitigated := true
+                z.inactiveReason := reason
+                db_markInactive(z.id, reason)
+                if not na(z.boxId)
+                    box.set_right(z.boxId, bar_index)
+                    box.set_bgcolor(z.boxId, col_tested_bg)
+                    box.set_border_color(z.boxId, col_tested_border)
+                    box.set_border_width(z.boxId, 1)
+                if not na(z.idLabel)
+                    label.delete(z.idLabel)
+                    z.idLabel := na
+                array.set(demandZones, idx, z)
+                true
+            else
+                remove_zone_all_arrays(true, idx)
+                true
     else
         if idx >= 0 and idx < array.size(supplyZones)
             Core.Zone z = array.get(supplyZones, idx)
-            z.active := false
-            z.mitigated := true
-            z.inactiveReason := reason
-            db_markInactive(z.id, reason)
-            if not na(z.boxId)
-                box.set_right(z.boxId, bar_index)
-                box.set_bgcolor(z.boxId, col_tested_bg)
-                box.set_border_color(z.boxId, col_tested_border)
-                box.set_border_width(z.boxId, 1)
-            if not na(z.idLabel)
-                label.delete(z.idLabel)
-                z.idLabel := na
-            array.set(supplyZones, idx, z)
+            bool keepAsTestedPast = show_tested_past_zones and reason == "TESTED_PAST" and z.liquiditySwept and z.targetSwept and not str.startswith(z.grade, "C")
+            if keepAsTestedPast
+                z.active := false
+                z.mitigated := true
+                z.inactiveReason := reason
+                db_markInactive(z.id, reason)
+                if not na(z.boxId)
+                    box.set_right(z.boxId, bar_index)
+                    box.set_bgcolor(z.boxId, col_tested_bg)
+                    box.set_border_color(z.boxId, col_tested_border)
+                    box.set_border_width(z.boxId, 1)
+                if not na(z.idLabel)
+                    label.delete(z.idLabel)
+                    z.idLabel := na
+                array.set(supplyZones, idx, z)
+                true
+            else
+                remove_zone_all_arrays(false, idx)
+                true
 
 getLiquidityDistance(Core.Zone z, bool isSupply) =>
     float dist = na
@@ -3145,11 +3164,12 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
                 if not na(z.boxId)
                     box.set_right(z.boxId,right_bar_index)
                     bool waitingBos = f_zone_waiting_bos(z)
+                    bool showAccuracyVisual = f_zone_show_accuracy_visual(z)
                     if waitingBos
-                        box.set_bgcolor(z.boxId,col_waiting_bos_bg)
+                        box.set_bgcolor(z.boxId,show_waiting_bos_zones ? col_waiting_bos_bg : col_hidden_zone)
                         box.set_border_width(z.boxId,1)
-                        box.set_border_color(z.boxId,col_waiting_bos_border)
-                    else if z.isAccuracy
+                        box.set_border_color(z.boxId,show_waiting_bos_zones ? col_waiting_bos_border : col_hidden_zone)
+                    else if showAccuracyVisual
                         box.set_bgcolor(z.boxId,col_acc_demand_bg)  // Blue for demand ACC
                         box.set_border_width(z.boxId,2)
                         box.set_border_color(z.boxId,col_acc_demand_border)
@@ -3163,13 +3183,13 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
                         int lbl_bar_index = f_zone_label_bar(left_bar_index, right_bar_index)
                         label.set_x(z.idLabel, lbl_bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        string demandPrefix = waitingBos ? "BOS D-" : (z.isAccuracy ? "D-ACC-" : "D-")
+                        string demandPrefix = waitingBos ? "BOS D-" : (showAccuracyVisual ? "D-ACC-" : "D-")
                         string demandGrade = show_grade_on_zone ? ("  " + z.grade) : ""
                         string demandCompact = demandPrefix + str.tostring(z.id) + demandGrade
                         string demandDetailed = "Demand " + demandCompact
                         string demandMetrics = zone_label_show_metrics and zone_label_style == "Detailed" ? ("  " + str.tostring(z.score, "#")) : ""
                         string demandText = zone_label_style == "Detailed" ? (demandDetailed + demandMetrics) : demandCompact
-                        label.set_text(z.idLabel, " " + demandText + " ")
+                        label.set_text(z.idLabel, waitingBos and not show_waiting_bos_zones ? "" : " " + demandText + " ")
                         label.set_style(z.idLabel, label.style_none)
                         label.set_textcolor(z.idLabel, col_label_text)
                         label.set_color(z.idLabel, col_label_clear)
@@ -3188,11 +3208,12 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
                 if not na(z.boxId)
                     box.set_right(z.boxId,right_bar_index)
                     bool waitingBos = f_zone_waiting_bos(z)
+                    bool showAccuracyVisual = f_zone_show_accuracy_visual(z)
                     if waitingBos
-                        box.set_bgcolor(z.boxId,col_waiting_bos_bg)
+                        box.set_bgcolor(z.boxId,show_waiting_bos_zones ? col_waiting_bos_bg : col_hidden_zone)
                         box.set_border_width(z.boxId,1)
-                        box.set_border_color(z.boxId,col_waiting_bos_border)
-                    else if z.isAccuracy
+                        box.set_border_color(z.boxId,show_waiting_bos_zones ? col_waiting_bos_border : col_hidden_zone)
+                    else if showAccuracyVisual
                         box.set_bgcolor(z.boxId,col_acc_supply_bg)  // Purple for supply ACC
                         box.set_border_width(z.boxId,2)
                         box.set_border_color(z.boxId,col_acc_supply_border)
@@ -3206,13 +3227,13 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
                         int lbl_bar_index = f_zone_label_bar(left_bar_index, right_bar_index)
                         label.set_x(z.idLabel, lbl_bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        string supplyPrefix = waitingBos ? "BOS S-" : (z.isAccuracy ? "S-ACC-" : "S-")
+                        string supplyPrefix = waitingBos ? "BOS S-" : (showAccuracyVisual ? "S-ACC-" : "S-")
                         string supplyGrade = show_grade_on_zone ? ("  " + z.grade) : ""
                         string supplyCompact = supplyPrefix + str.tostring(z.id) + supplyGrade
                         string supplyDetailed = "Supply " + supplyCompact
                         string supplyMetrics = zone_label_show_metrics and zone_label_style == "Detailed" ? ("  " + str.tostring(z.score, "#")) : ""
                         string supplyText = zone_label_style == "Detailed" ? (supplyDetailed + supplyMetrics) : supplyCompact
-                        label.set_text(z.idLabel, " " + supplyText + " ")
+                        label.set_text(z.idLabel, waitingBos and not show_waiting_bos_zones ? "" : " " + supplyText + " ")
                         label.set_style(z.idLabel, label.style_none)
                         label.set_textcolor(z.idLabel, col_label_text)
                         label.set_color(z.idLabel, col_label_clear)
