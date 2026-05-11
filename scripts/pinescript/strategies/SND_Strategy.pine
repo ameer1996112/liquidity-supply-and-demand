@@ -2945,10 +2945,10 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
             if not na(z.createdBarIndex)
                 int right_bar_index = bar_index + zone_right_padding_bars
                 if not na(z.boxId)
-                    box.set_right(z.boxId,right_bar_index)
-                    box.set_bgcolor(z.boxId,get_zone_bg_color(true, z.isAccuracy))
-                    box.set_border_width(z.boxId,get_zone_border_width(z.isAccuracy))
-                    box.set_border_color(z.boxId,get_zone_border_color(true, z.isAccuracy))
+                    box.set_right(z.boxId, right_bar_index)
+                    box.set_bgcolor(z.boxId, get_zone_bg_color(true, z.isAccuracy))
+                    box.set_border_width(z.boxId, get_zone_border_width(z.isAccuracy))
+                    box.set_border_color(z.boxId, get_zone_border_color(true, z.isAccuracy))
 
                     if not na(z.idLabel)
                         float lbl_mid = (z.top + z.bottom) / 2
@@ -2970,10 +2970,10 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
             if not na(z.createdBarIndex)
                 int right_bar_index = bar_index + zone_right_padding_bars
                 if not na(z.boxId)
-                    box.set_right(z.boxId,right_bar_index)
-                    box.set_bgcolor(z.boxId,get_zone_bg_color(false, z.isAccuracy))
-                    box.set_border_width(z.boxId,get_zone_border_width(z.isAccuracy))
-                    box.set_border_color(z.boxId,get_zone_border_color(false, z.isAccuracy))
+                    box.set_right(z.boxId, right_bar_index)
+                    box.set_bgcolor(z.boxId, get_zone_bg_color(false, z.isAccuracy))
+                    box.set_border_width(z.boxId, get_zone_border_width(z.isAccuracy))
+                    box.set_border_color(z.boxId, get_zone_border_color(false, z.isAccuracy))
 
                     if not na(z.idLabel)
                         float lbl_mid = (z.top + z.bottom) / 2
