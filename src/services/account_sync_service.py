@@ -81,11 +81,21 @@ class AccountSyncService:
             account_status = adapter.get_account_status()
             sync_latency_ms = int((time.time() - start_time) * 1000)
 
+            if account_status.get("connectionStatus") == "circuit_breaker_open":
+                now_iso = datetime.now(timezone.utc).isoformat()
+                self.client.table("account_strategies").update({
+                    "connection_status": "error",
+                    "updated_at": now_iso,
+                }).eq("account_name", account_name).execute()
+                logger.warning(
+                    "Skipped account status snapshot for %s: MetaAPI circuit breaker open",
+                    account_name,
+                )
+                return False
+
             # Determine connection status
             connection_status = "connected"
-            if account_status.get("connectionStatus") == "circuit_breaker_open":
-                connection_status = "error"
-            elif account_status.get("balance", 0) == 0 and account_status.get("equity", 0) == 0:
+            if account_status.get("balance", 0) == 0 and account_status.get("equity", 0) == 0:
                 connection_status = "disconnected"
 
             # Save snapshot to database
@@ -198,6 +208,19 @@ class AccountSyncService:
 
             # Fetch open positions from MetaAPI
             positions = adapter.get_open_positions()
+            positions_fetch_error = getattr(adapter, "last_positions_fetch_error", None)
+            if positions_fetch_error:
+                now_iso = datetime.now(timezone.utc).isoformat()
+                self.client.table("account_strategies").update({
+                    "connection_status": "error",
+                    "updated_at": now_iso,
+                }).eq("account_name", account_name).execute()
+                logger.warning(
+                    "Skipping position reconciliation for %s: broker positions unavailable (%s)",
+                    account_name,
+                    positions_fetch_error,
+                )
+                return False
 
             snapshot_time = datetime.now(timezone.utc).isoformat()
 

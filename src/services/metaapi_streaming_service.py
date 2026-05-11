@@ -256,9 +256,12 @@ async def _run_streaming(
             api = MetaApi(token)
             account = await api.metatrader_account_api.get_account(account_id)
 
-            if account.state not in ("DEPLOYED", "DEPLOYING"):
-                logger.info("[MetaApi Stream] Deploying account %s ...", account_id)
-                await account.deploy()
+            if account.state != "DEPLOYED":
+                if account.state != "DEPLOYING":
+                    logger.info("[MetaApi Stream] Deploying account %s ...", account_id)
+                    await account.deploy()
+                logger.info("[MetaApi Stream] Waiting for account %s deployment ...", account_id)
+                await account.wait_deployed()
             await account.wait_connected()
 
             connection = account.get_streaming_connection()
@@ -303,6 +306,7 @@ async def _run_streaming(
                 backoff = min(backoff * 2, 60)
             elif any(keyword in exc_str for keyword in (
                 "not connected to broker",
+                "no accounts deployed yet",
                 "timeoutexception",
                 "does not match the account region",
             )):
