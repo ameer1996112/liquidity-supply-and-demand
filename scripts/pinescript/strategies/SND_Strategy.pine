@@ -218,7 +218,6 @@ show_ai_debug_comment = false
 zone_label_style = input.string("Compact", "Zone Label Style", options = ["Compact", "Detailed"], group = "🎨 Display")
 zone_label_show_metrics = input.bool(true, "Zone Label: Show Grade/Score", group = "🎨 Display")
 show_blocked_trade_labels = input.bool(false, "Show Blocked Trade Labels", group = "🎨 Display")
-show_invalidated_zones = input.bool(false, "Show Invalidated Zones", group = "🎨 Display", tooltip = "Debug view only. Shows zones that matched formation rules but were later invalidated by retest, close-inside, or tested-past logic.")
 long_label_offset_atr = 0.60
 long_label_offset_ticks = 0
 extend_bars          = 6
@@ -532,9 +531,6 @@ col_acc_demand_bg     = color.new(#8EA9CF, 85)
 col_acc_demand_border = color.new(#365F91, 18)
 col_acc_supply_bg     = color.new(#B7A0C9, 85)
 col_acc_supply_border = color.new(#6A4A7C, 18)
-
-col_archived_zone_bg     = color.new(#D9A548, 78)
-col_archived_zone_border = color.new(#B8791B, 22)
 
 
 col_label_clear        = color.new(color.white, 100)
@@ -1992,56 +1988,6 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 db_upsertZone(z, "SUPPLY")
                 trimZoneArrays(false)
 
-archive_zone_visual(bool isDemand, int idx, string removalReason) =>
-    if isDemand
-        if idx >= 0 and idx < array.size(demandZones)
-            Core.Zone z = array.get(demandZones, idx)
-            db_markInactive(z.id, removalReason)
-            if not na(z.boxId)
-                box.set_right(z.boxId, bar_index)
-                box.set_bgcolor(z.boxId, col_archived_zone_bg)
-                box.set_border_color(z.boxId, col_archived_zone_border)
-                box.set_border_width(z.boxId, 1)
-            if not na(z.connectorLine)
-                line.delete(z.connectorLine)
-                z.connectorLine := na
-            if not na(z.inducementHLine)
-                line.delete(z.inducementHLine)
-                z.inducementHLine := na
-            if not na(z.targetHLine)
-                line.delete(z.targetHLine)
-                z.targetHLine := na
-            if not na(z.idLabel)
-                string archivedText = zone_label_style == "Detailed" ? ("D-" + str.tostring(z.id) + " " + removalReason) : ("D-" + str.tostring(z.id))
-                label.set_text(z.idLabel, " " + archivedText + " ")
-            array.remove(demandZones, idx)
-    else
-        if idx >= 0 and idx < array.size(supplyZones)
-            Core.Zone z = array.get(supplyZones, idx)
-            db_markInactive(z.id, removalReason)
-            if not na(z.boxId)
-                box.set_right(z.boxId, bar_index)
-                box.set_bgcolor(z.boxId, col_archived_zone_bg)
-                box.set_border_color(z.boxId, col_archived_zone_border)
-                box.set_border_width(z.boxId, 1)
-            if not na(z.connectorLine)
-                line.delete(z.connectorLine)
-                z.connectorLine := na
-            if not na(z.targetLine)
-                line.delete(z.targetLine)
-                z.targetLine := na
-            if not na(z.inducementHLine)
-                line.delete(z.inducementHLine)
-                z.inducementHLine := na
-            if not na(z.targetHLine)
-                line.delete(z.targetHLine)
-                z.targetHLine := na
-            if not na(z.idLabel)
-                string archivedText = zone_label_style == "Detailed" ? ("S-" + str.tostring(z.id) + " " + removalReason) : ("S-" + str.tostring(z.id))
-                label.set_text(z.idLabel, " " + archivedText + " ")
-            array.remove(supplyZones, idx)
-    true
-
 remove_zone_all_arrays(bool isDemand, int idx, string removalReason) =>
     if isDemand
         if idx >= 0 and idx < array.size(demandZones)
@@ -3184,10 +3130,7 @@ if demandSize > 0
 
                 if can_remove_for_entry_failure or isTooOld
                     string removalReason = f_terminal_invalidation_reason(existingReason) ? existingReason : (tested_past_failure ? "TESTED_PAST" : (close_inside ? "CLOSE_INSIDE" : (opposing_tap ? "OPPOSING_TAP" : "removed")))
-                    if can_remove_for_entry_failure and show_invalidated_zones
-                        archive_zone_visual(true, i, removalReason)
-                    else
-                        remove_zone_all_arrays(true, i, removalReason)
+                    remove_zone_all_arrays(true, i, removalReason)
 
 int supplySize = array.size(supplyZones)
 if supplySize > 0
@@ -3220,10 +3163,7 @@ if supplySize > 0
 
             if can_remove_for_entry_failure or isTooOld
                 string removalReason = f_terminal_invalidation_reason(existingReason) ? existingReason : (tested_past_failure ? "TESTED_PAST" : (close_inside ? "CLOSE_INSIDE" : (opposing_tap ? "OPPOSING_TAP" : "removed")))
-                if can_remove_for_entry_failure and show_invalidated_zones
-                    archive_zone_visual(false, i, removalReason)
-                else
-                    remove_zone_all_arrays(false, i, removalReason)
+                remove_zone_all_arrays(false, i, removalReason)
 
 if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isconfirmed
     for i = 0 to cached_demand_size - 1
