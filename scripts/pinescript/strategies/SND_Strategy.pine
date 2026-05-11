@@ -894,12 +894,13 @@ validate_position_size(entry_price, stop_loss_price, balance, risk_pct, is_short
     [is_valid, qty_units, qty_lots, error_msg, sl_fixed]
 
 is_base_bar_used(barIdx, baseArray) =>
+    int baseTime = barIdx >= 0 and barIdx <= bar_index ? time[bar_index - barIdx] : na
     if array.size(baseArray) == 0
         false
     else
         found = false
         for j = 0 to array.size(baseArray) - 1
-            if array.get(baseArray, j) == barIdx
+            if array.get(baseArray, j) == baseTime
                 found := true
                 break
         found
@@ -2253,15 +2254,21 @@ deactivateDemandZone(idx) =>
     if idx >= 0 and idx < array.size(demandZones)
         Core.Zone z = array.get(demandZones, idx)
         z.active := false
+        z.inactiveReason := "OVERLAPPED"
         box.set_bgcolor(z.boxId,col_demand_bg)
         box.set_border_color(z.boxId,col_demand_border)
+        array.set(demandZones, idx, z)
+        db_markInactive(z.id, z.inactiveReason)
 
 deactivateSupplyZone(idx) =>
     if idx >= 0 and idx < array.size(supplyZones)
         Core.Zone z = array.get(supplyZones, idx)
         z.active := false
+        z.inactiveReason := "OVERLAPPED"
         box.set_bgcolor(z.boxId,col_supply_bg)
         box.set_border_color(z.boxId,col_supply_border)
+        array.set(supplyZones, idx, z)
+        db_markInactive(z.id, z.inactiveReason)
 
 deactivateOverlappingSupplyZones(refLow, refHigh) =>
     for k = 0 to array.size(supplyZones) - 1
