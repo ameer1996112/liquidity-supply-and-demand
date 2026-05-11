@@ -1,0 +1,112 @@
+<style>
+  .rule-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin-top:18px; }
+  .tv-card { background:#c9ced8; border:1px solid #3b4656; border-radius:12px; overflow:hidden; min-height:360px; position:relative; }
+  .tv-head { display:flex; justify-content:space-between; align-items:center; padding:14px 16px; background:#111827; color:#e5edf8; font-weight:800; }
+  .badge { padding:6px 10px; border-radius:999px; font-size:12px; letter-spacing:.04em; color:#061014; background:#42e79a; }
+  .chart { position:relative; height:310px; overflow:hidden; }
+  .wm { position:absolute; left:70px; top:70px; font-size:64px; font-weight:800; color:rgba(80,88,105,.16); }
+  .grid-line { position:absolute; left:40px; right:30px; height:1px; background:rgba(90,98,112,.18); }
+  .zone { position:absolute; border:2px solid; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:16px; letter-spacing:.02em; }
+  .demand { background:rgba(31,145,126,.28); border-color:#188777; color:#052a27; }
+  .supply { background:rgba(211,58,91,.20); border-color:#d52958; color:#5b0b1e; }
+  .acc { background:rgba(54,112,230,.18); border-color:#2d6cdf; color:#133d91; }
+  .waiting { background:rgba(232,166,55,.34); border-color:#c88712; color:#5f3d05; }
+  .liq { position:absolute; height:0; border-top:2px dashed #ff3f7f; color:#111827; font-size:13px; font-weight:800; }
+  .bos { position:absolute; height:0; border-top:3px dotted rgba(38,50,66,.55); color:#1c2633; font-size:13px; font-weight:900; }
+  .candle { position:absolute; width:16px; bottom:0; }
+  .wick { position:absolute; left:7px; width:2px; background:#0a0e14; }
+  .body { position:absolute; left:0; width:16px; border:2px solid #0a0e14; box-sizing:border-box; }
+  .bull .body { background:#16a88f; }
+  .bear .body { background:#05070a; }
+  .note { padding:14px 16px 18px; background:#111827; color:#d7e2f1; line-height:1.45; font-size:15px; }
+  .note b { color:white; }
+  .legend { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; background:#111827; border:1px solid #263244; border-radius:12px; padding:14px; margin-top:14px; }
+  .legend span { display:flex; gap:8px; align-items:center; color:#d7e2f1; font-weight:750; }
+  .swatch { width:34px; height:18px; border:2px solid; opacity:.9; }
+</style>
+
+<h2>Liquidity S/D Zone Rules</h2>
+<p class="subtitle">This is the inferred rule contract from the transcripts and the Myrtille drawings: source candle first, first displacement candle next, then BOS/liquidity validation.</p>
+
+<div class="legend">
+  <span><i class="swatch demand"></i>Valid demand/supply zone</span>
+  <span><i class="swatch waiting"></i>Waiting BOS candidate</span>
+  <span><i class="swatch acc"></i>Accuracy zone</span>
+  <span><i class="swatch supply"></i>Supply zone</span>
+  <span><i style="width:34px;border-top:2px dashed #ff3f7f"></i>Liquidity sweep level</span>
+  <span><i style="width:34px;border-top:3px dotted rgba(190,200,215,.75)"></i>BOS level</span>
+</div>
+
+<div class="rule-grid">
+  <section class="tv-card">
+    <div class="tv-head">Normal Demand <span class="badge">VALID AFTER BOS</span></div>
+    <div class="chart">
+      <div class="wm">GBPJPY, 5</div>
+      <div class="grid-line" style="top:80px"></div>
+      <div class="grid-line" style="top:160px"></div>
+      <div class="grid-line" style="top:240px"></div>
+      <div class="zone demand" style="left:140px; top:190px; width:360px; height:58px;">D-17292 B</div>
+      <div class="liq" style="left:290px; top:190px; width:300px;">liquidity swept</div>
+      <div class="bos" style="left:300px; top:96px; width:250px;">BOS high</div>
+      <div class="candle bear" style="left:128px;height:118px;bottom:50px"><div class="wick" style="height:150px;bottom:-22px"></div><div class="body" style="height:70px;bottom:28px"></div></div>
+      <div class="candle bull" style="left:156px;height:138px;bottom:68px"><div class="wick" style="height:160px;bottom:-18px"></div><div class="body" style="height:92px;bottom:26px"></div></div>
+      <div class="candle bull" style="left:218px;height:120px;bottom:106px"><div class="wick" style="height:142px;bottom:-8px"></div><div class="body" style="height:76px;bottom:20px"></div></div>
+      <div class="candle bear" style="left:264px;height:108px;bottom:150px"><div class="wick" style="height:134px;bottom:-10px"></div><div class="body" style="height:56px;bottom:42px"></div></div>
+      <div class="candle bull" style="left:320px;height:132px;bottom:168px"><div class="wick" style="height:158px;bottom:-8px"></div><div class="body" style="height:92px;bottom:22px"></div></div>
+    </div>
+    <div class="note"><b>Draw:</b> last bearish source candle high to the lower low between that bearish candle and the first bullish displacement candle. If the first bullish wick goes lower, include it. This is still normal demand unless the accuracy rule triggers.</div>
+  </section>
+
+  <section class="tv-card">
+    <div class="tv-head">Demand Accuracy <span class="badge">BODY ONLY</span></div>
+    <div class="chart">
+      <div class="wm">GBPJPY, 5</div>
+      <div class="grid-line" style="top:80px"></div>
+      <div class="grid-line" style="top:160px"></div>
+      <div class="grid-line" style="top:240px"></div>
+      <div class="zone acc" style="left:150px; top:178px; width:370px; height:34px;">D-ACC-17304 C+</div>
+      <div class="bos" style="left:300px; top:78px; width:260px;">BOS high</div>
+      <div class="candle bear" style="left:138px;height:144px;bottom:72px"><div class="wick" style="height:184px;bottom:-32px"></div><div class="body" style="height:48px;bottom:88px"></div></div>
+      <div class="candle bull" style="left:170px;height:118px;bottom:84px"><div class="wick" style="height:152px;bottom:-12px"></div><div class="body" style="height:72px;bottom:20px"></div></div>
+      <div class="candle bull" style="left:230px;height:134px;bottom:124px"><div class="wick" style="height:160px;bottom:-8px"></div><div class="body" style="height:96px;bottom:20px"></div></div>
+      <div class="candle bear" style="left:280px;height:104px;bottom:164px"><div class="wick" style="height:128px;bottom:-8px"></div><div class="body" style="height:52px;bottom:38px"></div></div>
+      <div class="candle bull" style="left:330px;height:136px;bottom:174px"><div class="wick" style="height:158px;bottom:-4px"></div><div class="body" style="height:98px;bottom:20px"></div></div>
+    </div>
+    <div class="note"><b>Draw:</b> if the bearish source candle's high is above the first bullish displacement candle's high, draw the source body only. That is the transcript's demand accuracy rule.</div>
+  </section>
+
+  <section class="tv-card">
+    <div class="tv-head">Waiting BOS Candidate <span class="badge" style="background:#f6bd55">NOT TRADEABLE</span></div>
+    <div class="chart">
+      <div class="wm">GBPJPY, 5</div>
+      <div class="grid-line" style="top:80px"></div>
+      <div class="grid-line" style="top:160px"></div>
+      <div class="grid-line" style="top:240px"></div>
+      <div class="zone waiting" style="left:170px; top:132px; width:260px; height:82px;">D-17292 waiting</div>
+      <div class="bos" style="left:272px; top:88px; width:230px;">structure not broken yet</div>
+      <div class="candle bear" style="left:150px;height:110px;bottom:100px"><div class="wick" style="height:144px;bottom:-16px"></div><div class="body" style="height:62px;bottom:28px"></div></div>
+      <div class="candle bull" style="left:178px;height:130px;bottom:116px"><div class="wick" style="height:150px;bottom:-10px"></div><div class="body" style="height:88px;bottom:22px"></div></div>
+      <div class="candle bear" style="left:240px;height:118px;bottom:134px"><div class="wick" style="height:144px;bottom:-12px"></div><div class="body" style="height:70px;bottom:24px"></div></div>
+      <div class="candle bull" style="left:300px;height:120px;bottom:140px"><div class="wick" style="height:144px;bottom:-8px"></div><div class="body" style="height:82px;bottom:20px"></div></div>
+    </div>
+    <div class="note"><b>State:</b> yellow means the source zone exists, but price has not broken structure in the required direction yet. It should not become green/valid until BOS happens.</div>
+  </section>
+
+  <section class="tv-card">
+    <div class="tv-head">Early Tap Invalidates <span class="badge" style="background:#ff6b86">DEAD SETUP</span></div>
+    <div class="chart">
+      <div class="wm">GBPJPY, 5</div>
+      <div class="grid-line" style="top:80px"></div>
+      <div class="grid-line" style="top:160px"></div>
+      <div class="grid-line" style="top:240px"></div>
+      <div class="zone waiting" style="left:150px; top:178px; width:300px; height:70px; opacity:.78;">candidate tapped before BOS</div>
+      <div class="bos" style="left:300px; top:78px; width:240px;">BOS missing</div>
+      <div class="liq" style="left:220px; top:178px; width:260px;">returned to zone too early</div>
+      <div class="candle bear" style="left:136px;height:124px;bottom:64px"><div class="wick" style="height:156px;bottom:-18px"></div><div class="body" style="height:74px;bottom:28px"></div></div>
+      <div class="candle bull" style="left:168px;height:126px;bottom:84px"><div class="wick" style="height:146px;bottom:-8px"></div><div class="body" style="height:86px;bottom:20px"></div></div>
+      <div class="candle bear" style="left:246px;height:112px;bottom:138px"><div class="wick" style="height:150px;bottom:-26px"></div><div class="body" style="height:52px;bottom:48px"></div></div>
+      <div class="candle bull" style="left:306px;height:116px;bottom:136px"><div class="wick" style="height:140px;bottom:-8px"></div><div class="body" style="height:76px;bottom:24px"></div></div>
+    </div>
+    <div class="note"><b>Invalidate:</b> if price returns into the candidate zone before BOS, it is no longer clean/untapped. Same-color departure wicks are allowed; opposite-color return/tap before BOS kills it.</div>
+  </section>
+</div>

@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SND Zone Visual Guide</title>
+  <style>
+    :root {
+      --page: #0f1720;
+      --panel: #161f2a;
+      --panel-2: #111923;
+      --ink: #e8edf2;
+      --muted: #9ba8b4;
+      --grid: rgba(136, 149, 163, 0.2);
+      --axis: rgba(232, 237, 242, 0.56);
+      --up: #18a891;
+      --down: #101216;
+      --wick: #080b0f;
+      --demand: #6bb88b;
+      --demand-stroke: #2b7d6f;
+      --supply: #d46d84;
+      --supply-stroke: #c7355f;
+      --waiting: #d7ad58;
+      --waiting-stroke: #b77a12;
+      --tested: #77a3e8;
+      --tested-stroke: #2f66b3;
+      --acc-demand: #2f7fd9;
+      --acc-supply: #8a4bd9;
+      --liq: #f04c76;
+      --bos: #d8e0e8;
+      --gold: #f0c66a;
+      --ok: #3ddc97;
+      --bad: #ff6b7a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 12% 4%, rgba(49, 127, 217, 0.22), transparent 34rem),
+        radial-gradient(circle at 88% 0%, rgba(240, 198, 106, 0.16), transparent 28rem),
+        linear-gradient(180deg, #101923 0%, #0b1017 100%);
+      color: var(--ink);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    .shell {
+      width: min(1440px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 34px 0 46px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      color: var(--gold);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 760px;
+      font-size: clamp(34px, 5vw, 76px);
+      line-height: 0.95;
+      font-weight: 900;
+    }
+
+    .intro {
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.55;
+      max-width: 620px;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 16px;
+      background: rgba(22, 31, 42, 0.76);
+      border: 1px solid rgba(232, 237, 242, 0.12);
+      border-radius: 8px;
+    }
+
+    .legend-item {
+      display: flex;
+      gap: 9px;
+      align-items: center;
+      min-width: 0;
+      color: #cbd5df;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .swatch {
+      width: 24px;
+      height: 13px;
+      border: 1px solid currentColor;
+      flex: 0 0 auto;
+    }
+
+    .swatch.demand { color: var(--demand-stroke); background: rgba(107, 184, 139, 0.42); }
+    .swatch.supply { color: var(--supply-stroke); background: rgba(212, 109, 132, 0.33); }
+    .swatch.waiting { color: var(--waiting-stroke); background: rgba(215, 173, 88, 0.44); }
+    .swatch.accuracy { color: var(--tested-stroke); background: rgba(119, 163, 232, 0.33); }
+    .swatch.liq {
+      height: 0;
+      color: var(--liq);
+      border: 0;
+      border-top: 2px dashed var(--liq);
+      background: transparent;
+    }
+    .swatch.bos {
+      height: 0;
+      color: var(--axis);
+      border: 0;
+      border-top: 2px dotted var(--axis);
+      background: transparent;
+    }
+
+    .rule-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      overflow: hidden;
+      background: linear-gradient(180deg, rgba(22, 31, 42, 0.96), rgba(15, 23, 32, 0.96));
+      border: 1px solid rgba(232, 237, 242, 0.12);
+      border-radius: 8px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
+    }
+
+    .card header {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid rgba(232, 237, 242, 0.08);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .card-title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      white-space: nowrap;
+      color: #071018;
+      background: var(--gold);
+    }
+
+    .tag.valid { background: var(--ok); }
+    .tag.invalid { background: var(--bad); }
+    .tag.waiting { background: var(--waiting); }
+    .tag.debug { background: #aab4bf; }
+
+    .chart {
+      position: relative;
+      background: #c8cdd5;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.18);
+    }
+
+    .chart svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .notes {
+      display: grid;
+      gap: 8px;
+      padding: 15px 18px 18px;
+      color: #cbd5df;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .notes strong {
+      color: var(--ink);
+    }
+
+    .matrix {
+      margin-top: 18px;
+      background: rgba(22, 31, 42, 0.9);
+      border: 1px solid rgba(232, 237, 242, 0.12);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .matrix h2 {
+      margin: 0;
+      padding: 18px;
+      font-size: 22px;
+      border-bottom: 1px solid rgba(232, 237, 242, 0.1);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      padding: 13px 16px;
+      border-bottom: 1px solid rgba(232, 237, 242, 0.08);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--gold);
+      font-size: 12px;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    td {
+      color: #cbd5df;
+    }
+
+    code {
+      color: #f2d089;
+      background: rgba(242, 208, 137, 0.12);
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .rule-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .shell {
+        width: min(100vw - 20px, 1440px);
+        padding-top: 22px;
+      }
+
+      .legend {
+        grid-template-columns: 1fr;
+      }
+
+      .card header {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">SND strategy visual rules</div>
+        <h1>TradingView candle guide for zones, liquidity, and BOS.</h1>
+      </div>
+      <div>
+        <p class="intro">
+          This guide turns the strategy transcript into chart examples. Each panel shows how the candle source,
+          zone body, wick inclusion, waiting BOS state, and liquidity confirmation should look before we encode
+          the rules in Pine.
+        </p>
+      </div>
+    </section>
+
+    <section class="legend" aria-label="Legend">
+      <div class="legend-item"><span class="swatch demand"></span>Demand zone, valid after BOS</div>
+      <div class="legend-item"><span class="swatch supply"></span>Supply zone, valid after BOS</div>
+      <div class="legend-item"><span class="swatch waiting"></span>Waiting BOS candidate</div>
+      <div class="legend-item"><span class="swatch accuracy"></span>Accuracy or tested zone</div>
+      <div class="legend-item"><span class="swatch liq"></span>Liquidity sweep level</div>
+      <div class="legend-item"><span class="swatch bos"></span>Structure high/low that must break</div>
+    </section>
+
+    <section class="rule-grid" id="guide" aria-label="Visual examples"></section>
+
+    <section class="matrix">
+      <h2>Implementation Contract</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Rule</th>
+            <th>TradingView visual meaning</th>
+            <th>Pine behavior we want</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Source candle</td>
+            <td>Demand starts from the last bearish candle before bullish displacement. Supply starts from the last bullish candle before bearish displacement.</td>
+            <td>Detect the source candle first, then only inspect the first displacement candle next to it for wick extension.</td>
+          </tr>
+          <tr>
+            <td>Normal zone boundary</td>
+            <td>Demand top is the bearish source high; bottom is whichever is lower: bearish source low or first bullish displacement low. Supply bottom is the bullish source low; top is whichever is higher: bullish source high or first bearish displacement high.</td>
+            <td>No broad future wick scan. Use only the source candle and the first opposite displacement candle.</td>
+          </tr>
+          <tr>
+            <td>Accuracy zone</td>
+            <td>Accuracy zones are a refinement layer. If the source candle violates the accuracy rule from the first transcript, draw the source body only.</td>
+            <td><code>D-ACC</code> and <code>S-ACC</code> must be labeled separately from normal zones so debugging stays clear.</td>
+          </tr>
+          <tr>
+            <td>Waiting BOS</td>
+            <td>Yellow zone exists, but it is not tradable yet.</td>
+            <td>Keep as candidate until price breaks the required structure level.</td>
+          </tr>
+          <tr>
+            <td>Early return</td>
+            <td>If price comes back into the zone before BOS, the setup is dead.</td>
+            <td>Invalidate or hide the candidate. Same-color leaving candles do not count as a tap.</td>
+          </tr>
+          <tr>
+            <td>Liquidity</td>
+            <td>At least two opposite-color candles form the pool, then price must take its own high/low.</td>
+            <td>Reject one-candle liquidity unless explicitly enabled as a lower-confidence debug mode.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    const W = 760;
+    const H = 360;
+    const P = { left: 44, right: 48, top: 26, bottom: 34 };
+
+    const css = getComputedStyle(document.documentElement);
+    const colors = {
+      up: css.getPropertyValue("--up").trim(),
+      down: css.getPropertyValue("--down").trim(),
+      wick: css.getPropertyValue("--wick").trim(),
+      grid: css.getPropertyValue("--grid").trim(),
+      axis: css.getPropertyValue("--axis").trim(),
+      demand: css.getPropertyValue("--demand").trim(),
+      demandStroke: css.getPropertyValue("--demand-stroke").trim(),
+      supply: css.getPropertyValue("--supply").trim(),
+      supplyStroke: css.getPropertyValue("--supply-stroke").trim(),
+      waiting: css.getPropertyValue("--waiting").trim(),
+      waitingStroke: css.getPropertyValue("--waiting-stroke").trim(),
+      tested: css.getPropertyValue("--tested").trim(),
+      testedStroke: css.getPropertyValue("--tested-stroke").trim(),
+      accDemand: css.getPropertyValue("--acc-demand").trim(),
+      accSupply: css.getPropertyValue("--acc-supply").trim(),
+      liq: css.getPropertyValue("--liq").trim(),
+      bos: css.getPropertyValue("--bos").trim(),
+      gold: css.getPropertyValue("--gold").trim(),
+      bad: css.getPropertyValue("--bad").trim()
+    };
+
+    const examples = [
+      {
+        title: "Normal Demand",
+        tag: "Valid",
+        tagClass: "valid",
+        min: 213.46,
+        max: 213.58,
+        candles: [
+          c(0, 213.474, 213.498, 213.468, 213.492),
+          c(1, 213.492, 213.515, 213.487, 213.506),
+          c(2, 213.506, 213.526, 213.498, 213.499),
+          c(3, 213.499, 213.508, 213.488, 213.496),
+          c(4, 213.496, 213.548, 213.488, 213.535),
+          c(5, 213.535, 213.558, 213.526, 213.532),
+          c(6, 213.532, 213.566, 213.530, 213.562),
+          c(7, 213.562, 213.573, 213.510, 213.555)
+        ],
+        zones: [
+          z(3.0, 14.1, 213.508, 213.488, "demand", "D-17332 B")
+        ],
+        lines: [
+          line(4.9, 13, 213.548, "bos", "BOS high"),
+          line(6.4, 13, 213.511, "liq", "liquidity swept")
+        ],
+        notes: [
+          "<strong>Draw:</strong> base ceiling to the lowest wick that belongs to the demand departure.",
+          "<strong>Normal demand:</strong> the bullish candle can wick through the base low while leaving the zone; that wick is included inside the zone.",
+          "<strong>Valid:</strong> after the displacement breaks structure, later liquidity can be swept before price returns."
+        ]
+      },
+      {
+        title: "Demand Wick Extension",
+        tag: "Still valid",
+        tagClass: "valid",
+        min: 99,
+        max: 115,
+        candles: [
+          c(0, 109, 111, 106, 107), c(1, 107, 108, 103.5, 104.2), c(2, 104.2, 105, 101.6, 101.7),
+          c(3, 101.7, 105.3, 101.1, 104.8), c(4, 104.8, 106.4, 104.1, 105.9), c(5, 105.9, 108.3, 104.8, 107.7),
+          c(6, 107.7, 111.8, 107.1, 111.2), c(7, 111.2, 112.3, 109.4, 110.1), c(8, 110.1, 113.7, 109.8, 113.1),
+          c(9, 113.1, 114.2, 111.8, 112.5)
+        ],
+        zones: [
+          z(2.1, 14.1, 105, 101.1, "demand", "D-17292 B")
+        ],
+        lines: [
+          line(3, 13, 111.8, "bos", "BOS high"),
+          line(7, 13, 104.2, "liq", "liquidity swept")
+        ],
+        annotations: [
+          arrow(3, 101.1, "green leaving wick does not tap")
+        ],
+        notes: [
+          "<strong>Draw:</strong> top is the last bearish candle high.",
+          "<strong>Bottom:</strong> use whichever is lower: the bearish source low or the first bullish displacement low.",
+          "<strong>Untapped:</strong> that first green leaving wick belongs to the departure, so it expands the zone but does not count as a tap."
+        ]
+      },
+      {
+        title: "Normal Supply",
+        tag: "Valid",
+        tagClass: "valid",
+        min: 194,
+        max: 211,
+        candles: [
+          c(0, 199, 203, 198.2, 202.3), c(1, 202.3, 205.4, 201.7, 204.8), c(2, 204.8, 208.5, 204.1, 207.7),
+          c(3, 207.7, 209.2, 203.7, 204.5), c(4, 204.5, 205.3, 201.5, 202.1), c(5, 202.1, 203.2, 198.6, 199.4),
+          c(6, 199.4, 201, 198.1, 200.5), c(7, 200.5, 201.4, 196.6, 197.4), c(8, 197.4, 198.8, 195.4, 196.1)
+        ],
+        zones: [
+          z(2.6, 14.1, 209.2, 204.1, "supply", "S-17350 C")
+        ],
+        lines: [
+          line(3, 13, 198.6, "bos", "BOS low"),
+          line(6, 13, 204.4, "liq", "supply liquidity")
+        ],
+        notes: [
+          "<strong>Draw:</strong> bottom is the last bullish candle low.",
+          "<strong>Top:</strong> use whichever is higher: the bullish source high or the first bearish displacement high.",
+          "<strong>Valid:</strong> bearish move breaks its structure low before the zone becomes tradable."
+        ]
+      },
+      {
+        title: "Accuracy Demand",
+        tag: "Refined zone",
+        tagClass: "debug",
+        min: 213.18,
+        max: 213.40,
+        candles: [
+          c(0, 213.345, 213.368, 213.246, 213.286),
+          c(1, 213.286, 213.318, 213.216, 213.306),
+          c(2, 213.306, 213.336, 213.294, 213.302),
+          c(3, 213.302, 213.334, 213.298, 213.322),
+          c(4, 213.322, 213.356, 213.318, 213.348),
+          c(5, 213.348, 213.374, 213.340, 213.366),
+          c(6, 213.366, 213.392, 213.354, 213.386)
+        ],
+        zones: [
+          z(1.35, 14.1, 213.306, 213.298, "demand", "D-ACC-17195 B+"),
+          z(0.95, 2.6, 213.298, 213.216, "ghost", "excluded wick")
+        ],
+        annotations: [
+          arrow(1, 213.216, "long wick excluded"),
+          arrow(3, 213.298, "thin refined base")
+        ],
+        notes: [
+          "<strong>Accuracy demand:</strong> draw the refined demand area from the small base/body, not the full long lower wick.",
+          "<strong>Visual result:</strong> a thin green zone like your screenshot, with the long wick excluded.",
+          "<strong>Purpose:</strong> this keeps the entry zone precise instead of turning one spike wick into a huge rectangle."
+        ]
+      },
+      {
+        title: "Accuracy Supply",
+        tag: "Body only",
+        tagClass: "debug",
+        min: 68,
+        max: 83,
+        candles: [
+          c(0, 75.6, 78.4, 74.9, 77.9), c(1, 77.9, 78.2, 75.2, 75.6), c(2, 75.6, 76.1, 70.2, 71.4),
+          c(3, 71.4, 73.4, 70.7, 72.6), c(4, 72.6, 73.3, 69.1, 70), c(5, 70, 71.1, 68.9, 69.6)
+        ],
+        zones: [
+          z(0.5, 12.2, 77.9, 75.6, "accSupply", "S-ACC-17304 C+"),
+          z(0.5, 12.2, 75.6, 74.9, "ghost", "ignored wick")
+        ],
+        annotations: [
+          arrow(0.95, 74.6, "source wick below next candle")
+        ],
+        notes: [
+          "<strong>Trigger:</strong> bullish source wick goes below the next bearish candle.",
+          "<strong>Draw:</strong> only the source candle body becomes the supply accuracy zone."
+        ]
+      },
+      {
+        title: "Waiting BOS",
+        tag: "Not tradable yet",
+        tagClass: "waiting",
+        min: 210,
+        max: 226,
+        candles: [
+          c(0, 218, 220.4, 216.8, 219.5), c(1, 219.5, 222.8, 218.7, 221.7), c(2, 221.7, 224.2, 221.2, 223.8),
+          c(3, 223.8, 224.5, 220.2, 221), c(4, 221, 222, 217.1, 218.4), c(5, 218.4, 219.1, 215, 216.1),
+          c(6, 216.1, 218.7, 215.4, 217.9), c(7, 217.9, 220.1, 217.4, 219.2)
+        ],
+        zones: [
+          z(1.8, 7.8, 224.2, 221.2, "waiting", "S-WAIT 17304")
+        ],
+        lines: [
+          line(3, 12, 215, "bos", "needs BOS low")
+        ],
+        notes: [
+          "<strong>Yellow means candidate:</strong> the zone exists, but it still needs BOS.",
+          "<strong>No entry:</strong> it becomes valid only after price breaks the required structure level."
+        ]
+      },
+      {
+        title: "Invalid Before BOS",
+        tag: "Reject",
+        tagClass: "invalid",
+        min: 48,
+        max: 65,
+        candles: [
+          c(0, 57, 58.8, 53.2, 54.4), c(1, 54.4, 55.5, 51.8, 52.7), c(2, 52.7, 54.2, 51.2, 53.9),
+          c(3, 53.9, 57.2, 53.3, 56.6), c(4, 56.6, 59.8, 56.2, 59.1), c(5, 59.1, 60, 53.9, 56.4),
+          c(6, 56.4, 57.4, 53.1, 54), c(7, 54, 55.2, 51.6, 52.3), c(8, 52.3, 54, 51.2, 53.4)
+        ],
+        zones: [
+          z(1.8, 8.3, 54.2, 51.2, "invalid", "D-17222 invalid")
+        ],
+        lines: [
+          line(4, 11, 60.2, "bos", "BOS not taken")
+        ],
+        annotations: [
+          arrow(5, 54.1, "return before BOS")
+        ],
+        notes: [
+          "<strong>Invalid:</strong> price returns into the zone before it causes BOS.",
+          "<strong>Why:</strong> the zone was mitigated too early, so it should not remain as a valid demand."
+        ]
+      },
+      {
+        title: "Valid Liquidity",
+        tag: "Two candles",
+        tagClass: "valid",
+        min: 300,
+        max: 320,
+        candles: [
+          c(0, 311, 313, 309.5, 312.3), c(1, 312.3, 314.5, 311.8, 313.8), c(2, 313.8, 315, 309.4, 310.5),
+          c(3, 310.5, 311.2, 307.6, 308.4), c(4, 308.4, 309.2, 305.8, 306.7), c(5, 306.7, 312.2, 306, 311.6),
+          c(6, 311.6, 316.6, 311.2, 315.9), c(7, 315.9, 317, 314.4, 315.1)
+        ],
+        zones: [
+          z(3.8, 11.4, 309.2, 305.8, "demand", "D-17285 B+")
+        ],
+        lines: [
+          line(2.6, 7.4, 315, "liq", "liquidity high taken")
+        ],
+        notes: [
+          "<strong>Valid liquidity:</strong> two bearish candles form the pool.",
+          "<strong>Demand rule:</strong> that liquidity later takes out its own high before the zone is actionable."
+        ]
+      },
+      {
+        title: "Invalid Liquidity",
+        tag: "Skip",
+        tagClass: "invalid",
+        min: 410,
+        max: 428,
+        candles: [
+          c(0, 420, 421.2, 416.2, 417.2), c(1, 417.2, 419, 415.7, 418.1), c(2, 418.1, 421.1, 417.6, 420.5),
+          c(3, 420.5, 421.8, 418.4, 419), c(4, 419, 419.8, 415, 416.2), c(5, 416.2, 418, 414.7, 417.5),
+          c(6, 417.5, 419.5, 416.8, 418.7)
+        ],
+        zones: [
+          z(3.5, 11.4, 416.2, 414.7, "invalid", "D candidate")
+        ],
+        lines: [
+          line(3.2, 9, 421.8, "bos", "own high not taken")
+        ],
+        annotations: [
+          arrow(4, 416.2, "one candle only")
+        ],
+        notes: [
+          "<strong>Reject:</strong> one opposite candle is not enough for normal liquidity.",
+          "<strong>Reject:</strong> if the liquidity does not take its own high/low, the setup is lower quality and should be filtered."
+        ]
+      },
+      {
+        title: "Wick Included From Source Group",
+        tag: "Precise",
+        tagClass: "debug",
+        min: 530,
+        max: 552,
+        candles: [
+          c(0, 545, 546.2, 541.7, 542.1), c(1, 542.1, 543.2, 538.2, 539.1), c(2, 539.1, 541.4, 537.9, 540.2),
+          c(3, 540.2, 544.4, 539.7, 543.8), c(4, 543.8, 548.2, 543.2, 547.6), c(5, 547.6, 550.1, 546.8, 549.4)
+        ],
+        zones: [
+          z(1.1, 11.8, 542.1, 537.9, "demand", "D-17191 C")
+        ],
+        annotations: [
+          arrow(2, 537.9, "same base/source wick")
+        ],
+        notes: [
+          "<strong>Include wick only when it belongs to the source/base group.</strong>",
+          "<strong>Do not:</strong> scan far future candles and borrow random wicks. That creates oversized zones like the broken examples."
+        ]
+      }
+    ];
+
+    function c(i, o, h, l, close) {
+      return { i, o, h, l, c: close };
+    }
+
+    function z(x1, x2, top, bottom, type, label) {
+      return { x1, x2, top, bottom, type, label };
+    }
+
+    function line(x1, x2, price, type, label) {
+      return { x1, x2, price, type, label };
+    }
+
+    function arrow(x, price, label) {
+      return { x, price, label };
+    }
+
+    function render() {
+      const guide = document.getElementById("guide");
+      guide.innerHTML = examples.map(renderCard).join("");
+    }
+
+    function renderCard(ex) {
+      const svg = renderChart(ex);
+      const notes = ex.notes.map((n) => `<div>${n}</div>`).join("");
+      return `
+        <article class="card">
+          <header>
+            <h2 class="card-title">${ex.title}</h2>
+            <span class="tag ${ex.tagClass}">${ex.tag}</span>
+          </header>
+          <div class="chart">${svg}</div>
+          <div class="notes">${notes}</div>
+        </article>
+      `;
+    }
+
+    function renderChart(ex) {
+      const y = (price) => P.top + (ex.max - price) / (ex.max - ex.min) * (H - P.top - P.bottom);
+      const x = (idx) => P.left + idx / 14.5 * (W - P.left - P.right);
+      const bodyW = 18;
+      const ticks = [];
+      for (let i = 0; i <= 4; i += 1) {
+        const price = ex.min + (ex.max - ex.min) * i / 4;
+        ticks.push(price);
+      }
+
+      const grid = ticks.map((price) => `
+        <line x1="${P.left}" x2="${W - P.right}" y1="${y(price)}" y2="${y(price)}" stroke="${colors.grid}" stroke-width="1" />
+        <text x="${W - 36}" y="${y(price) + 4}" fill="#24313d" font-size="11" text-anchor="start">${price.toFixed(2)}</text>
+      `).join("");
+
+      const zones = (ex.zones || []).map((zone) => {
+        const cset = zoneColors(zone.type);
+        const x1 = x(zone.x1);
+        const x2 = x(zone.x2);
+        const yA = y(zone.top);
+        const yB = y(zone.bottom);
+        const y1 = Math.min(yA, yB);
+        const y2 = Math.max(yA, yB);
+        const midX = x1 + (x2 - x1) * 0.58;
+        const midY = y1 + (y2 - y1) * 0.5;
+        const label = zone.type === "ghost" ? "" : `
+          <rect x="${midX - 54}" y="${midY - 14}" width="108" height="28" rx="4" fill="${cset.labelBg}" opacity="${cset.labelOpacity}" />
+          <text x="${midX}" y="${midY + 4}" fill="${cset.labelText}" font-size="13" font-weight="800" text-anchor="middle">${zone.label}</text>
+        `;
+        return `
+          <rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" fill="${cset.fill}" stroke="${cset.stroke}" stroke-width="${cset.strokeWidth}" opacity="${cset.opacity}" />
+          ${label}
+        `;
+      }).join("");
+
+      const lines = (ex.lines || []).map((ln) => {
+        const stroke = ln.type === "liq" ? colors.liq : colors.bos;
+        const dash = ln.type === "liq" ? "7 7" : "2 4";
+        return `
+          <line x1="${x(ln.x1)}" x2="${x(ln.x2)}" y1="${y(ln.price)}" y2="${y(ln.price)}" stroke="${stroke}" stroke-width="2" stroke-dasharray="${dash}" />
+          <text x="${x(ln.x2) + 6}" y="${y(ln.price) - 6}" fill="#29333d" font-size="11" font-weight="700">${ln.label}</text>
+        `;
+      }).join("");
+
+      const candles = ex.candles.map((bar) => {
+        const cx = x(bar.i + 0.6);
+        const up = bar.c >= bar.o;
+        const top = y(Math.max(bar.o, bar.c));
+        const bottom = y(Math.min(bar.o, bar.c));
+        const height = Math.max(2, bottom - top);
+        const fill = up ? colors.up : colors.down;
+        return `
+          <line x1="${cx}" x2="${cx}" y1="${y(bar.h)}" y2="${y(bar.l)}" stroke="${colors.wick}" stroke-width="1.4" />
+          <rect x="${cx - bodyW / 2}" y="${top}" width="${bodyW}" height="${height}" fill="${fill}" stroke="${colors.wick}" stroke-width="1" />
+        `;
+      }).join("");
+
+      const annotations = (ex.annotations || []).map((ann) => {
+        const ax = x(ann.x + 0.6);
+        const ay = y(ann.price);
+        return `
+          <path d="M ${ax - 5} ${ay - 22} L ${ax} ${ay - 5} L ${ax + 5} ${ay - 22}" fill="none" stroke="${colors.gold}" stroke-width="2" />
+          <text x="${ax + 10}" y="${ay - 16}" fill="#35404b" font-size="11" font-weight="800">${ann.label}</text>
+        `;
+      }).join("");
+
+      return `
+        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${ex.title}">
+          <rect x="0" y="0" width="${W}" height="${H}" fill="#c8cdd5" />
+          ${grid}
+          <text x="${P.left + 10}" y="${P.top + 38}" fill="rgba(55, 65, 78, 0.16)" font-size="72" font-weight="800">GBPJPY, 5</text>
+          <text x="${P.left + 18}" y="${P.top + 82}" fill="rgba(55, 65, 78, 0.14)" font-size="33">British Pound / Japanese Yen</text>
+          ${zones}
+          ${lines}
+          ${candles}
+          ${annotations}
+          <line x1="${P.left}" x2="${W - P.right}" y1="${H - P.bottom}" y2="${H - P.bottom}" stroke="rgba(0,0,0,0.28)" />
+          <text x="${P.left}" y="${H - 12}" fill="#111923" font-size="12" font-weight="700">17:00</text>
+          <text x="${P.left + 178}" y="${H - 12}" fill="#111923" font-size="12" font-weight="700">18:00</text>
+          <text x="${P.left + 356}" y="${H - 12}" fill="#111923" font-size="12" font-weight="700">19:00</text>
+          <text x="${P.left + 534}" y="${H - 12}" fill="#111923" font-size="12" font-weight="700">20:00</text>
+        </svg>
+      `;
+    }
+
+    function zoneColors(type) {
+      const map = {
+        demand: {
+          fill: "rgba(107, 184, 139, 0.44)",
+          stroke: colors.demandStroke,
+          strokeWidth: 1.5,
+          opacity: 1,
+          labelBg: "#0f8178",
+          labelText: "#f4fbfa",
+          labelOpacity: 1
+        },
+        supply: {
+          fill: "rgba(212, 109, 132, 0.27)",
+          stroke: colors.supplyStroke,
+          strokeWidth: 1.5,
+          opacity: 1,
+          labelBg: "#c42658",
+          labelText: "#fff5f7",
+          labelOpacity: 1
+        },
+        waiting: {
+          fill: "rgba(215, 173, 88, 0.42)",
+          stroke: colors.waitingStroke,
+          strokeWidth: 1.4,
+          opacity: 1,
+          labelBg: "#a86d12",
+          labelText: "#fff8e6",
+          labelOpacity: 1
+        },
+        accDemand: {
+          fill: "rgba(47, 127, 217, 0.2)",
+          stroke: colors.accDemand,
+          strokeWidth: 2.2,
+          opacity: 1,
+          labelBg: "#256fd2",
+          labelText: "#f5f9ff",
+          labelOpacity: 1
+        },
+        accSupply: {
+          fill: "rgba(138, 75, 217, 0.2)",
+          stroke: colors.accSupply,
+          strokeWidth: 2.2,
+          opacity: 1,
+          labelBg: "#7c3fe0",
+          labelText: "#fbf7ff",
+          labelOpacity: 1
+        },
+        invalid: {
+          fill: "rgba(255, 107, 122, 0.12)",
+          stroke: colors.bad,
+          strokeWidth: 1.6,
+          opacity: 1,
+          labelBg: "#a5333e",
+          labelText: "#fff5f6",
+          labelOpacity: 1
+        },
+        ghost: {
+          fill: "rgba(255, 255, 255, 0.04)",
+          stroke: "rgba(15, 23, 32, 0.28)",
+          strokeWidth: 1,
+          opacity: 1,
+          labelBg: "transparent",
+          labelText: "transparent",
+          labelOpacity: 0
+        }
+      };
+      return map[type] || map.demand;
+    }
+
+    render();
+  </script>
+</body>
+</html>
