@@ -2060,19 +2060,13 @@ var int stat_grade_C_wins  = 0
 
 var table performanceTable = na
 
-zone_has_blocking_reason(Core.Zone z) =>
-    not na(z.inactiveReason) and str.length(z.inactiveReason) > 0 and not str.contains(z.inactiveReason, "Model:") and not str.contains(z.inactiveReason, "PRIMED")
-
-zone_is_drawable(Core.Zone z) =>
-    z.active and not z.mitigated and not zone_has_blocking_reason(z)
-
 count_active_zones(array<Core.Zone> zones) =>
     int count = 0
     int zoneCount = array.size(zones)
     if zoneCount > 0
         for i = 0 to zoneCount - 1
             Core.Zone z = array.get(zones, i)
-            if zone_is_drawable(z)
+            if z.active
                 count += 1
     count
 
@@ -2086,7 +2080,7 @@ should_show_zone_visual(Core.Zone z, array<Core.Zone> zones, bool isDemand) =>
     if zoneCount > 0
         for i = 0 to zoneCount - 1
             Core.Zone other = array.get(zones, i)
-            if zone_is_drawable(other) and not na(other.createdBarIndex)
+            if other.active and not na(other.createdBarIndex)
                 float otherDistance = zone_visual_distance(other, isDemand)
                 bool isCloser = otherDistance < currentDistance
                 bool isNewerTie = otherDistance == currentDistance and other.createdBarIndex > z.createdBarIndex
@@ -3054,7 +3048,7 @@ if show_zones and show_demand_zones and current_demand_size_for_visuals > 0 and 
             break
         Core.Zone z = array.get(demandZones, i)
         if z.active
-            bool should_show_visual = zone_is_drawable(z) and should_show_zone_visual(z, demandZones, true)
+            bool should_show_visual = should_show_zone_visual(z, demandZones, true)
             if not should_show_visual
                 z := clear_zone_visual_objects(z, false)
                 array.set(demandZones, i, z)
@@ -3086,7 +3080,7 @@ if show_zones and show_supply_zones and current_supply_size_for_visuals > 0 and 
             break
         Core.Zone z = array.get(supplyZones, i)
         if z.active
-            bool should_show_visual = zone_is_drawable(z) and should_show_zone_visual(z, supplyZones, false)
+            bool should_show_visual = should_show_zone_visual(z, supplyZones, false)
             if not should_show_visual
                 z := clear_zone_visual_objects(z, true)
                 array.set(supplyZones, i, z)
