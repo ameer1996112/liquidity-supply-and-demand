@@ -78,6 +78,7 @@ const int MAX_BACKWARD_SCAN = 200
 const int MAX_LOOP_ITERATIONS = 200
 const int PIVOT_CACHE_SIZE = 100
 const int MAX_LIQ_SCAN_BARS = 500  // Cap liquidity scan to prevent O(5000+) loops on old zones
+const int MAX_ZONE_DISPLACEMENT_CANDLES = 8
 
 const float OVERLAP_TOLERANCE_GOLD = 0.5
 const float OVERLAP_TOLERANCE_DEFAULT = 0.0
@@ -2547,8 +2548,8 @@ deactivateOverlappingDemandZones(refLow, refHigh) =>
 
 
 if barstate.isconfirmed and bar_index > 10
-    for loopIndex = 1 to 3
-        int displacementCount = 4 - loopIndex
+    for loopIndex = 1 to MAX_ZONE_DISPLACEMENT_CANDLES
+        int displacementCount = MAX_ZONE_DISPLACEMENT_CANDLES + 1 - loopIndex
         int sourceIdx = displacementCount
         int sourceBarIdx = bar_index - sourceIdx
         if f_is_demand_source(sourceIdx, displacementCount)
@@ -2558,8 +2559,8 @@ if barstate.isconfirmed and bar_index > 10
             break
 
 if barstate.isconfirmed and bar_index > 10
-    for loopIndex = 1 to 3
-        int displacementCount = 4 - loopIndex
+    for loopIndex = 1 to MAX_ZONE_DISPLACEMENT_CANDLES
+        int displacementCount = MAX_ZONE_DISPLACEMENT_CANDLES + 1 - loopIndex
         int sourceIdx = displacementCount
         int sourceBarIdx = bar_index - sourceIdx
         if f_is_supply_source(sourceIdx, displacementCount)
@@ -2573,16 +2574,16 @@ if barstate.isconfirmed and not initial_scan_done and bar_index > 50
     max_scan = math.min(100, bar_index)
     for i = 2 to max_scan
         baseBarIdxDemand = bar_index - i
-        for loopIndex = 1 to 3
-            int displacementCount = 4 - loopIndex
+        for loopIndex = 1 to MAX_ZONE_DISPLACEMENT_CANDLES
+            int displacementCount = MAX_ZONE_DISPLACEMENT_CANDLES + 1 - loopIndex
             if i >= displacementCount and f_is_demand_source(i, displacementCount)
                 if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
                     global_zone_id_counter := global_zone_id_counter + 1
                     createZone(i, true, true, 1, displacementCount, global_zone_id_counter)
                 break
         baseBarIdxSupply = bar_index - i
-        for loopIndex = 1 to 3
-            int displacementCount = 4 - loopIndex
+        for loopIndex = 1 to MAX_ZONE_DISPLACEMENT_CANDLES
+            int displacementCount = MAX_ZONE_DISPLACEMENT_CANDLES + 1 - loopIndex
             if i >= displacementCount and f_is_supply_source(i, displacementCount)
                 if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
                     global_zone_id_counter := global_zone_id_counter + 1
