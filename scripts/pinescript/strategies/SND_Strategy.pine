@@ -1664,15 +1664,20 @@ f_is_demand_source(int sourceIdx, int displacementCount) =>
 
 f_is_supply_source(int sourceIdx, int displacementCount) =>
     bool valid = Utils.is_bullish(close[sourceIdx], open[sourceIdx])
+    bool firstDisplacementBearish = false
     float displacementLow = na
     if valid
         for step = 1 to displacementCount
             int displacementIdx = sourceIdx - step
-            if displacementIdx < 0 or not Utils.is_bearish(close[displacementIdx], open[displacementIdx])
+            if displacementIdx < 0
                 valid := false
             else
-                displacementLow := na(displacementLow) ? low[displacementIdx] : math.min(displacementLow, low[displacementIdx])
-    valid and not na(displacementLow) and displacementLow < low[sourceIdx]
+                bool isBearishDisplacement = Utils.is_bearish(close[displacementIdx], open[displacementIdx])
+                if step == 1
+                    firstDisplacementBearish := isBearishDisplacement
+                if isBearishDisplacement
+                    displacementLow := na(displacementLow) ? low[displacementIdx] : math.min(displacementLow, low[displacementIdx])
+    valid and firstDisplacementBearish and not na(displacementLow) and displacementLow < low[sourceIdx]
 
 f_close_inside_zone(float candleClose, float zoneTop, float zoneBottom) =>
     candleClose <= zoneTop and candleClose >= zoneBottom
