@@ -4746,7 +4746,7 @@ if showZoneInspector and (display_show_details or debug_enabled) and isRecentBar
         if not na(inducementPrice)
             inducementStr := str.tostring(inducementPrice, format.mintick) + " @ " + str.tostring(inducementBar)
         table.cell(zoneInspector, 0, nextRow, inducementLabel, text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-        inducementColor = inducementStr != "N/A" ? color.rgb(100, 200, 255) : color.rgb(150, 150, 150)
+        inducementColor = inducementStr != "N/A" ? color.new(col_liq_inducement, 0) : color.rgb(150, 150, 150)
         table.cell(zoneInspector, 1, nextRow, inducementStr, text_color = inducementColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
         nextRow += 1
 
