@@ -3004,9 +3004,10 @@ if supplySize > 0
             if bullish_close_inside or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
                 remove_zone_all_arrays(false, i)
 
-if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isconfirmed
+int current_demand_size_for_visuals = array.size(demandZones)
+if show_zones and show_demand_zones and current_demand_size_for_visuals > 0 and barstate.isconfirmed
     int demand_visible_count = 0
-    for i = 0 to cached_demand_size - 1
+    for i = 0 to current_demand_size_for_visuals - 1
         if i >= array.size(demandZones)
             break
         Core.Zone z = array.get(demandZones, i)
@@ -3037,9 +3038,10 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
                         label.set_size(z.idLabel, size.tiny)
                         label.set_textalign(z.idLabel, text.align_center)
 
-if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isconfirmed
+int current_supply_size_for_visuals = array.size(supplyZones)
+if show_zones and show_supply_zones and current_supply_size_for_visuals > 0 and barstate.isconfirmed
     int supply_visible_count = 0
-    for i = 0 to cached_supply_size - 1
+    for i = 0 to current_supply_size_for_visuals - 1
         if i >= array.size(supplyZones)
             break
         Core.Zone z = array.get(supplyZones, i)
