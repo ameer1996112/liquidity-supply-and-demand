@@ -1265,6 +1265,34 @@ findLocalSupplyLiquidity(float refPrice, float maxDistPrice, float sideTol, int 
     [bestPrice, bestBar]
 
 
+f_liquidity_touches_zone(bool isDemand, float liqPrice, float zoneTop, float zoneBottom, float sideTol) =>
+    bool touches = false
+    if not na(liqPrice)
+        touches := liqPrice <= zoneTop + sideTol and liqPrice >= zoneBottom - sideTol
+    touches
+
+f_demand_liq_is_in_front(float liqPrice, float zoneTop, float sideTol) =>
+    not na(liqPrice) and liqPrice > zoneTop + sideTol
+
+f_supply_liq_is_in_front(float liqPrice, float zoneBottom, float sideTol) =>
+    not na(liqPrice) and liqPrice < zoneBottom - sideTol
+
+f_has_broken_own_level_since(bool isDemand, float ownLevel, int fromBar) =>
+    bool broken = false
+    if not na(ownLevel) and not na(fromBar)
+        int startOffset = bar_index - fromBar
+        if startOffset >= 0
+            int cappedStartOffset = math.min(startOffset, 5000)
+            for off = 0 to cappedStartOffset
+                if isDemand
+                    if high[off] >= ownLevel
+                        broken := true
+                else
+                    if low[off] <= ownLevel
+                        broken := true
+    broken
+
+
 f_scan_demand_liquidity(int zoneArrayIndex) =>
     Core.Zone z = array.get(demandZones, zoneArrayIndex)
 
@@ -1640,18 +1668,6 @@ f_is_supply_source(int sourceIdx, int displacementCount) =>
                 valid := false
     valid
 
-f_liquidity_touches_zone(bool isDemand, float liqPrice, float zoneTop, float zoneBottom, float sideTol) =>
-    bool touches = false
-    if not na(liqPrice)
-        touches := liqPrice <= zoneTop + sideTol and liqPrice >= zoneBottom - sideTol
-    touches
-
-f_demand_liq_is_in_front(float liqPrice, float zoneTop, float sideTol) =>
-    not na(liqPrice) and liqPrice > zoneTop + sideTol
-
-f_supply_liq_is_in_front(float liqPrice, float zoneBottom, float sideTol) =>
-    not na(liqPrice) and liqPrice < zoneBottom - sideTol
-
 f_close_inside_zone(float candleClose, float zoneTop, float zoneBottom) =>
     candleClose <= zoneTop and candleClose >= zoneBottom
 
@@ -1664,21 +1680,6 @@ f_is_opposing_tap(bool isDemand, float candleOpen, float candleClose, float cand
 
 f_terminal_invalidation_reason(string reason) =>
     reason == "CLOSE_INSIDE" or reason == "OPPOSING_TAP" or reason == "LIQ_TOUCH_ZONE" or reason == "LIQ_WRONG_SIDE" or reason == "TESTED_PAST"
-
-f_has_broken_own_level_since(bool isDemand, float ownLevel, int fromBar) =>
-    bool broken = false
-    if not na(ownLevel) and not na(fromBar)
-        int startOffset = bar_index - fromBar
-        if startOffset >= 0
-            int cappedStartOffset = math.min(startOffset, 5000)
-            for off = 0 to cappedStartOffset
-                if isDemand
-                    if high[off] >= ownLevel
-                        broken := true
-                else
-                    if low[off] <= ownLevel
-                        broken := true
-    broken
 
 f_zone_bounds(bool isDemand, int sourceIdx, int displacementIdx, bool isAccuracy) =>
     float sourceHigh = high[sourceIdx]
