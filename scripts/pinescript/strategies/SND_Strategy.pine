@@ -535,7 +535,8 @@ col_waiting_bos_border = color.new(#B8791B, 22)
 col_hidden_zone        = color.new(color.white, 100)
 
 col_label_clear        = color.new(color.white, 100)
-col_label_text         = color.new(#1F2933, 18)
+col_label_bg           = color.new(color.white, 18)
+col_label_text         = color.new(#111827, 0)
 
 float tol = pip_size * 1.0
 
@@ -1903,8 +1904,8 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             float mid = (zTop + zBottom) / 2.0
             int lbl_bar_index = f_zone_label_bar(baseBarIdx, initialRightBar)
             label idLbl = label.new(x = lbl_bar_index, y = mid, text = id_text,
-                 style = label.style_none, textcolor = col_label_text, color = col_label_clear,
-                 size = size.tiny,
+                 style = label.style_label_center, textcolor = col_label_text, color = col_label_bg,
+                 size = size.small,
                  textalign = text.align_center, xloc = xloc.bar_index)
 
             Core.Zone z = Core.Zone.new()
@@ -3211,10 +3212,10 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
                         string demandMetrics = zone_label_show_metrics and zone_label_style == "Detailed" ? ("  " + str.tostring(z.score, "#")) : ""
                         string demandText = zone_label_style == "Detailed" ? (demandDetailed + demandMetrics) : demandCompact
                         label.set_text(z.idLabel, waitingBos and not show_waiting_bos_zones ? "" : " " + demandText + " ")
-                        label.set_style(z.idLabel, label.style_none)
+                        label.set_style(z.idLabel, label.style_label_center)
                         label.set_textcolor(z.idLabel, col_label_text)
-                        label.set_color(z.idLabel, col_label_clear)
-                        label.set_size(z.idLabel, size.tiny)
+                        label.set_color(z.idLabel, col_label_bg)
+                        label.set_size(z.idLabel, size.small)
                         label.set_textalign(z.idLabel, text.align_center)
 
 if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isconfirmed
@@ -3255,10 +3256,10 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
                         string supplyMetrics = zone_label_show_metrics and zone_label_style == "Detailed" ? ("  " + str.tostring(z.score, "#")) : ""
                         string supplyText = zone_label_style == "Detailed" ? (supplyDetailed + supplyMetrics) : supplyCompact
                         label.set_text(z.idLabel, waitingBos and not show_waiting_bos_zones ? "" : " " + supplyText + " ")
-                        label.set_style(z.idLabel, label.style_none)
+                        label.set_style(z.idLabel, label.style_label_center)
                         label.set_textcolor(z.idLabel, col_label_text)
-                        label.set_color(z.idLabel, col_label_clear)
-                        label.set_size(z.idLabel, size.tiny)
+                        label.set_color(z.idLabel, col_label_bg)
+                        label.set_size(z.idLabel, size.small)
                         label.set_textalign(z.idLabel, text.align_center)
 
 
