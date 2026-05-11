@@ -186,8 +186,6 @@ fractalsPeriod = 2  // Williams Fractals period
 plotLiq_user = input.bool(false, "Show Liquidity Pivot Lines", group = "🎨 Display")
 plotLiq = display_show_details or plotLiq_user
 show_fractals = input.bool(true, "Show Fractal Markers", group = "🎨 Display")
-pvtTopColor = color.red  // Visual colors
-pvtBtmColor = color.green
 pvtStyle    = line.style_solid
 show_liquidity_connectors_user = input.bool(false, "Show Liquidity Connectors & Lines", group = "🎨 Display")
 show_liquidity_connectors = display_show_details or show_liquidity_connectors_user
@@ -458,6 +456,8 @@ col_fractal_high = color.new(#A83F52, 18)
 col_fractal_low = color.new(#127C86, 18)
 col_liq_inducement = color.new(#D89B35, 25)
 col_liq_target = color.new(#6E7FAF, 25)
+pvtTopColor = col_fractal_high
+pvtBtmColor = col_fractal_low
 
 get_zone_bg_color(bool isDemand, bool isAccuracy) =>
     isDemand ? (isAccuracy ? col_acc_demand_bg : col_demand_bg) : (isAccuracy ? col_acc_supply_bg : col_supply_bg)
@@ -977,8 +977,8 @@ isZoneBaseBar  = (isFractalHigh_result or isFractalLow_result) ?
 fractalHigh = (not isZoneBaseBar and isFractalHigh_result) ? high[fractalsPeriod] : na
 fractalLow  = (not isZoneBaseBar and isFractalLow_result) ? low[fractalsPeriod] : na
 
-plotshape(show_fractals and not na(fractalHigh), style = shape.triangleup,   location = location.abovebar, color = color.green, size = size.small, offset = -fractalsPeriod)
-plotshape(show_fractals and not na(fractalLow),  style = shape.triangledown, location = location.belowbar, color = color.red,   size = size.small, offset = -fractalsPeriod)
+plotshape(show_fractals and not na(fractalHigh), style = shape.triangledown, location = location.abovebar, color = col_fractal_high, size = size.tiny, offset = -fractalsPeriod)
+plotshape(show_fractals and not na(fractalLow),  style = shape.triangleup,   location = location.belowbar, color = col_fractal_low,  size = size.tiny, offset = -fractalsPeriod)
 
 var array<float> liqPvtHighPrices = array.new_float()
 var array<int>   liqPvtHighBars   = array.new_int()
@@ -2456,7 +2456,7 @@ updateDemandLiquidityVisual(idx) =>
                 line.delete(z.inducementHLine)
 
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                color indColor = z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50)
+                color indColor = z.liquiditySwept ? color.new(col_liq_inducement, 0) : col_liq_inducement
                 int lineEnd = bar_index + 20
                 z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                                x2 = lineEnd, y2 = z.liqLowPrice,
@@ -2467,7 +2467,7 @@ updateDemandLiquidityVisual(idx) =>
                 line.delete(z.targetHLine)
 
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
-                color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
+                color tgtColor = z.targetSwept ? color.new(col_liq_target, 0) : col_liq_target
                 int lineEnd = bar_index + 20
                 z.targetHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                            x2 = lineEnd, y2 = z.liqHighPrice,
@@ -2522,7 +2522,7 @@ updateSupplyLiquidityVisual(idx) =>
                 line.delete(z.inducementHLine)
 
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
-                color indColor = z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50)
+                color indColor = z.liquiditySwept ? color.new(col_liq_inducement, 0) : col_liq_inducement
                 int lineEnd = bar_index + 20
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = lineEnd, y2 = z.liqHighPrice,
@@ -2533,7 +2533,7 @@ updateSupplyLiquidityVisual(idx) =>
                 line.delete(z.targetHLine)
 
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
+                color tgtColor = z.targetSwept ? color.new(col_liq_target, 0) : col_liq_target
                 int lineEnd = bar_index + 20
                 z.targetHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                            x2 = lineEnd, y2 = z.liqLowPrice,
@@ -2570,7 +2570,7 @@ updateSupplyLiquidityVisual(idx) =>
                 if not na(z.targetLine)
                     line.delete(z.targetLine)
 
-                targetColor = color.new(color.gray, 25)
+                targetColor = color.new(col_liq_target, 40)
                 targetStyle = line.style_solid
                 targetWidth = z.targetSwept ? 2 : 1
                 z.targetLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice, x2 = z.liqLowBar, y2 = z.liqLowPrice,
