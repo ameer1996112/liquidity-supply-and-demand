@@ -1509,36 +1509,39 @@ trimBaseTimeArrays() =>
     while array.size(used_supply_base_times) > maxCount
         array.pop(used_supply_base_times)
 
+clear_zone_visual_objects(Core.Zone z, bool includeTargetLine) =>
+    if not na(z.boxId)
+        box.delete(z.boxId)
+        z.boxId := na
+    if not na(z.connectorLine)
+        line.delete(z.connectorLine)
+        z.connectorLine := na
+    if includeTargetLine and not na(z.targetLine)
+        line.delete(z.targetLine)
+        z.targetLine := na
+    if not na(z.inducementHLine)
+        line.delete(z.inducementHLine)
+        z.inducementHLine := na
+    if not na(z.targetHLine)
+        line.delete(z.targetHLine)
+        z.targetHLine := na
+    if not na(z.idLabel)
+        label.delete(z.idLabel)
+        z.idLabel := na
+    z
+
 trimZoneArrays(bool isDemand) =>
     maxCount = max_zones
     if isDemand
         while array.size(demandZones) > maxCount
             Core.Zone z = array.pop(demandZones)
             db_markInactive(z.id, "max_pruned")  // Mark as inactive before removal
-            box.delete(z.boxId)
-            if not na(z.connectorLine)
-                line.delete(z.connectorLine)
-            if not na(z.inducementHLine)
-                line.delete(z.inducementHLine)
-            if not na(z.targetHLine)
-                line.delete(z.targetHLine)
-            if not na(z.idLabel)
-                label.delete(z.idLabel)
+            z := clear_zone_visual_objects(z, false)
     else
         while array.size(supplyZones) > maxCount
             Core.Zone z = array.pop(supplyZones)
             db_markInactive(z.id, "max_pruned")  // Mark as inactive before removal
-            box.delete(z.boxId)
-            if not na(z.connectorLine)
-                line.delete(z.connectorLine)
-            if not na(z.targetLine)
-                line.delete(z.targetLine)
-            if not na(z.inducementHLine)
-                line.delete(z.inducementHLine)
-            if not na(z.targetHLine)
-                line.delete(z.targetHLine)
-            if not na(z.idLabel)
-                label.delete(z.idLabel)
+            z := clear_zone_visual_objects(z, true)
 
 createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID) =>
     baseBarIdx = bar_index - baseIdx
@@ -2288,15 +2291,23 @@ deactivateDemandZone(idx) =>
     if idx >= 0 and idx < array.size(demandZones)
         Core.Zone z = array.get(demandZones, idx)
         z.active := false
-        box.set_bgcolor(z.boxId,col_demand_bg)
-        box.set_border_color(z.boxId,col_demand_border)
+        if display_is_clean
+            z := clear_zone_visual_objects(z, false)
+        else if not na(z.boxId)
+            box.set_bgcolor(z.boxId, color.new(col_demand_bg, 96))
+            box.set_border_color(z.boxId, color.new(col_demand_border, 75))
+        array.set(demandZones, idx, z)
 
 deactivateSupplyZone(idx) =>
     if idx >= 0 and idx < array.size(supplyZones)
         Core.Zone z = array.get(supplyZones, idx)
         z.active := false
-        box.set_bgcolor(z.boxId,col_supply_bg)
-        box.set_border_color(z.boxId,col_supply_border)
+        if display_is_clean
+            z := clear_zone_visual_objects(z, true)
+        else if not na(z.boxId)
+            box.set_bgcolor(z.boxId, color.new(col_supply_bg, 96))
+            box.set_border_color(z.boxId, color.new(col_supply_border, 75))
+        array.set(supplyZones, idx, z)
 
 deactivateOverlappingSupplyZones(refLow, refHigh) =>
     for k = 0 to array.size(supplyZones) - 1
@@ -2937,12 +2948,18 @@ if supplySize > 0
                 remove_zone_all_arrays(false, i)
 
 if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isconfirmed
+    int demand_visible_count = 0
     for i = 0 to cached_demand_size - 1
         if i >= array.size(demandZones)
             break
         Core.Zone z = array.get(demandZones, i)
         if z.active
-            if not na(z.createdBarIndex)
+            demand_visible_count += 1
+            bool should_show_zone_visual = demand_visible_count <= max_visible_zones_per_side
+            if not should_show_zone_visual
+                z := clear_zone_visual_objects(z, false)
+                array.set(demandZones, i, z)
+            else if not na(z.createdBarIndex)
                 int right_bar_index = bar_index + zone_right_padding_bars
                 if not na(z.boxId)
                     box.set_right(z.boxId, right_bar_index)
@@ -2962,12 +2979,18 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
                         label.set_textalign(z.idLabel, text.align_center)
 
 if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isconfirmed
+    int supply_visible_count = 0
     for i = 0 to cached_supply_size - 1
         if i >= array.size(supplyZones)
             break
         Core.Zone z = array.get(supplyZones, i)
         if z.active
-            if not na(z.createdBarIndex)
+            supply_visible_count += 1
+            bool should_show_zone_visual = supply_visible_count <= max_visible_zones_per_side
+            if not should_show_zone_visual
+                z := clear_zone_visual_objects(z, true)
+                array.set(supplyZones, i, z)
+            else if not na(z.createdBarIndex)
                 int right_bar_index = bar_index + zone_right_padding_bars
                 if not na(z.boxId)
                     box.set_right(z.boxId, right_bar_index)
