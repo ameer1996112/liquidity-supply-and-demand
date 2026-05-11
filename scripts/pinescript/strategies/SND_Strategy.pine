@@ -1292,6 +1292,10 @@ f_has_broken_own_level_since(bool isDemand, float ownLevel, int fromBar) =>
                         broken := true
     broken
 
+f_has_retracement_before_liquidity(bool isDemand, int pivotOffset) =>
+    int priorOffset = pivotOffset + 1
+    priorOffset <= bar_index and (isDemand ? close[priorOffset] < open[priorOffset] : close[priorOffset] > open[priorOffset])
+
 
 f_scan_demand_liquidity(int zoneArrayIndex) =>
     Core.Zone z = array.get(demandZones, zoneArrayIndex)
@@ -1302,6 +1306,7 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
         float bestLiqPrice = 1.0e10  // Start high, look for lowest valid pivot
         int bestLiqBar = na
         bool sawTouchingLiq = false
+        bool sawMissingRetracement = false
 
         int maxOff = bar_index - z.createdBarIndex - 2
 
@@ -1314,7 +1319,9 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
                     if pBar > z.createdBarIndex
                         int pivot_offset = off + 1  // The actual pivot is at off+1
                         int validation_lookback = 100
-                        bool isValidLiquidity = Core.validate_demand_liquidity(low, high, pivot_offset, validation_lookback, true)
+                        bool hasRetracement = f_has_retracement_before_liquidity(true, pivot_offset)
+                        bool isValidLiquidity = hasRetracement and Core.validate_demand_liquidity(low, high, pivot_offset, validation_lookback, true)
+                        sawMissingRetracement := sawMissingRetracement or not hasRetracement
 
                         if isValidLiquidity
                             float sideTol = syminfo.mintick * liq_side_tol_ticks
@@ -1406,7 +1413,7 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
             db_updateZoneLiquidity(z)
         else
             z.liquidityValid := false
-            z.inactiveReason := sawTouchingLiq ? "LIQ_TOUCH_ZONE" : "WAITING_PIVOT"
+            z.inactiveReason := sawTouchingLiq ? "LIQ_TOUCH_ZONE" : (sawMissingRetracement ? "WAITING_RETRACEMENT" : "WAITING_PIVOT")
 
         true
 
@@ -1419,6 +1426,7 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
         float bestLiqPrice = 0.0  // Start low, look for highest valid pivot
         int bestLiqBar = na
         bool sawTouchingLiq = false
+        bool sawMissingRetracement = false
 
         int maxOff = bar_index - z.createdBarIndex - 2
 
@@ -1431,7 +1439,9 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
                     if pBar > z.createdBarIndex
                         int pivot_offset = off + 1  // The actual pivot is at off+1
                         int validation_lookback = 100
-                        bool isValidLiquidity = Core.validate_supply_liquidity(high, low, pivot_offset, validation_lookback, true)
+                        bool hasRetracement = f_has_retracement_before_liquidity(false, pivot_offset)
+                        bool isValidLiquidity = hasRetracement and Core.validate_supply_liquidity(high, low, pivot_offset, validation_lookback, true)
+                        sawMissingRetracement := sawMissingRetracement or not hasRetracement
 
                         if isValidLiquidity
                             float sideTol = syminfo.mintick * liq_side_tol_ticks
@@ -1524,7 +1534,7 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
             db_updateZoneLiquidity(z)
         else
             z.liquidityValid := false
-            z.inactiveReason := sawTouchingLiq ? "LIQ_TOUCH_ZONE" : "WAITING_PIVOT"
+            z.inactiveReason := sawTouchingLiq ? "LIQ_TOUCH_ZONE" : (sawMissingRetracement ? "WAITING_RETRACEMENT" : "WAITING_PIVOT")
 
         true
 
