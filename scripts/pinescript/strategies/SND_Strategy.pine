@@ -218,6 +218,7 @@ show_ai_debug_comment = false
 zone_label_style = input.string("Compact", "Zone Label Style", options = ["Compact", "Detailed"], group = "🎨 Display")
 zone_label_show_metrics = input.bool(true, "Zone Label: Show Grade/Score", group = "🎨 Display")
 show_blocked_trade_labels = input.bool(false, "Show Blocked Trade Labels", group = "🎨 Display")
+show_invalidated_zones = input.bool(false, "Show Invalidated Zones", group = "🎨 Display", tooltip = "Debug view only. Shows zones that matched formation rules but were later invalidated by retest, close-inside, or tested-past logic.")
 long_label_offset_atr = 0.60
 long_label_offset_ticks = 0
 extend_bars          = 6
@@ -2011,7 +2012,8 @@ archive_zone_visual(bool isDemand, int idx, string removalReason) =>
                 line.delete(z.targetHLine)
                 z.targetHLine := na
             if not na(z.idLabel)
-                label.set_text(z.idLabel, " " + "D-" + str.tostring(z.id) + " " + removalReason + " ")
+                string archivedText = zone_label_style == "Detailed" ? ("D-" + str.tostring(z.id) + " " + removalReason) : ("D-" + str.tostring(z.id))
+                label.set_text(z.idLabel, " " + archivedText + " ")
             array.remove(demandZones, idx)
     else
         if idx >= 0 and idx < array.size(supplyZones)
@@ -2035,7 +2037,8 @@ archive_zone_visual(bool isDemand, int idx, string removalReason) =>
                 line.delete(z.targetHLine)
                 z.targetHLine := na
             if not na(z.idLabel)
-                label.set_text(z.idLabel, " " + "S-" + str.tostring(z.id) + " " + removalReason + " ")
+                string archivedText = zone_label_style == "Detailed" ? ("S-" + str.tostring(z.id) + " " + removalReason) : ("S-" + str.tostring(z.id))
+                label.set_text(z.idLabel, " " + archivedText + " ")
             array.remove(supplyZones, idx)
     true
 
@@ -3181,7 +3184,7 @@ if demandSize > 0
 
                 if can_remove_for_entry_failure or isTooOld
                     string removalReason = f_terminal_invalidation_reason(existingReason) ? existingReason : (tested_past_failure ? "TESTED_PAST" : (close_inside ? "CLOSE_INSIDE" : (opposing_tap ? "OPPOSING_TAP" : "removed")))
-                    if can_remove_for_entry_failure
+                    if can_remove_for_entry_failure and show_invalidated_zones
                         archive_zone_visual(true, i, removalReason)
                     else
                         remove_zone_all_arrays(true, i, removalReason)
@@ -3217,7 +3220,7 @@ if supplySize > 0
 
             if can_remove_for_entry_failure or isTooOld
                 string removalReason = f_terminal_invalidation_reason(existingReason) ? existingReason : (tested_past_failure ? "TESTED_PAST" : (close_inside ? "CLOSE_INSIDE" : (opposing_tap ? "OPPOSING_TAP" : "removed")))
-                if can_remove_for_entry_failure
+                if can_remove_for_entry_failure and show_invalidated_zones
                     archive_zone_visual(false, i, removalReason)
                 else
                     remove_zone_all_arrays(false, i, removalReason)
