@@ -184,6 +184,7 @@ liq_max_distance_pips_forex = input.float(33.9, "liq_max_distance_pips_forex", m
 liq_max_distance_pips_gold  = input.float(150.0, "liq_max_distance_pips_gold", minval = 5.0, group = "💧 Liquidity")
 liq_max_distance_pips_index = input.float(500.0, "liq_max_distance_pips_index", minval = 100.0, group = "💧 Liquidity")
 liq_zone_size_distance_mult = input.float(1.0, "liq_zone_size_distance_mult", minval = 0.0, step = 0.25, group = "💧 Liquidity")
+liq_atr_distance_mult = input.float(2.5, "liq_atr_distance_mult", minval = 0.0, step = 0.25, group = "💧 Liquidity")
 
 fractalsPeriod = 2  // Williams Fractals period
 plotLiq    = input.bool(true, "plotLiq", group = "🎨 Display")
@@ -270,8 +271,9 @@ float effective_tp_pips = take_profit_pips * pip_scale_factor
 f_liq_max_distance_price(float zoneTop, float zoneBottom) =>
     float fixedMaxPrice = effective_liq_max_dist * pip_size
     float zoneSizePrice = math.abs(zoneTop - zoneBottom)
-    float adaptiveMaxPrice = zoneSizePrice * liq_zone_size_distance_mult
-    math.max(fixedMaxPrice, adaptiveMaxPrice)
+    float zoneAdaptiveMaxPrice = zoneSizePrice * liq_zone_size_distance_mult
+    float volatilityMaxPrice = atr14 * liq_atr_distance_mult
+    math.max(fixedMaxPrice, math.max(zoneAdaptiveMaxPrice, volatilityMaxPrice))
 
 
 enable_trade_limit = input.bool(true, "enable_trade_limit", group = "⏰ Session & Limits")
