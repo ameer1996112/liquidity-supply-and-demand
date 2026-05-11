@@ -10,7 +10,7 @@ Thumbs.db
 *.swp
 *.swo
 *.code-workspace
-
+/data
 .vscode/
 .idea/
 
