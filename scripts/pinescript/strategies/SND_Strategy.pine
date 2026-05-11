@@ -189,7 +189,6 @@ show_fractals = input.bool(true, "Show Fractal Markers", group = "🎨 Display")
 pvtStyle    = line.style_solid
 show_liquidity_connectors_user = input.bool(false, "Show Liquidity Connectors & Lines", group = "🎨 Display")
 show_liquidity_connectors = display_show_details or show_liquidity_connectors_user
-liq_line_color = color.new(color.gray, 35)
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
 liq_link_lookback_bars = 400
@@ -458,6 +457,7 @@ col_liq_inducement = color.new(#D89B35, 25)
 col_liq_target = color.new(#6E7FAF, 25)
 pvtTopColor = col_fractal_high
 pvtBtmColor = col_fractal_low
+liq_line_color = color.new(col_liq_target, 45)
 
 get_zone_bg_color(bool isDemand, bool isAccuracy) =>
     isDemand ? (isAccuracy ? col_acc_demand_bg : col_demand_bg) : (isAccuracy ? col_acc_supply_bg : col_supply_bg)
@@ -4332,7 +4332,7 @@ _controlLine(_lines, _activeFlags, __high, __low) =>
             float tolerance = pip_size * 0.1
             bool isCrossed = (__high >= lvlLow - tolerance and __low <= lvlLow + tolerance) or (__high >= lvlHigh - tolerance and __low <= lvlHigh + tolerance)
             if isActive and isCrossed
-                line.set_color(lineRef, color.new(color.purple, 0))
+                line.set_color(lineRef, color.new(col_liq_target, 15))
                 if i < array.size(_activeFlags)
                     array.set(_activeFlags, i, false)
             else if isActive and (not isCrossed) and bar_index >= line.get_x1(lineRef)
