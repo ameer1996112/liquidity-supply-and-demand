@@ -2060,21 +2060,21 @@ count_active_zones(array<Core.Zone> zones) =>
 
 get_latest_zone_id_text() =>
     string latest = "N/A"
+    int latestBar = na
     int demandCount = array.size(demandZones)
     if demandCount > 0
         for i = 0 to demandCount - 1
             Core.Zone dz = array.get(demandZones, i)
-            if dz.active
+            if dz.active and (na(latestBar) or dz.createdBarIndex > latestBar)
                 latest := "D-" + str.tostring(dz.id)
-                break
-    if latest == "N/A"
-        int supplyCount = array.size(supplyZones)
-        if supplyCount > 0
-            for i = 0 to supplyCount - 1
-                Core.Zone sz = array.get(supplyZones, i)
-                if sz.active
-                    latest := "S-" + str.tostring(sz.id)
-                    break
+                latestBar := dz.createdBarIndex
+    int supplyCount = array.size(supplyZones)
+    if supplyCount > 0
+        for i = 0 to supplyCount - 1
+            Core.Zone sz = array.get(supplyZones, i)
+            if sz.active and (na(latestBar) or sz.createdBarIndex > latestBar)
+                latest := "S-" + str.tostring(sz.id)
+                latestBar := sz.createdBarIndex
     latest
 
 draw_compact_status_table(tbl) =>
@@ -4430,7 +4430,7 @@ var table compactStatusTable = na
 var label inspectorIndLabel = na
 var label inspectorTgtLabel = na
 
-if showZoneInspector and (display_show_details or debug_enabled) and isRecentBarForDebug()
+if showZoneInspector and display_show_details and isRecentBarForDebug()
     if na(zoneInspector)
         zoneInspector := table.new(position.bottom_right, 2, 35, 
              bgcolor = color.new(color.rgb(20, 25, 30), 10), 
