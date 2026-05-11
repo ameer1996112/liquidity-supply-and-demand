@@ -1915,11 +1915,6 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             z.score := Core.calculate_zone_score(isDemand, zTop, zBottom, baseIdx, legCandles, false, false, actualCandlesInBase, isAccuracy, is_uptrend, is_downtrend, time[baseIdx])
             z.grade := Core.get_grade_from_score(z.score)
 
-            bool hideLowGradeDebugLabel = str.startswith(z.grade, "C")
-            if hideLowGradeDebugLabel and not na(z.idLabel)
-                label.delete(z.idLabel)
-                z.idLabel := na
-
             int baseEndAbsolute = baseBarIdx + actualCandlesInBase - 1
             z.baseEndBarIndex := baseEndAbsolute
             float temp_base_quality = Core.calculate_base_quality(baseEndAbsolute, baseBarIdx, bar_index, high, low, open, close)
