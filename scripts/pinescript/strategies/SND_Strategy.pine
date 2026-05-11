@@ -2048,6 +2048,57 @@ var int stat_grade_C_wins  = 0
 
 var table performanceTable = na
 
+count_active_zones(array<Core.Zone> zones) =>
+    int count = 0
+    int zoneCount = array.size(zones)
+    if zoneCount > 0
+        for i = 0 to zoneCount - 1
+            Core.Zone z = array.get(zones, i)
+            if z.active
+                count += 1
+    count
+
+get_latest_zone_id_text() =>
+    string latest = "N/A"
+    if array.size(demandZones) > 0
+        Core.Zone dz = array.get(demandZones, 0)
+        if dz.active
+            latest := "D-" + str.tostring(dz.id)
+    if latest == "N/A" and array.size(supplyZones) > 0
+        Core.Zone sz = array.get(supplyZones, 0)
+        if sz.active
+            latest := "S-" + str.tostring(sz.id)
+    latest
+
+draw_compact_status_table(tbl) =>
+    table result = tbl
+    if showCompactStatusPanel
+        if na(result)
+            result := table.new(position.bottom_right, 2, 5,
+                 bgcolor = color.new(color.rgb(24, 29, 36), 8),
+                 frame_color = color.new(color.rgb(90, 100, 110), 75), frame_width = 1,
+                 border_color = color.new(color.rgb(70, 80, 90), 65), border_width = 1)
+        if barstate.isconfirmed
+            int activeDemandCount = count_active_zones(demandZones)
+            int activeSupplyCount = count_active_zones(supplyZones)
+            string aiState = enable_ai_quality_filter ? "ON" : "OFF"
+            string hoursState = is_outside_trading_hours() ? "Closed" : "Open"
+            table.cell(result, 0, 0, "STATUS", text_color = color.white, bgcolor = color.new(color.rgb(35, 42, 50), 0), text_size = size.tiny, text_halign = text.align_left)
+            table.cell(result, 1, 0, display_mode, text_color = color.rgb(210, 225, 235), bgcolor = color.new(color.rgb(35, 42, 50), 0), text_size = size.tiny, text_halign = text.align_right)
+            table.cell(result, 0, 1, "Demand", text_color = TBL_LBL, bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_right)
+            table.cell(result, 1, 1, str.tostring(activeDemandCount), text_color = col_demand_border, bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_left)
+            table.cell(result, 0, 2, "Supply", text_color = TBL_LBL, bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_right)
+            table.cell(result, 1, 2, str.tostring(activeSupplyCount), text_color = col_supply_border, bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_left)
+            table.cell(result, 0, 3, "Latest", text_color = TBL_LBL, bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_right)
+            table.cell(result, 1, 3, get_latest_zone_id_text(), text_color = color.rgb(220, 225, 230), bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_left)
+            table.cell(result, 0, 4, "AI / Hours", text_color = TBL_LBL, bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_right)
+            table.cell(result, 1, 4, aiState + " / " + hoursState, text_color = hoursState == "Open" ? color.rgb(80, 190, 140) : color.rgb(210, 150, 80), bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_left)
+    else
+        if not na(result)
+            table.delete(result)
+            result := na
+    result
+
 draw_performance_table(tbl) =>
     table result = tbl
 
@@ -4368,6 +4419,7 @@ if plotLiq and barstate.isconfirmed
     _controlLine(_highLiqLines, _highLiqActive, high, low)
 
 var table zoneInspector = na
+var table compactStatusTable = na
 var label inspectorIndLabel = na
 var label inspectorTgtLabel = na
 
@@ -4888,6 +4940,7 @@ else
         table.delete(zoneInspector)
         zoneInspector := na
 
+compactStatusTable := draw_compact_status_table(compactStatusTable)
 performanceTable := draw_performance_table(performanceTable)
 
 var table profileStatusTable = na
