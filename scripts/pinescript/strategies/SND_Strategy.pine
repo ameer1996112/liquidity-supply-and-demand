@@ -158,8 +158,17 @@ float structure_high_20 = ta.highest(high, 20)
 float structure_low_20 = ta.lowest(low, 20)
 
 
+display_mode = input.string("Clean", "Display Mode",
+     options = ["Clean", "Analysis", "Debug"],
+     group = "🎨 Display")
+display_is_clean = display_mode == "Clean"
+display_is_analysis = display_mode == "Analysis"
+display_is_debug = display_mode == "Debug"
+display_show_details = display_is_analysis or display_is_debug
+
 invalidate_on_wick   = input.bool(true, "Invalidate on Wick Touch", group = "📐 Zone Detection")
-max_zones            = input.int(20, "Max Zones Displayed", minval = 1, maxval = 50, group = "📐 Zone Detection")
+max_zones            = input.int(4, "Max Zones Displayed (Per Side)", minval = 1, maxval = 50, group = "📐 Zone Detection")
+zone_right_padding_bars = input.int(10, "Zone Right Padding Bars", minval = 1, maxval = 100, group = "🎨 Display")
 min_body_perc        = input.float(50.0, "Min Body %", minval = 0, maxval = 100, group = "📐 Zone Detection")
 structure_mode      = input.string("Relaxed (Wicks)", "Structure Detection", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
 
@@ -173,12 +182,14 @@ liq_max_distance_pips_gold  = input.float(150.0, "Max Distance - Gold (pips)", m
 liq_max_distance_pips_index = input.float(500.0, "Max Distance - Indices (pips)", minval = 100.0, group = "💧 Liquidity")
 
 fractalsPeriod = 2  // Williams Fractals period
-plotLiq    = input.bool(true, "Show Liquidity Pivot Lines", group = "🎨 Display")
-show_fractals = input.bool(true, "Show Fractal Triangles", group = "🎨 Display")
+plotLiq_user = input.bool(false, "Show Liquidity Pivot Lines", group = "🎨 Display")
+plotLiq = display_show_details or plotLiq_user
+show_fractals = input.bool(true, "Show Fractal Markers", group = "🎨 Display")
 pvtTopColor = color.red  // Visual colors
 pvtBtmColor = color.green
 pvtStyle    = line.style_solid
-show_liquidity_connectors = input.bool(true, "Show Liquidity Connectors & Lines", group = "🎨 Display")
+show_liquidity_connectors_user = input.bool(false, "Show Liquidity Connectors & Lines", group = "🎨 Display")
+show_liquidity_connectors = display_show_details or show_liquidity_connectors_user
 liq_line_color = color.new(color.gray, 35)
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
@@ -194,8 +205,10 @@ show_demand_zones    = true
 show_supply_zones    = true
 show_entry_labels    = true
 show_ai_debug_comment = false
-zone_label_style = input.string("Compact", "Zone Label Style", options = ["Compact", "Detailed"], group = "🎨 Display")
-zone_label_show_metrics = input.bool(true, "Zone Label: Show Grade/Score", group = "🎨 Display")
+zone_label_style_input = input.string("Compact", "Zone Label Style", options = ["Compact", "Detailed"], group = "🎨 Display")
+zone_label_style = display_is_clean ? "Compact" : zone_label_style_input
+zone_label_show_metrics_input = input.bool(true, "Zone Label: Show Grade/Score", group = "🎨 Display")
+zone_label_show_metrics = display_show_details and zone_label_show_metrics_input
 show_blocked_trade_labels = input.bool(false, "Show Blocked Trade Labels", group = "🎨 Display")
 long_label_offset_atr = 0.60
 long_label_offset_ticks = 0
@@ -231,7 +244,8 @@ show_debug_labels      = false
 zone_label_size       = "Tiny"
 debug_level           = input.string("None", "Debug Level", options = ["None", "Basic", "Full"], group = "🎨 Display")
 debug_last_bars       = 200
-showZoneInspector     = input.bool(true, "Zone Inspector Panel", group = "🎨 Display")
+showZoneInspector = input.bool(false, "Zone Inspector Panel", group = "🎨 Display") or display_show_details
+showCompactStatusPanel = input.bool(true, "Compact Status Panel", group = "🎨 Display") and display_is_clean
 manual_zone_id_input  = input.string(
      "",
      "Zone Inspector: Zone ID (optional)",
@@ -400,10 +414,10 @@ if use_profile_defaults
     require_htf_flip := (is_conservative or is_balanced) and not (is_gold or is_index or is_xpt)
     stop_loss_buffer_pips := 1.0
 
-debug_enabled   = debug_level != "None"
-debug_full      = (debug_level == "Full") or (debug_level != "None" and debug_mode)
+debug_enabled   = display_is_debug or debug_level != "None"
+debug_full      = display_is_debug or (debug_level == "Full") or (debug_level != "None" and debug_mode)
 debug_basic     = debug_level == "Basic"
-showDebugPanels = (debug_level != "None")
+showDebugPanels = display_is_debug or (debug_level != "None")
 
 var int last_bar_index_for_debug = na
 last_bar_index_for_debug := bar_index
