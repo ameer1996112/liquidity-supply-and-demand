@@ -4376,7 +4376,7 @@ var table zoneInspector = na
 var label inspectorIndLabel = na
 var label inspectorTgtLabel = na
 
-if showZoneInspector and debug_enabled and isRecentBarForDebug()
+if showZoneInspector and (display_show_details or debug_enabled) and isRecentBarForDebug()
     if na(zoneInspector)
         zoneInspector := table.new(position.bottom_right, 2, 35, 
              bgcolor = color.new(color.rgb(20, 25, 30), 10), 
