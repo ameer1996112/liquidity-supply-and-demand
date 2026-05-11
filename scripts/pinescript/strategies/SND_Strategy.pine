@@ -1660,16 +1660,22 @@ delete_zone_visuals(Core.Zone z) =>
     if not na(z.idLabel)
         label.delete(z.idLabel)
 
-remove_overlapping_existing_zones(bool isDemand, float refBottom, float refTop) =>
+remove_overlapping_existing_zones(bool isDemand, float refBottom, float refTop, int newCreatedBar) =>
+    bool shouldCreate = true
     if isDemand
         int demandK = array.size(demandZones) - 1
         while demandK >= 0
             Core.Zone z = array.get(demandZones, demandK)
             bool overlaps = z.active and not (z.top < refBottom or z.bottom > refTop)
             if overlaps
-                db_markInactive(z.id, "OVERLAPPED")
-                delete_zone_visuals(z)
-                array.remove(demandZones, demandK)
+                bool existingIsOlder = na(z.createdBarIndex) or z.createdBarIndex <= newCreatedBar
+                if existingIsOlder
+                    shouldCreate := false
+                    break
+                else
+                    db_markInactive(z.id, "OVERLAPPED")
+                    delete_zone_visuals(z)
+                    array.remove(demandZones, demandK)
             demandK -= 1
     else
         int supplyK = array.size(supplyZones) - 1
@@ -1677,10 +1683,16 @@ remove_overlapping_existing_zones(bool isDemand, float refBottom, float refTop) 
             Core.Zone z = array.get(supplyZones, supplyK)
             bool overlaps = z.active and not (z.top < refBottom or z.bottom > refTop)
             if overlaps
-                db_markInactive(z.id, "OVERLAPPED")
-                delete_zone_visuals(z)
-                array.remove(supplyZones, supplyK)
+                bool existingIsOlder = na(z.createdBarIndex) or z.createdBarIndex <= newCreatedBar
+                if existingIsOlder
+                    shouldCreate := false
+                    break
+                else
+                    db_markInactive(z.id, "OVERLAPPED")
+                    delete_zone_visuals(z)
+                    array.remove(supplyZones, supplyK)
             supplyK -= 1
+    shouldCreate
 
 f_body_top(float candleOpen, float candleClose) =>
     math.max(candleOpen, candleClose)
@@ -1885,7 +1897,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         color zoneBgColor = na
         color zoneBorderColorFinal = na
 
-        if not na(zTop) and not na(zBottom)
+        if not na(zTop) and not na(zBottom) and remove_overlapping_existing_zones(isDemand, zBottom, zTop, baseBarIdx)
             zoneBorderWidth := isAccuracy ? 2 : 1  // Slightly thicker border for accuracy zones
 
             bool showAccuracyAtCreate = isAccuracy and not isHistorical
@@ -1902,8 +1914,6 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 zoneBorderColorFinal := isDemand ? col_demand_border : col_supply_border
 
             int initialRightBar = f_zone_right_bar(baseBarIdx)
-            remove_overlapping_existing_zones(isDemand, zBottom, zTop)
-
             box b = box.new(left = baseBarIdx, top = zTop, right = initialRightBar, bottom = zBottom,
                  border_color = zoneBorderColorFinal,
                  border_width = zoneBorderWidth,
