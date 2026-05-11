@@ -1273,6 +1273,7 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
     else
         float bestLiqPrice = 1.0e10  // Start high, look for lowest valid pivot
         int bestLiqBar = na
+        bool sawTouchingLiq = false
 
         int maxOff = bar_index - z.createdBarIndex - 2
 
@@ -1288,15 +1289,11 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
                         bool isValidLiquidity = Core.validate_demand_liquidity(low, high, pivot_offset, validation_lookback, true)
 
                         if isValidLiquidity
-                            bool isValidLocation = false
-                            float distFromZone = 0.0
-
-                            if use_inducement_linking
-                                isValidLocation := pLow > z.top
-                                distFromZone := pLow - z.top
-                            else
-                                isValidLocation := pLow < z.bottom
-                                distFromZone := z.bottom - pLow
+                            float sideTol = syminfo.mintick * liq_side_tol_ticks
+                            bool touchesZone = f_liquidity_touches_zone(true, pLow, z.top, z.bottom, sideTol)
+                            bool isValidLocation = f_demand_liq_is_in_front(pLow, z.top, sideTol) and not touchesZone
+                            float distFromZone = pLow - z.top
+                            sawTouchingLiq := sawTouchingLiq or touchesZone
 
                             if isValidLocation
                                 float minDistPrice = effective_liq_min_dist * pip_size
@@ -1363,15 +1360,15 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
             z.liquidityCandleCount := demandLegCount
             z.legCandleCount := demandLegCount
 
-            int minLegCandles = useOneCandleLiquidity ? 1 : 2
-            bool hasStrongLeg = demandLegCount >= minLegCandles
-            z.liquidityValid := hasStrongLeg
-            z.inactiveReason := hasStrongLeg ? na : "WAITING_STRONG_LIQUIDITY"
-
             z.liqSource := "MAKUCHAKU_PIVOT"
 
             z.structureSweepLevel := z.liqHighPrice
             z.structureSweepLevelBar := z.liqHighBar
+            int minLegCandles = useOneCandleLiquidity ? 1 : 2
+            bool hasStrongLeg = demandLegCount >= minLegCandles
+            bool ownHighBroken = hasStrongLeg and f_has_broken_own_level_since(true, z.liqHighPrice, z.liqLowBar)
+            z.liquidityValid := ownHighBroken
+            z.inactiveReason := ownHighBroken ? na : (hasStrongLeg ? "WAITING_BOS" : "WAITING_STRONG_LIQUIDITY")
 
             int indOff = bar_index - bestLiqBar
             int tgtOff = na(z.liqHighBar) ? na : (bar_index - z.liqHighBar)
@@ -1381,7 +1378,7 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
             db_updateZoneLiquidity(z)
         else
             z.liquidityValid := false
-            z.inactiveReason := "WAITING_PIVOT"
+            z.inactiveReason := sawTouchingLiq ? "LIQ_TOUCH_ZONE" : "WAITING_PIVOT"
 
         true
 
@@ -1393,6 +1390,7 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
     else
         float bestLiqPrice = 0.0  // Start low, look for highest valid pivot
         int bestLiqBar = na
+        bool sawTouchingLiq = false
 
         int maxOff = bar_index - z.createdBarIndex - 2
 
@@ -1408,15 +1406,11 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
                         bool isValidLiquidity = Core.validate_supply_liquidity(high, low, pivot_offset, validation_lookback, true)
 
                         if isValidLiquidity
-                            bool isValidLocation = false
-                            float distFromZone = 0.0
-
-                            if use_inducement_linking
-                                isValidLocation := pHigh < z.bottom
-                                distFromZone := z.bottom - pHigh
-                            else
-                                isValidLocation := pHigh > z.top
-                                distFromZone := pHigh - z.top
+                            float sideTol = syminfo.mintick * liq_side_tol_ticks
+                            bool touchesZone = f_liquidity_touches_zone(false, pHigh, z.top, z.bottom, sideTol)
+                            bool isValidLocation = f_supply_liq_is_in_front(pHigh, z.bottom, sideTol) and not touchesZone
+                            float distFromZone = z.bottom - pHigh
+                            sawTouchingLiq := sawTouchingLiq or touchesZone
 
                             if isValidLocation
                                 float distFromZoneCheck = distFromZone
@@ -1484,15 +1478,15 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
             z.liquidityCandleCount := supplyLegCount
             z.legCandleCount := supplyLegCount
 
-            int minLegCandles = useOneCandleLiquidity ? 1 : 2
-            bool hasStrongLeg = supplyLegCount >= minLegCandles
-            z.liquidityValid := hasStrongLeg
-            z.inactiveReason := hasStrongLeg ? na : "WAITING_STRONG_LIQUIDITY"
-
             z.liqSource := "MAKUCHAKU_PIVOT"
 
             z.structureSweepLevel := z.liqLowPrice
             z.structureSweepLevelBar := z.liqLowBar
+            int minLegCandles = useOneCandleLiquidity ? 1 : 2
+            bool hasStrongLeg = supplyLegCount >= minLegCandles
+            bool ownLowBroken = hasStrongLeg and f_has_broken_own_level_since(false, z.liqLowPrice, z.liqHighBar)
+            z.liquidityValid := ownLowBroken
+            z.inactiveReason := ownLowBroken ? na : (hasStrongLeg ? "WAITING_BOS" : "WAITING_STRONG_LIQUIDITY")
 
             int indOff = bar_index - bestLiqBar
             int tgtOff = na(z.liqLowBar) ? na : (bar_index - z.liqLowBar)
@@ -1502,7 +1496,7 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
             db_updateZoneLiquidity(z)
         else
             z.liquidityValid := false
-            z.inactiveReason := "WAITING_PIVOT"
+            z.inactiveReason := sawTouchingLiq ? "LIQ_TOUCH_ZONE" : "WAITING_PIVOT"
 
         true
 
@@ -1645,6 +1639,33 @@ f_is_supply_source(int sourceIdx, int displacementCount) =>
             if displacementIdx < 0 or not Utils.is_bearish(close[displacementIdx], open[displacementIdx])
                 valid := false
     valid
+
+f_liquidity_touches_zone(bool isDemand, float liqPrice, float zoneTop, float zoneBottom, float sideTol) =>
+    bool touches = false
+    if not na(liqPrice)
+        touches := liqPrice <= zoneTop + sideTol and liqPrice >= zoneBottom - sideTol
+    touches
+
+f_demand_liq_is_in_front(float liqPrice, float zoneTop, float sideTol) =>
+    not na(liqPrice) and liqPrice > zoneTop + sideTol
+
+f_supply_liq_is_in_front(float liqPrice, float zoneBottom, float sideTol) =>
+    not na(liqPrice) and liqPrice < zoneBottom - sideTol
+
+f_has_broken_own_level_since(bool isDemand, float ownLevel, int fromBar) =>
+    bool broken = false
+    if not na(ownLevel) and not na(fromBar)
+        int startOffset = bar_index - fromBar
+        if startOffset >= 0
+            int cappedStartOffset = math.min(startOffset, 5000)
+            for off = 0 to cappedStartOffset
+                if isDemand
+                    if high[off] >= ownLevel
+                        broken := true
+                else
+                    if low[off] <= ownLevel
+                        broken := true
+    broken
 
 f_zone_bounds(bool isDemand, int sourceIdx, int displacementIdx, bool isAccuracy) =>
     float sourceHigh = high[sourceIdx]
