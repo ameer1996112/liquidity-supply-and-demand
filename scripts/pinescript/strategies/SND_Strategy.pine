@@ -4757,7 +4757,7 @@ if showZoneInspector and (display_show_details or debug_enabled) and isRecentBar
         if not na(targetPrice)
             targetStr := str.tostring(targetPrice, format.mintick) + " @ " + str.tostring(targetBar)
         table.cell(zoneInspector, 0, nextRow, targetLabel, text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-        targetColor = targetStr != "N/A" ? color.new(color.purple, 0) : color.rgb(150, 150, 150)
+        targetColor = targetStr != "N/A" ? color.new(col_liq_target, 0) : color.rgb(150, 150, 150)
         table.cell(zoneInspector, 1, nextRow, targetStr, text_color = targetColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
         nextRow += 1
 
@@ -4860,7 +4860,7 @@ if showZoneInspector and (display_show_details or debug_enabled) and isRecentBar
             if not na(indTime) and not na(inducementPrice)
                 string indFormat = (isInspectorDemand ? "📍 IND (L): " : "📍 IND (H): ") + str.tostring(inducementPrice, format.mintick) + " @ " + str.tostring(inducementBar)
                 if na(inspectorIndLabel)
-                    inspectorIndLabel := label.new(indTime, inducementPrice, indFormat, xloc=xloc.bar_time, style=label.style_label_up, color=color.new(color.orange, 20), textcolor=color.white, size=size.small)
+                    inspectorIndLabel := label.new(indTime, inducementPrice, indFormat, xloc=xloc.bar_time, style=label.style_label_up, color=color.new(col_liq_inducement, 20), textcolor=color.white, size=size.small)
                 else
                     label.set_xy(inspectorIndLabel, indTime, inducementPrice)
                     label.set_text(inspectorIndLabel, indFormat)
@@ -4871,7 +4871,7 @@ if showZoneInspector and (display_show_details or debug_enabled) and isRecentBar
             if not na(targetTime) and not na(targetPrice)
                 string tgtFormat = (isInspectorDemand ? "🎯 TARGET (H): " : "🎯 TARGET (L): ") + str.tostring(targetPrice, format.mintick) + " @ " + str.tostring(targetBar)
                 if na(inspectorTgtLabel)
-                    inspectorTgtLabel := label.new(targetTime, targetPrice, tgtFormat, xloc=xloc.bar_time, style=label.style_label_down, color=color.new(color.purple, 20), textcolor=color.white, size=size.small)
+                    inspectorTgtLabel := label.new(targetTime, targetPrice, tgtFormat, xloc=xloc.bar_time, style=label.style_label_down, color=color.new(col_liq_target, 20), textcolor=color.white, size=size.small)
                 else
                     label.set_xy(inspectorTgtLabel, targetTime, targetPrice)
                     label.set_text(inspectorTgtLabel, tgtFormat)
