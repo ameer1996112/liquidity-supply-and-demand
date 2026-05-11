@@ -1584,6 +1584,16 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         float baseLow  = low[baseIdx]
         float baseOpen = open[baseIdx]
         float baseClose = close[baseIdx]
+        float departureWickLow = baseLow
+        float departureWickHigh = baseHigh
+
+        for k = 1 to legCandles
+            int departureIdx = baseIdx - k
+            if departureIdx >= 0
+                if low[departureIdx] < departureWickLow
+                    departureWickLow := low[departureIdx]
+                if high[departureIdx] > departureWickHigh
+                    departureWickHigh := high[departureIdx]
 
         // ── v3.2: Body/wick split zone detection (Mangoe methodology) ──────
         // Tracks both body range and wick range separately:
@@ -1694,15 +1704,15 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 if isDemand
                     // Demand Accuracy: Top = OPEN (body top), Bottom = LOW (extreme)
                     zTop := baseOpen
-                    zBottom := baseLow
+                    zBottom := departureWickLow
                 else
                     // Supply Accuracy: Top = HIGH (extreme), Bottom = OPEN (body bottom)
-                    zTop := baseHigh
+                    zTop := departureWickHigh
                     zBottom := baseOpen
             else
                 // Normal zones: full candle range
-                zTop := baseHigh
-                zBottom := baseLow
+                zTop := isDemand ? baseHigh : departureWickHigh
+                zBottom := isDemand ? departureWickLow : baseLow
 
             // Cap zone size
             float max_zone_size = 50.0 * pip_size
