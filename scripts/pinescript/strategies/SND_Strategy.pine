@@ -1744,10 +1744,6 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 z.baseQuality := 50.0
                 z.departureStrength := 50.0
 
-            if show_grade_on_zone and zone_label_style == "Compact"
-                string gradeStr = "[" + z.grade + "] "
-                label.set_text(idLbl, gradeStr + id_text)
-
             if isDemand
                 array.unshift(demandZones, z)
                 db_upsertZone(z, "DEMAND")
