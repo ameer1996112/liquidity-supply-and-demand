@@ -1652,6 +1652,19 @@ f_demand_liq_is_in_front(float liqPrice, float zoneTop, float sideTol) =>
 f_supply_liq_is_in_front(float liqPrice, float zoneBottom, float sideTol) =>
     not na(liqPrice) and liqPrice < zoneBottom - sideTol
 
+f_close_inside_zone(float candleClose, float zoneTop, float zoneBottom) =>
+    candleClose <= zoneTop and candleClose >= zoneBottom
+
+f_wick_touches_zone(bool isDemand, float candleHigh, float candleLow, float zoneTop, float zoneBottom) =>
+    candleLow <= zoneTop and candleHigh >= zoneBottom
+
+f_is_opposing_tap(bool isDemand, float candleOpen, float candleClose, float candleHigh, float candleLow, float zoneTop, float zoneBottom) =>
+    bool opposing = isDemand ? candleClose < candleOpen : candleClose > candleOpen
+    opposing and f_wick_touches_zone(isDemand, candleHigh, candleLow, zoneTop, zoneBottom)
+
+f_terminal_invalidation_reason(string reason) =>
+    reason == "CLOSE_INSIDE" or reason == "OPPOSING_TAP" or reason == "LIQ_TOUCH_ZONE" or reason == "LIQ_WRONG_SIDE" or reason == "TESTED_PAST"
+
 f_has_broken_own_level_since(bool isDemand, float ownLevel, int fromBar) =>
     bool broken = false
     if not na(ownLevel) and not na(fromBar)
@@ -1920,11 +1933,11 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 db_upsertZone(z, "SUPPLY")
                 trimZoneArrays(false)
 
-remove_zone_all_arrays(bool isDemand, int idx) =>
+remove_zone_all_arrays(bool isDemand, int idx, string removalReason) =>
     if isDemand
         if idx >= 0 and idx < array.size(demandZones)
             Core.Zone z = array.get(demandZones, idx)
-            db_markInactive(z.id, "removed")  // Mark as inactive before removal
+            db_markInactive(z.id, removalReason)  // Mark as inactive before removal
             box.delete(z.boxId)
             if not na(z.connectorLine)
                 line.delete(z.connectorLine)
@@ -1942,7 +1955,7 @@ remove_zone_all_arrays(bool isDemand, int idx) =>
     else
         if idx >= 0 and idx < array.size(supplyZones)
             Core.Zone z = array.get(supplyZones, idx)
-            db_markInactive(z.id, "removed")  // Mark as inactive before removal
+            db_markInactive(z.id, removalReason)  // Mark as inactive before removal
             box.delete(z.boxId)
             if not na(z.connectorLine)
                 line.delete(z.connectorLine)
@@ -1982,7 +1995,7 @@ archive_tested_zone(bool isDemand, int idx, string reason) =>
                 array.set(demandZones, idx, z)
                 true
             else
-                remove_zone_all_arrays(true, idx)
+                remove_zone_all_arrays(true, idx, reason)
                 true
     else
         if idx >= 0 and idx < array.size(supplyZones)
@@ -2004,7 +2017,7 @@ archive_tested_zone(bool isDemand, int idx, string reason) =>
                 array.set(supplyZones, idx, z)
                 true
             else
-                remove_zone_all_arrays(false, idx)
+                remove_zone_all_arrays(false, idx, reason)
                 true
 
 getLiquidityDistance(Core.Zone z, bool isSupply) =>
@@ -2955,6 +2968,9 @@ if cached_demand_size > 0 and barstate.isconfirmed
                 f_scan_demand_liquidity(i)
 
             f_check_demand_sweeps(i)
+            if i >= array.size(demandZones)
+                continue
+            z := array.get(demandZones, i)
 
             updateDemandLiquidityVisual(i)
 
@@ -2965,53 +2981,27 @@ if cached_demand_size > 0 and barstate.isconfirmed
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
 
-                bool closes_inside = close <= z.top and close >= z.bottom
+                bool opposing_tap = f_is_opposing_tap(true, open, close, high, low, z.top, z.bottom)
+                bool closes_inside = f_close_inside_zone(close, z.top, z.bottom)
+                bool current_bar_sweeping = not na(z.structureSweepLevel) and high >= z.structureSweepLevel
+                bool should_invalidate_pre_sweep = is_future_bar and z.leftZone and not z.liquiditySwept and not current_bar_sweeping and (opposing_tap or closes_inside)
 
-                bool breaches_zone = low < z.bottom
-
-                bool wicks_into_zone = low <= z.top and low >= z.bottom
-
-                bool current_bar_sweeping = not na(z.structureSweepLevel) and high > z.structureSweepLevel
-
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone)
-                    int touchBarNow = bar_index
-                    z.lastTouchBar := touchBarNow
+                if should_invalidate_pre_sweep
+                    z.lastTouchBar := bar_index
                     z.wasTouched := true
+                    z.touchedPreSweep := true
+                    z.inactiveReason := closes_inside ? "CLOSE_INSIDE" : "OPPOSING_TAP"
 
                     // Incremental peak update: just check current bar vs stored peak (O(1) instead of O(N))
                     if na(z.peakPrice) or high > z.peakPrice
                         z.peakPrice := high
                         z.peakBarIndex := bar_index
-                        array.set(demandZones, i, z)
-                        db_updateZoneLiquidity(z)
 
-                    bool is_liq_bar = false
-                    if not na(z.liquidityBarIndex) and touchBarNow == z.liquidityBarIndex
-                        is_liq_bar := true
-                    else if not na(z.liqLowBar) and touchBarNow == z.liqLowBar
-                        is_liq_bar := true
-                    else if not na(z.liqHighBar) and touchBarNow == z.liqHighBar
-                        is_liq_bar := true
-
-                    int liq_anchor_bar = na
-                    if not na(z.liquidityBarIndex)
-                        liq_anchor_bar := z.liquidityBarIndex
-                    else if not na(z.liqLowBar)
-                        liq_anchor_bar := z.liqLowBar
-                    else if not na(z.liqHighBar)
-                        liq_anchor_bar := z.liqHighBar
-
-                    bool delayed_retouch = not na(liq_anchor_bar) and (touchBarNow - liq_anchor_bar >= 4)
-
-                    if is_liq_bar or delayed_retouch
-                        z.touchedPreSweep := true
-
-                bool pre_sweep_touch_invalidates = closes_inside or breaches_zone or (invalidate_on_wick and wicks_into_zone)
-                if is_future_bar and z.leftZone and not z.liquiditySwept and pre_sweep_touch_invalidates and not current_bar_sweeping
-                    z.mitigated := true
-                    z.inactiveReason := "PRE_SWEEP_ZONE_TOUCH"
                     array.set(demandZones, i, z)
-                    db_markInactive(z.id, z.inactiveReason)
+                    db_updateZoneLiquidity(z)
+
+                    z.mitigated := true
+                    array.set(demandZones, i, z)
 
 if cached_supply_size > 0 and barstate.isconfirmed
     current_close = close
@@ -3065,6 +3055,9 @@ if cached_supply_size > 0 and barstate.isconfirmed
                 f_scan_supply_liquidity(i)
 
             f_check_supply_sweeps(i)
+            if i >= array.size(supplyZones)
+                continue
+            z := array.get(supplyZones, i)
 
             updateSupplyLiquidityVisual(i)
 
@@ -3074,37 +3067,33 @@ if cached_supply_size > 0 and barstate.isconfirmed
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
 
-                bool closes_inside = close >= z.bottom and close <= z.top
+                bool opposing_tap = f_is_opposing_tap(false, open, close, high, low, z.top, z.bottom)
+                bool closes_inside = f_close_inside_zone(close, z.top, z.bottom)
+                bool current_bar_sweeping = not na(z.structureSweepLevel) and low <= z.structureSweepLevel
+                bool should_invalidate_pre_sweep = is_future_bar and z.leftZone and not z.liquiditySwept and not current_bar_sweeping and (opposing_tap or closes_inside)
 
-                bool breaches_zone = high > z.top
-
-                bool wicks_into_zone = high >= z.bottom and high <= z.top
-
-                bool current_bar_sweeping = not na(z.structureSweepLevel) and low < z.structureSweepLevel
-
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone)
+                if should_invalidate_pre_sweep
                     z.lastTouchBar := bar_index
                     z.wasTouched := true
                     z.touchedPreSweep := true
+                    z.inactiveReason := closes_inside ? "CLOSE_INSIDE" : "OPPOSING_TAP"
 
                     // Incremental peak update: just check current bar vs stored peak (O(1) instead of O(N))
                     if na(z.peakPrice) or low < z.peakPrice
                         z.peakPrice := low
                         z.peakBarIndex := bar_index
-                        array.set(supplyZones, i, z)
-                        db_updateZoneLiquidity(z)
 
-                bool pre_sweep_touch_invalidates = closes_inside or breaches_zone or (invalidate_on_wick and wicks_into_zone)
-                if is_future_bar and z.leftZone and not z.liquiditySwept and pre_sweep_touch_invalidates and not current_bar_sweeping
-                    z.mitigated := true
-                    z.inactiveReason := "PRE_SWEEP_ZONE_TOUCH"
                     array.set(supplyZones, i, z)
-                    db_markInactive(z.id, z.inactiveReason)
+                    db_updateZoneLiquidity(z)
+
+                    z.mitigated := true
+                    array.set(supplyZones, i, z)
 
 int demandSize = array.size(demandZones)
 if demandSize > 0
     current_close = close
     current_open  = open
+    current_high  = high
     current_low   = low
     bool is_bearish_c  = current_close < current_open
     pip_buffer    = pip_size * 0.1
@@ -3119,25 +3108,30 @@ if demandSize > 0
                 if current_close > z.top and not z.leftZone
                     z.leftZone := true
                     z.leftWithBearish := current_close < current_open
+                    array.set(demandZones, i, z)
 
                 bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
 
-                bool bearish_close_inside = current_close <= z.top and current_close >= z.bottom
-                bool close_below_zone     = current_close < z.bottom
+                bool close_inside = f_close_inside_zone(current_close, z.top, z.bottom)
+                bool close_below_zone = current_close < z.bottom
                 bool wick_below_zone = current_low < z.bottom
+                bool opposing_tap = f_is_opposing_tap(true, current_open, current_close, current_high, current_low, z.top, z.bottom)
+                bool current_bar_sweeping = not na(z.structureSweepLevel) and current_high >= z.structureSweepLevel
+                bool tested_past_failure = close_below_zone or (is_bearish_c and invalidate_on_wick and wick_below_zone)
+                bool can_remove_for_entry_failure = z.leftZone and not current_bar_sweeping and (close_inside or opposing_tap or tested_past_failure)
 
-                bool pre_sweep_invalidated = z.mitigated and z.inactiveReason == "PRE_SWEEP_ZONE_TOUCH"
-                bool demand_tested_or_broken = pre_sweep_invalidated or bearish_close_inside or close_below_zone or (invalidate_on_wick and wick_below_zone)
-                if demand_tested_or_broken
-                    archive_tested_zone(true, i, pre_sweep_invalidated ? "PRE_SWEEP_ZONE_TOUCH" : "TESTED_PAST")
-                else if isTooOld
-                    remove_zone_all_arrays(true, i)
+                if can_remove_for_entry_failure or isTooOld
+                    string existingReason = not na(z.inactiveReason) ? z.inactiveReason : ""
+                    string removalReason = f_terminal_invalidation_reason(existingReason) ? existingReason : (can_remove_for_entry_failure and close_inside ? "CLOSE_INSIDE" : (tested_past_failure ? "TESTED_PAST" : (opposing_tap ? "OPPOSING_TAP" : "removed")))
+                    archive_tested_zone(true, i, removalReason)
 
 int supplySize = array.size(supplyZones)
 if supplySize > 0
     current_close = close
     current_open  = open
     current_high  = high
+    current_low   = low
+    bool is_bullish_c = current_close > current_open
 
     for i = supplySize - 1 to 0
         if i >= supplySize
@@ -3146,16 +3140,22 @@ if supplySize > 0
         if z.active
             bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
 
-            bool bullish_close_inside = current_close >= z.bottom and current_close <= z.top
-            bool close_above_zone     = current_close > z.top
-            bool wick_above_zone = current_high > z.top
+            if current_close < z.bottom and not z.leftZone
+                z.leftZone := true
+                array.set(supplyZones, i, z)
 
-            bool pre_sweep_invalidated = z.mitigated and z.inactiveReason == "PRE_SWEEP_ZONE_TOUCH"
-            bool supply_tested_or_broken = pre_sweep_invalidated or bullish_close_inside or close_above_zone or (invalidate_on_wick and wick_above_zone)
-            if supply_tested_or_broken
-                archive_tested_zone(false, i, pre_sweep_invalidated ? "PRE_SWEEP_ZONE_TOUCH" : "TESTED_PAST")
-            else if isTooOld
-                remove_zone_all_arrays(false, i)
+            bool close_inside = f_close_inside_zone(current_close, z.top, z.bottom)
+            bool close_above_zone = current_close > z.top
+            bool wick_above_zone = current_high > z.top
+            bool opposing_tap = f_is_opposing_tap(false, current_open, current_close, current_high, current_low, z.top, z.bottom)
+            bool current_bar_sweeping = not na(z.structureSweepLevel) and current_low <= z.structureSweepLevel
+            bool tested_past_failure = close_above_zone or (is_bullish_c and invalidate_on_wick and wick_above_zone)
+            bool can_remove_for_entry_failure = z.leftZone and not current_bar_sweeping and (close_inside or opposing_tap or tested_past_failure)
+
+            if can_remove_for_entry_failure or isTooOld
+                string existingReason = not na(z.inactiveReason) ? z.inactiveReason : ""
+                string removalReason = f_terminal_invalidation_reason(existingReason) ? existingReason : (can_remove_for_entry_failure and close_inside ? "CLOSE_INSIDE" : (tested_past_failure ? "TESTED_PAST" : (opposing_tap ? "OPPOSING_TAP" : "removed")))
+                archive_tested_zone(false, i, removalReason)
 
 if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isconfirmed
     for i = 0 to cached_demand_size - 1
