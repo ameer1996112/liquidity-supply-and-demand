@@ -280,6 +280,9 @@ class LivePositionsAggregator:
             return self._open_positions_cache[profile.id]
 
         positions = adapter.get_open_positions() or []
+        positions_fetch_error = getattr(adapter, "last_positions_fetch_error", None)
+        if positions_fetch_error:
+            raise ValueError(f"Broker positions unavailable ({positions_fetch_error})")
         if isinstance(positions, list):
             self._open_positions_cache[profile.id] = positions
         return positions
@@ -294,6 +297,8 @@ class LivePositionsAggregator:
 
         if not isinstance(payload, dict):
             raise ValueError("Account status payload must be a dict")
+        if payload.get("connectionStatus") == "circuit_breaker_open":
+            raise ValueError("Broker account status unavailable (circuit_breaker_open)")
         return payload
 
     def _normalize_position(self, profile: LiveBrokerProfile, payload: dict[str, Any]) -> LivePosition:

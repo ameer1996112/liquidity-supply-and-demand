@@ -114,6 +114,21 @@ class _FailingAdapter:
         raise RuntimeError("broker timeout")
 
 
+class _CircuitOpenAdapter:
+    last_positions_fetch_error: str | None = None
+
+    def get_open_positions(self) -> list[dict[str, Any]]:
+        self.last_positions_fetch_error = "circuit_breaker_open"
+        return []
+
+    def get_account_status(self) -> dict[str, Any]:
+        return {
+            "balance": 0.0,
+            "equity": 0.0,
+            "connectionStatus": "circuit_breaker_open",
+        }
+
+
 class _CountingAdapter:
     def __init__(self) -> None:
         self.open_positions_calls = 0
@@ -245,6 +260,22 @@ def test_aggregate_open_positions_tolerates_partial_profile_failures() -> None:
     assert [position.account_name for position in result.positions] == ["Healthy cTrader"]
 
 
+def test_aggregate_open_positions_treats_circuit_open_as_profile_failure() -> None:
+    profiles = [_make_profile(12, name="Circuit Open Meta", venue="metaapi_mt5")]
+
+    aggregator = LivePositionsAggregator(
+        _FakeSupabase(profiles),
+        adapter_resolver=lambda _profile: _CircuitOpenAdapter(),
+    )
+
+    result = aggregator.aggregate_open_positions()
+
+    assert result.healthy_profiles == 0
+    assert result.failed_profiles == 1
+    assert result.positions == []
+    assert result.errors[0].operation == "positions"
+
+
 def test_aggregate_account_status_sums_healthy_accounts() -> None:
     profiles = [
         _make_profile(20, name="Meta Live", venue="metaapi"),
@@ -277,6 +308,22 @@ def test_aggregate_account_status_sums_healthy_accounts() -> None:
     assert accounts_by_name["Meta Live"].open_positions == 1
     assert accounts_by_name["cTrader Live"].open_positions == 1
     assert accounts_by_name["cTrader Live"].venue == "ctrader"
+
+
+def test_aggregate_account_status_treats_circuit_open_as_profile_failure() -> None:
+    profiles = [_make_profile(22, name="Circuit Open Meta", venue="metaapi")]
+
+    aggregator = LivePositionsAggregator(
+        _FakeSupabase(profiles),
+        adapter_resolver=lambda _profile: _CircuitOpenAdapter(),
+    )
+
+    result = aggregator.aggregate_account_status()
+
+    assert result.healthy_profiles == 0
+    assert result.failed_profiles == 1
+    assert result.accounts == []
+    assert result.errors[0].operation == "account_status"
 
 
 def test_reuses_adapter_and_open_positions_within_request_cycle() -> None:

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from types import SimpleNamespace
 
-from src.services.metaapi_streaming_service import _DealHandler
+from src.services.metaapi_streaming_service import _DealHandler, _run_streaming
 
 
 class _FakeTable:
@@ -142,3 +143,64 @@ def test_streaming_stores_net_broker_pnl_including_commission_and_swap():
     assert update["pnl"] == -78.36
     assert update["commission"] == -0.40
     assert update["swap"] == -0.20
+
+
+def test_streaming_waits_for_deploying_account_before_subscribe(monkeypatch):
+    class FakeConnection:
+        def add_synchronization_listener(self, listener) -> None:
+            self.listener = listener
+
+        async def connect(self) -> None:
+            pass
+
+        async def wait_synchronized(self) -> None:
+            raise asyncio.CancelledError()
+
+        async def close(self) -> None:
+            pass
+
+    class FakeAccount:
+        def __init__(self) -> None:
+            self.state = "DEPLOYING"
+            self.deploy_called = False
+            self.wait_deployed_called = False
+            self.wait_connected_called = False
+            self.connection = FakeConnection()
+
+        async def deploy(self) -> None:
+            self.deploy_called = True
+
+        async def wait_deployed(self) -> None:
+            self.wait_deployed_called = True
+            self.state = "DEPLOYED"
+
+        async def wait_connected(self) -> None:
+            self.wait_connected_called = True
+
+        def get_streaming_connection(self) -> FakeConnection:
+            return self.connection
+
+    account = FakeAccount()
+
+    class FakeAccountApi:
+        async def get_account(self, account_id: str) -> FakeAccount:
+            return account
+
+    class FakeMetaApi:
+        def __init__(self, token: str) -> None:
+            self.metatrader_account_api = FakeAccountApi()
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setitem(
+        sys.modules,
+        "metaapi_cloud_sdk",
+        SimpleNamespace(MetaApi=FakeMetaApi, SynchronizationListener=object),
+    )
+
+    asyncio.run(_run_streaming("token", "account-id", object()))
+
+    assert account.deploy_called is False
+    assert account.wait_deployed_called is True
+    assert account.wait_connected_called is True
