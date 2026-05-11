@@ -1613,6 +1613,43 @@ trimZoneArrays(bool isDemand) =>
             if not na(z.idLabel)
                 label.delete(z.idLabel)
 
+f_body_top(float candleOpen, float candleClose) =>
+    math.max(candleOpen, candleClose)
+
+f_body_bottom(float candleOpen, float candleClose) =>
+    math.min(candleOpen, candleClose)
+
+f_is_accuracy_zone(bool isDemand, int sourceIdx, int displacementIdx) =>
+    bool result = false
+    if should_use_accuracy_zones and displacementIdx >= 0
+        if isDemand
+            result := high[sourceIdx] > high[displacementIdx]
+        else
+            result := low[sourceIdx] < low[displacementIdx]
+    result
+
+f_zone_bounds(bool isDemand, int sourceIdx, int displacementIdx, bool isAccuracy) =>
+    float sourceHigh = high[sourceIdx]
+    float sourceLow = low[sourceIdx]
+    float sourceOpen = open[sourceIdx]
+    float sourceClose = close[sourceIdx]
+    float displacementHigh = displacementIdx >= 0 ? high[displacementIdx] : na
+    float displacementLow = displacementIdx >= 0 ? low[displacementIdx] : na
+
+    float top = na
+    float bottom = na
+
+    if isDemand
+        float lowerWickBoundary = na(displacementLow) ? sourceLow : math.min(sourceLow, displacementLow)
+        top := isAccuracy ? f_body_top(sourceOpen, sourceClose) : sourceHigh
+        bottom := lowerWickBoundary
+    else
+        float upperWickBoundary = na(displacementHigh) ? sourceHigh : math.max(sourceHigh, displacementHigh)
+        top := upperWickBoundary
+        bottom := isAccuracy ? f_body_bottom(sourceOpen, sourceClose) : sourceLow
+
+    [top, bottom]
+
 createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID) =>
     baseBarIdx = bar_index - baseIdx
 
@@ -1720,69 +1757,20 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         bool proceed_creation = not use_fvg_confirmation or hasFVG
 
         bool isAccuracy = false
+        int reactionIdx = baseIdx - 1
 
         if proceed_creation
-
-            int reactionIdx = baseIdx - 1
-
-            if should_use_accuracy_zones and reactionIdx >= 0
-                if isDemand
-                    // Demand accuracy: Zone candle high > Reaction candle high
-                    if high[baseIdx] > high[reactionIdx]
-                        isAccuracy := true
-                else
-                    // Supply accuracy: Zone candle low < Reaction candle low
-                    if low[baseIdx] < low[reactionIdx]
-                        isAccuracy := true
+            isAccuracy := f_is_accuracy_zone(isDemand, baseIdx, reactionIdx)
 
         float zTop = na
         float zBottom = na
-        bool preBosDepartureInvalidated = false
 
         if proceed_creation
-            // Zone boundary logic (matches good-marking reference):
-            //   Accuracy zones: proximal = base-cluster body edge, distal = base-cluster wick extreme
-            //   Normal zones: base candle range, with confirmed one-candle liquidity wick extension
-            if isAccuracy
-                if isDemand
-                    // Demand Accuracy: Top = highest base body, Bottom = lowest base wick
-                    zTop := clusterBodyHigh
-                    zBottom := clusterWickLow
-                else
-                    // Supply Accuracy: Top = highest base wick, Bottom = lowest base body
-                    zTop := clusterWickHigh
-                    zBottom := clusterBodyLow
-            else
-                if isDemand
-                    // Demand: use the selected base candle, and include a one-candle liquidity wick
-                    // when the immediate departure candle sweeps below the base then closes above it.
-                    int reactionIdxForZone = baseIdx - 1
-                    bool hasDemandReaction = reactionIdxForZone >= 0
-                    bool demandReactionConfirms = hasDemandReaction and close[reactionIdxForZone] > baseHigh
-                    bool demandReactionSweeps = demandReactionConfirms and low[reactionIdxForZone] < baseLow
-                    // The immediate departure candle is part of zone formation.
-                    // Later retouches before liquidity sweep are handled by the active-zone lifecycle.
-                    preBosDepartureInvalidated := false
-                    zTop := baseHigh
-                    zBottom := demandReactionSweeps ? low[reactionIdxForZone] : baseLow
-                else
-                    // Supply: use the selected base candle, and include a one-candle liquidity wick
-                    // when the immediate departure candle sweeps above the base then closes below it.
-                    int reactionIdxForZone = baseIdx - 1
-                    bool hasSupplyReaction = reactionIdxForZone >= 0
-                    bool supplyReactionConfirms = hasSupplyReaction and close[reactionIdxForZone] < baseLow
-                    bool supplyReactionSweeps = supplyReactionConfirms and high[reactionIdxForZone] > baseHigh
-                    // The immediate departure candle is part of zone formation.
-                    // Later retouches before liquidity sweep are handled by the active-zone lifecycle.
-                    preBosDepartureInvalidated := false
-                    zTop := supplyReactionSweeps ? high[reactionIdxForZone] : baseHigh
-                    zBottom := baseLow
+            [calculatedTop, calculatedBottom] = f_zone_bounds(isDemand, baseIdx, reactionIdx, isAccuracy)
+            zTop := calculatedTop
+            zBottom := calculatedBottom
 
             // Cap zone size
-            if preBosDepartureInvalidated
-                zTop := na
-                zBottom := na
-
             float max_zone_size = 50.0 * pip_size
             if (zTop - zBottom) > max_zone_size
                 true  // No-op, keep current range
