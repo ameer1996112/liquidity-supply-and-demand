@@ -67,6 +67,7 @@ class MetaApiAdapter:
         self._account_name_from_config = (account_name or "").strip() or None
         self._account_name_cached: Optional[str] = None
         self._name_fetched_from_api: bool = False  # OPT-3: permanent cache sentinel
+        self.last_positions_fetch_error: Optional[str] = None
 
         if not self.token or not self.account_id:
             raise ValueError("MetaApiAdapter requires non-empty token and account_id")
@@ -76,6 +77,10 @@ class MetaApiAdapter:
         effective_region = (region or getattr(settings, "meta_api_region", "new-york") or "new-york").strip()
         self.base_url = f"https://mt-client-api-v1.{effective_region}.agiliumtrade.ai"
         logger.info("MetaApiAdapter using region '%s' (%s)", effective_region, self.base_url)
+
+    def _circuit_breaker_account_key(self) -> str:
+        """Stable per-account circuit-breaker key."""
+        return self._account_name_from_config or self.account_id
 
     def _headers(self) -> Dict[str, str]:
         return {
@@ -90,7 +95,7 @@ class MetaApiAdapter:
             # Check per-account first, then fall back to global.
             # Using account_name scopes the breaker so one bad account
             # doesn't block all other accounts.
-            acct = self._account_name_from_config or None
+            acct = self._circuit_breaker_account_key()
             return is_metaapi_circuit_open(account_name=acct)
         except Exception:  # noqa: BLE001
             return False
@@ -130,7 +135,7 @@ class MetaApiAdapter:
                 try:
                     from src.core.circuit_breaker import set_metaapi_circuit_open
                     # Scope to per-account so other accounts are not blocked
-                    acct = self._account_name_from_config or None
+                    acct = self._circuit_breaker_account_key()
                     set_metaapi_circuit_open(account_name=acct)
                 except Exception:  # noqa: BLE001
                     pass
@@ -175,7 +180,10 @@ class MetaApiAdapter:
                         )
                     try:
                         from src.core.circuit_breaker import set_metaapi_circuit_open
-                        set_metaapi_circuit_open(ttl_seconds=cb_ttl)
+                        set_metaapi_circuit_open(
+                            ttl_seconds=cb_ttl,
+                            account_name=self._circuit_breaker_account_key(),
+                        )
                     except Exception:  # noqa: BLE001
                         pass
                     # Only fire alert on non-weekend disconnects (weekends are expected)
@@ -221,7 +229,11 @@ class MetaApiAdapter:
                     f"Circuit breaker opened for {BROKER_DISCONNECT_CB_TTL}s. "
                     f"Check MetaAPI dashboard."
                 ),
-                metadata={"account_id": self.account_id, "reason": reason},
+                metadata={
+                    "account_id": self.account_id,
+                    "account_name": self._account_name_from_config,
+                    "reason": reason,
+                },
                 dedupe_minutes=10,
             )
         except Exception as exc:
@@ -386,7 +398,11 @@ class MetaApiAdapter:
         """
         if self._check_circuit_breaker():
             logger.warning("MetaApi get_account_information skipped: circuit breaker open")
-            return {"balance": 0.0, "equity": 0.0}
+            return {
+                "balance": 0.0,
+                "equity": 0.0,
+                "connectionStatus": "circuit_breaker_open",
+            }
         url = (
             f"{self.base_url}/users/current/accounts/"
             f"{self.account_id}/account-information"
@@ -441,17 +457,21 @@ class MetaApiAdapter:
         On failure or circuit breaker open, returns empty list [].
         """
         if self._check_circuit_breaker():
+            self.last_positions_fetch_error = "circuit_breaker_open"
             logger.warning("MetaApi get_open_positions skipped: circuit breaker open")
             return []
 
+        self.last_positions_fetch_error = None
         url = f"{self.base_url}/users/current/accounts/{self.account_id}/positions"
         resp = self._request_with_retry("GET", url, timeout=30)
 
         if resp is None:
+            self.last_positions_fetch_error = "request_failed"
             logger.error("MetaApi get_open_positions failed: timeout or retries exhausted")
             return []
 
         if resp.status_code != 200:
+            self.last_positions_fetch_error = f"http_{resp.status_code}"
             logger.error(
                 "MetaApi get_open_positions failed: HTTP %s %s",
                 resp.status_code,
@@ -462,6 +482,7 @@ class MetaApiAdapter:
         try:
             data = resp.json()
             if not isinstance(data, list):
+                self.last_positions_fetch_error = "invalid_payload"
                 logger.error("MetaApi get_open_positions: expected list, got %s", type(data).__name__)
                 return []
 
@@ -473,6 +494,7 @@ class MetaApiAdapter:
             return data
 
         except ValueError:
+            self.last_positions_fetch_error = "invalid_json"
             logger.error(
                 "MetaApi get_open_positions invalid JSON: %s", resp.text[:200]
             )
@@ -504,6 +526,10 @@ class MetaApiAdapter:
 
         # Fetch account info (balance, equity, margin)
         account_info = self.get_account_information()
+        if self._check_circuit_breaker():
+            account_info["connectionStatus"] = "circuit_breaker_open"
+            account_info["lastSyncTime"] = datetime.now(timezone.utc).isoformat()
+            return account_info
 
         # Fetch account details (server, platform, connection)
         account_url = f"{self.base_url}/users/current/accounts/{self.account_id}"
@@ -971,4 +997,3 @@ class MetaApiAdapter:
 
         logger.info("get_deals_by_position: fetched %s deals for position %s", len(deals), position_id)
         return deals
-

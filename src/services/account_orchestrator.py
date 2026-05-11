@@ -153,37 +153,52 @@ class AccountOrchestrator:
             if adapter and hasattr(adapter, "get_account_information"):
                 account_info = adapter.get_account_information()
                 if account_info:
-                    live_balance = _coerce_amount(account_info.get("balance"))
-                    live_equity = _coerce_amount(account_info.get("equity"))
-                    result["balance"] = live_balance if live_balance is not None else result["balance"]
-                    result["equity"] = live_equity if live_equity is not None else result["equity"]
-                    result["free_margin"] = float(
-                        account_info.get("freeMargin")
-                        or account_info.get("free_margin")
-                        or 0
-                    )
-                    result["margin_used"] = float(account_info.get("margin", 0))
-                    if result["free_margin"] and result["margin_used"] and result["margin_used"] > 0:
-                        result["margin_level_pct"] = (
-                            (result["free_margin"] + result["margin_used"]) / result["margin_used"]
-                        ) * 100
-                    result["server_name"] = account_info.get("server") or account_info.get("broker")
-                    result["platform_type"] = account_info.get("platform", result["platform_type"])
-                    result["leverage"] = (
-                        int(account_info.get("leverage"))
-                        if account_info.get("leverage")
-                        else None
-                    )
-                    result["connection_status"] = "connected"
-                    logger.info(
-                        "Fetched live data for standalone profile %s: balance=$%.2f, equity=$%.2f",
-                        profile.get("name") or profile.get("id"),
-                        result["balance"] or 0.0,
-                        result["equity"] or 0.0,
-                    )
+                    if account_info.get("connectionStatus") == "circuit_breaker_open":
+                        result["connection_status"] = "error"
+                        logger.warning(
+                            "Skipped live data for standalone profile %s: MetaAPI circuit breaker open",
+                            profile.get("name") or profile.get("id"),
+                        )
+                    else:
+                        live_balance = _coerce_amount(account_info.get("balance"))
+                        live_equity = _coerce_amount(account_info.get("equity"))
+                        result["balance"] = live_balance if live_balance is not None else result["balance"]
+                        result["equity"] = live_equity if live_equity is not None else result["equity"]
+                        result["free_margin"] = float(
+                            account_info.get("freeMargin")
+                            or account_info.get("free_margin")
+                            or 0
+                        )
+                        result["margin_used"] = float(account_info.get("margin", 0))
+                        if result["free_margin"] and result["margin_used"] and result["margin_used"] > 0:
+                            result["margin_level_pct"] = (
+                                (result["free_margin"] + result["margin_used"]) / result["margin_used"]
+                            ) * 100
+                        result["server_name"] = account_info.get("server") or account_info.get("broker")
+                        result["platform_type"] = account_info.get("platform", result["platform_type"])
+                        result["leverage"] = (
+                            int(account_info.get("leverage"))
+                            if account_info.get("leverage")
+                            else None
+                        )
+                        result["connection_status"] = "connected"
+                        logger.info(
+                            "Fetched live data for standalone profile %s: balance=$%.2f, equity=$%.2f",
+                            profile.get("name") or profile.get("id"),
+                            result["balance"] or 0.0,
+                            result["equity"] or 0.0,
+                        )
             if adapter and hasattr(adapter, "get_open_positions"):
                 open_positions = adapter.get_open_positions()
-                if isinstance(open_positions, list):
+                positions_fetch_error = getattr(adapter, "last_positions_fetch_error", None)
+                if positions_fetch_error:
+                    result["connection_status"] = "error"
+                    logger.warning(
+                        "Skipped live open-position count for standalone profile %s: %s",
+                        profile.get("name") or profile.get("id"),
+                        positions_fetch_error,
+                    )
+                elif isinstance(open_positions, list):
                     result["open_positions"] = len(open_positions)
 
             snapshot_resp = (
@@ -346,19 +361,26 @@ class AccountOrchestrator:
                         if hasattr(adapter, "get_account_information"):
                             account_info = adapter.get_account_information()
                             if account_info:
-                                live_balance = _coerce_amount(account_info.get("balance"))
-                                live_equity = _coerce_amount(account_info.get("equity"))
-                                balance = live_balance if live_balance is not None else balance
-                                equity = live_equity if live_equity is not None else balance
-                                free_margin = float(account_info.get("freeMargin") or account_info.get("free_margin") or 0)
-                                margin_used = float(account_info.get("margin", 0))
-                                if free_margin and margin_used and margin_used > 0:
-                                    margin_level_pct = ((free_margin + margin_used) / margin_used) * 100
-                                server_name = account_info.get("server") or account_info.get("broker")
-                                platform_type = account_info.get("platform", "MetaTrader")
-                                leverage = int(account_info.get("leverage", 0)) if account_info.get("leverage") else None
-                                connection_status = "connected"
-                                logger.info(f"Fetched live data for {account_name}: balance=${balance:.2f}, equity=${equity:.2f}")
+                                if account_info.get("connectionStatus") == "circuit_breaker_open":
+                                    connection_status = "error"
+                                    logger.warning(
+                                        "Skipped live data for %s: MetaAPI circuit breaker open",
+                                        account_name,
+                                    )
+                                else:
+                                    live_balance = _coerce_amount(account_info.get("balance"))
+                                    live_equity = _coerce_amount(account_info.get("equity"))
+                                    balance = live_balance if live_balance is not None else balance
+                                    equity = live_equity if live_equity is not None else balance
+                                    free_margin = float(account_info.get("freeMargin") or account_info.get("free_margin") or 0)
+                                    margin_used = float(account_info.get("margin", 0))
+                                    if free_margin and margin_used and margin_used > 0:
+                                        margin_level_pct = ((free_margin + margin_used) / margin_used) * 100
+                                    server_name = account_info.get("server") or account_info.get("broker")
+                                    platform_type = account_info.get("platform", "MetaTrader")
+                                    leverage = int(account_info.get("leverage", 0)) if account_info.get("leverage") else None
+                                    connection_status = "connected"
+                                    logger.info(f"Fetched live data for {account_name}: balance=${balance:.2f}, equity=${equity:.2f}")
                         
                         # Get last sync time from account_status_snapshots
                         try:
