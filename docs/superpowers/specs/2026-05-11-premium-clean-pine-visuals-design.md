@@ -16,7 +16,7 @@ Use a **Premium Clean Strategy Default**:
 
 - Show recent active zones only.
 - Hide inactive and invalidated zones by default.
-- Keep `Max Zones Displayed` configurable, interpreted per side.
+- Keep visible zone count configurable per side without changing internal zone storage/trading candidate limits.
 - Use a lower premium default of 4 zones per side.
 - Show zone labels as ID only, such as `D-18220` or `S-18225`.
 - Place zone labels on the right edge of the zone.
@@ -40,7 +40,8 @@ Where Pine input behavior makes derived toggles awkward, the implementation may 
 ## Default Settings
 
 - `Display Mode`: `Clean`
-- `Max Zones Displayed`: `4` per side
+- `Max Visible Zones`: `4` per side
+- Existing internal stored-zone cap: unchanged unless a future strategy-behavior task explicitly changes it
 - `Zone Right Padding Bars`: `10`
 - `Show Liquidity Connectors & Lines`: false in Clean, true in Analysis/Debug
 - `Show Liquidity Pivot Lines`: false in Clean, true in Analysis/Debug
@@ -144,7 +145,7 @@ Verification should include:
 - Pine syntax/import compatibility.
 - Confirm no changes to `strategy.entry`, `strategy.exit`, webhook payloads, or hidden backend plot meanings.
 - Check inactive zones are not visible by default.
-- Check recent active zone cap is per side.
+- Check recent active visual zone cap is per side and does not prune stored zone arrays.
 - Check labels appear on the right edge and update as bars advance.
 - Check Clean mode hides liquidity/target/connector lines.
 - Check Analysis/Debug modes can show detailed visuals.

@@ -44,7 +44,7 @@ Expected: existing lines are reported. Save the output mentally for comparison a
 
 - [ ] **Step 2: Replace display inputs with mode-derived clean defaults**
 
-In the display/input section, replace the current `max_zones`, `plotLiq`, `show_fractals`, `show_liquidity_connectors`, `showZoneInspector`, and related zone label defaults with this shape:
+In the display/input section, keep internal zone storage separate from visual zone display. Replace the current `max_zones`, `plotLiq`, `show_fractals`, `show_liquidity_connectors`, `showZoneInspector`, and related zone label defaults with this shape:
 
 ```pine
 display_mode = input.string("Clean", "Display Mode",
@@ -56,7 +56,8 @@ display_is_debug = display_mode == "Debug"
 display_show_details = display_is_analysis or display_is_debug
 
 invalidate_on_wick   = input.bool(true, "Invalidate on Wick Touch", group = "📐 Zone Detection")
-max_zones            = input.int(4, "Max Zones Displayed (Per Side)", minval = 1, maxval = 50, group = "📐 Zone Detection")
+max_zones            = input.int(20, "Max Zones Stored", minval = 1, maxval = 50, group = "📐 Zone Detection")
+max_visible_zones_per_side = input.int(4, "Max Visible Zones (Per Side)", minval = 1, maxval = 50, group = "🎨 Display")
 zone_right_padding_bars = input.int(10, "Zone Right Padding Bars", minval = 1, maxval = 100, group = "🎨 Display")
 min_body_perc        = input.float(50.0, "Min Body %", minval = 0, maxval = 100, group = "📐 Zone Detection")
 structure_mode      = input.string("Relaxed (Wicks)", "Structure Detection", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
@@ -110,7 +111,7 @@ Run:
 rg -n "input\\.int\\(20, \"Max Zones Displayed\"|input\\.bool\\(true, \"Show Liquidity Pivot Lines\"|input\\.bool\\(true, \"Show Liquidity Connectors|input\\.bool\\(true, \"Zone Inspector Panel\"" scripts/pinescript/strategies/SND_Strategy.pine
 ```
 
-Expected: no matches. If matches remain, update the old defaults.
+Expected: no matches. `input.int(20, "Max Zones Stored", ...)` is allowed because it preserves the pre-existing internal zone array cap used by strategy processing.
 
 - [ ] **Step 5: Commit Task 1**
 
@@ -332,6 +333,7 @@ git commit -m "DEV-385: keep active Pine zones near price"
 **Files:**
 - Modify: `scripts/pinescript/strategies/SND_Strategy.pine:1450-1510`
 - Modify: `scripts/pinescript/strategies/SND_Strategy.pine:2260-2315`
+- Modify: `scripts/pinescript/strategies/SND_Strategy.pine:2928-3006`
 
 - [ ] **Step 1: Add a clear helper near existing zone cleanup helpers**
 
@@ -402,17 +404,55 @@ z := clear_zone_visual_objects(z, true)
 
 for supply. The popped zone does not need `array.set`.
 
-- [ ] **Step 5: Verify helper usage**
+- [ ] **Step 5: Apply visual cap without pruning zone arrays**
+
+In the demand active zone visual refresh block, add an active-zone display counter before the loop:
+
+```pine
+int demand_visible_count = 0
+```
+
+Inside the loop, immediately after `if z.active`, increment and gate display-only objects:
+
+```pine
+demand_visible_count += 1
+bool should_show_zone_visual = demand_visible_count <= max_visible_zones_per_side
+if not should_show_zone_visual
+    z := clear_zone_visual_objects(z, false)
+    array.set(demandZones, i, z)
+    continue
+```
+
+In the supply block, mirror this with:
+
+```pine
+int supply_visible_count = 0
+```
+
+and inside `if z.active`:
+
+```pine
+supply_visible_count += 1
+bool should_show_zone_visual = supply_visible_count <= max_visible_zones_per_side
+if not should_show_zone_visual
+    z := clear_zone_visual_objects(z, true)
+    array.set(supplyZones, i, z)
+    continue
+```
+
+This display cap must not call `array.pop`, `array.remove`, `db_markInactive`, or entry-validation code.
+
+- [ ] **Step 6: Verify helper usage**
 
 Run:
 
 ```bash
-rg -n "clear_zone_visual_objects|deactivateDemandZone|deactivateSupplyZone|trimZoneArrays" scripts/pinescript/strategies/SND_Strategy.pine
+rg -n "clear_zone_visual_objects|deactivateDemandZone|deactivateSupplyZone|trimZoneArrays|max_visible_zones_per_side|visible_count" scripts/pinescript/strategies/SND_Strategy.pine
 ```
 
-Expected: helper exists and all three lifecycle paths reference it.
+Expected: helper exists, all lifecycle paths reference it, and the visual cap uses `max_visible_zones_per_side` without pruning zone arrays.
 
-- [ ] **Step 6: Commit Task 5**
+- [ ] **Step 7: Commit Task 5**
 
 ```bash
 git add scripts/pinescript/strategies/SND_Strategy.pine
@@ -614,7 +654,7 @@ Expected:
 - Results table is visible.
 - Compact status panel is visible.
 - Full Zone Inspector is hidden in Clean.
-- Recent active zones are capped by `Max Zones Displayed (Per Side)`.
+- Recent active zones are visually capped by `Max Visible Zones (Per Side)` without pruning stored zone arrays.
 - Inactive/invalidated zones are hidden in Clean.
 - Zone boxes end at current bar plus padding.
 - Zone ID labels appear on the right edge.
