@@ -1586,6 +1586,8 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         float baseClose = close[baseIdx]
         float departureWickLow = baseLow
         float departureWickHigh = baseHigh
+        int finalDepartureIdx = math.max(baseIdx - legCandles, 0)
+        bool supplyBodyFloor = not isDemand and baseClose > baseOpen and close[finalDepartureIdx] < baseOpen
 
         for k = 1 to legCandles
             int departureIdx = baseIdx - k
@@ -1712,7 +1714,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             else
                 // Normal zones: full candle range
                 zTop := isDemand ? baseHigh : departureWickHigh
-                zBottom := isDemand ? departureWickLow : baseLow
+                zBottom := isDemand ? departureWickLow : (supplyBodyFloor ? baseOpen : baseLow)
 
             // Cap zone size
             float max_zone_size = 50.0 * pip_size
@@ -2436,6 +2438,15 @@ if barstate.isconfirmed and bar_index > 10
         if not is_base_bar_used(baseBarIdx, used_supply_base_times)
             global_zone_id_counter := global_zone_id_counter + 1
             createZone(1, false, false, 1, 1, global_zone_id_counter)
+
+if barstate.isconfirmed and bar_index > 10 and isFractalHigh_result
+    int fractalSupplyBaseIdx = fractalsPeriod
+    bool fractalSupplyBase = Utils.is_bullish(close[fractalSupplyBaseIdx], open[fractalSupplyBaseIdx]) and is_strong_body(fractalSupplyBaseIdx)
+    float fractalSupplyFloor = math.min(open[fractalSupplyBaseIdx], close[fractalSupplyBaseIdx])
+    bool fractalSupplyDisplacement = close < fractalSupplyFloor
+    if fractalSupplyBase and fractalSupplyDisplacement and not array.includes(used_supply_base_times, time[fractalSupplyBaseIdx])
+        global_zone_id_counter := global_zone_id_counter + 1
+        createZone(fractalSupplyBaseIdx, false, false, 1, fractalsPeriod, global_zone_id_counter)
 
 if barstate.isconfirmed and not initial_scan_done and bar_index > 50
     initial_scan_done := true
