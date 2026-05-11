@@ -1655,12 +1655,12 @@ f_supply_liq_is_in_front(float liqPrice, float zoneBottom, float sideTol) =>
 f_close_inside_zone(float candleClose, float zoneTop, float zoneBottom) =>
     candleClose <= zoneTop and candleClose >= zoneBottom
 
-f_wick_touches_zone(bool isDemand, float candleHigh, float candleLow, float zoneTop, float zoneBottom) =>
+f_wick_touches_zone(float candleHigh, float candleLow, float zoneTop, float zoneBottom) =>
     candleLow <= zoneTop and candleHigh >= zoneBottom
 
 f_is_opposing_tap(bool isDemand, float candleOpen, float candleClose, float candleHigh, float candleLow, float zoneTop, float zoneBottom) =>
     bool opposing = isDemand ? candleClose < candleOpen : candleClose > candleOpen
-    opposing and f_wick_touches_zone(isDemand, candleHigh, candleLow, zoneTop, zoneBottom)
+    opposing and f_wick_touches_zone(candleHigh, candleLow, zoneTop, zoneBottom)
 
 f_terminal_invalidation_reason(string reason) =>
     reason == "CLOSE_INSIDE" or reason == "OPPOSING_TAP" or reason == "LIQ_TOUCH_ZONE" or reason == "LIQ_WRONG_SIDE" or reason == "TESTED_PAST"
@@ -3096,7 +3096,6 @@ if demandSize > 0
     current_high  = high
     current_low   = low
     bool is_bearish_c  = current_close < current_open
-    pip_buffer    = pip_size * 0.1
 
     demandSize := array.size(demandZones)
     if demandSize > 0
