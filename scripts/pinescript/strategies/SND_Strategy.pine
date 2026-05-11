@@ -174,6 +174,7 @@ min_body_perc        = input.float(50.0, "Min Body %", minval = 0, maxval = 100,
 structure_mode      = input.string("Relaxed (Wicks)", "Structure Detection", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
 zone_detection_profile = input.string("Myrtille-Style", "Zone Detection Profile", options = ["Myrtille-Style", "S&D Pro"], group = "📐 Zone Detection")
 use_myrtille_profile = zone_detection_profile == "Myrtille-Style"
+myrtille_require_bos = input.bool(false, "Myrtille: Require BOS", group = "📐 Zone Detection")
 myrtille_bos_lookback = input.int(20, "Myrtille: BOS Lookback", minval = 5, maxval = 100, group = "📐 Zone Detection")
 myrtille_strict_bos_close = input.bool(false, "Myrtille: Strict BOS Close", group = "📐 Zone Detection")
 myrtille_replace_overlaps = input.bool(true, "Myrtille: Replace Overlapping Zones", group = "📐 Zone Detection")
@@ -798,7 +799,7 @@ f_myrtille_structure_level(bool isDemand, int baseIdx) =>
 
 f_zone_creation_allowed(bool isDemand, int baseIdx, int legCandles) =>
     bool allowed = true
-    if use_myrtille_profile
+    if use_myrtille_profile and myrtille_require_bos
         int breakIdx = baseIdx - legCandles
         if breakIdx < 0
             allowed := false
@@ -1715,9 +1716,17 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
 
         if proceed_creation
             // Zone boundary logic (matches good-marking reference):
+            //   Myrtille-style: proximal = body edge, distal = wick extreme
             //   Accuracy zones: proximal = baseOpen, distal = wick extreme
-            //   Normal zones: full base candle range (baseHigh to baseLow)
-            if isAccuracy
+            //   Normal zones: full base candle range
+            if use_myrtille_profile
+                if isDemand
+                    zTop := clusterBodyHigh
+                    zBottom := clusterWickLow
+                else
+                    zTop := clusterWickHigh
+                    zBottom := clusterBodyLow
+            else if isAccuracy
                 if isDemand
                     // Demand Accuracy: Top = OPEN (body top), Bottom = LOW (extreme)
                     zTop := baseOpen
