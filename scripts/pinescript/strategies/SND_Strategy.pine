@@ -2060,14 +2060,21 @@ count_active_zones(array<Core.Zone> zones) =>
 
 get_latest_zone_id_text() =>
     string latest = "N/A"
-    if array.size(demandZones) > 0
-        Core.Zone dz = array.get(demandZones, 0)
-        if dz.active
-            latest := "D-" + str.tostring(dz.id)
-    if latest == "N/A" and array.size(supplyZones) > 0
-        Core.Zone sz = array.get(supplyZones, 0)
-        if sz.active
-            latest := "S-" + str.tostring(sz.id)
+    int demandCount = array.size(demandZones)
+    if demandCount > 0
+        for i = 0 to demandCount - 1
+            Core.Zone dz = array.get(demandZones, i)
+            if dz.active
+                latest := "D-" + str.tostring(dz.id)
+                break
+    if latest == "N/A"
+        int supplyCount = array.size(supplyZones)
+        if supplyCount > 0
+            for i = 0 to supplyCount - 1
+                Core.Zone sz = array.get(supplyZones, i)
+                if sz.active
+                    latest := "S-" + str.tostring(sz.id)
+                    break
     latest
 
 draw_compact_status_table(tbl) =>
