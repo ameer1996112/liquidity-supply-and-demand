@@ -441,16 +441,38 @@ get_symbol_type() =>
 
 current_symbol = get_symbol_type()
 
-col_demand_bg     = color.new(#26a69a, 88)  // Very subtle (12% visible)
-col_demand_border = color.new(#26a69a, 40)  // Teal border, semi-transparent
+col_demand_bg     = color.new(#2BA8A0, 91)
+col_demand_border = color.new(#127C86, 24)
 
-col_supply_bg     = color.new(#ef5350, 88)  // Very subtle (12% visible)
-col_supply_border = color.new(#ef5350, 40)  // Red border, semi-transparent
+col_supply_bg     = color.new(#D9687C, 91)
+col_supply_border = color.new(#A83F52, 24)
 
-col_acc_demand_bg     = color.new(#2196F3, 70)  // Blue, more visible (30%)
-col_acc_demand_border = #42A5F5  // Bright blue border
-col_acc_supply_bg     = color.new(#AB47BC, 70)  // Purple, more visible (30%)
-col_acc_supply_border = #BA68C8  // Bright purple border
+col_acc_demand_bg     = color.new(#2BA8A0, 86)
+col_acc_demand_border = color.new(#0E6672, 8)
+col_acc_supply_bg     = color.new(#D9687C, 86)
+col_acc_supply_border = color.new(#8E3142, 8)
+
+col_zone_label_bg = color.new(color.rgb(28, 34, 42), 4)
+col_zone_label_text = color.rgb(245, 248, 250)
+col_fractal_high = color.new(#A83F52, 18)
+col_fractal_low = color.new(#127C86, 18)
+col_liq_inducement = color.new(#D89B35, 25)
+col_liq_target = color.new(#6E7FAF, 25)
+
+get_zone_bg_color(bool isDemand, bool isAccuracy) =>
+    isDemand ? (isAccuracy ? col_acc_demand_bg : col_demand_bg) : (isAccuracy ? col_acc_supply_bg : col_supply_bg)
+
+get_zone_border_color(bool isDemand, bool isAccuracy) =>
+    isDemand ? (isAccuracy ? col_acc_demand_border : col_demand_border) : (isAccuracy ? col_acc_supply_border : col_supply_border)
+
+get_zone_border_width(bool isAccuracy) =>
+    isAccuracy ? 2 : 1
+
+get_zone_label_text(bool isDemand, int zoneId) =>
+    (isDemand ? "D-" : "S-") + str.tostring(zoneId)
+
+get_zone_label_color(bool isDemand, bool isAccuracy) =>
+    display_is_clean ? col_zone_label_bg : (isDemand ? (isAccuracy ? col_acc_demand_border : col_demand_border) : (isAccuracy ? col_acc_supply_border : col_supply_border))
 
 float tol = pip_size * 1.0
 
