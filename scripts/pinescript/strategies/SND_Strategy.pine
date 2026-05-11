@@ -2961,7 +2961,6 @@ if demandSize > 0
     current_close = close
     current_open  = open
     current_low   = low
-    bool is_bearish_c  = current_close < current_open
     pip_buffer    = pip_size * 0.1
 
     demandSize := array.size(demandZones)
@@ -2977,17 +2976,16 @@ if demandSize > 0
 
                 bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
 
-                bool bearish_close_inside = current_close <= z.top and current_close >= z.bottom
                 bool close_below_zone     = current_close < z.bottom
                 bool wick_below_zone = current_low < z.bottom
 
-                if bearish_close_inside or close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
+                // Closing inside a zone is a touch/mitigation event; invalidation requires a close beyond the far edge.
+                if close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
                     remove_zone_all_arrays(true, i)
 
 int supplySize = array.size(supplyZones)
 if supplySize > 0
     current_close = close
-    current_open  = open
     current_high  = high
 
     for i = supplySize - 1 to 0
@@ -2997,11 +2995,11 @@ if supplySize > 0
         if z.active
             bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
 
-            bool bullish_close_inside = current_close >= z.bottom and current_close <= z.top
             bool close_above_zone     = current_close > z.top
             bool wick_above_zone = current_high > z.top
 
-            if bullish_close_inside or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
+            // Closing inside a zone is a touch/mitigation event; invalidation requires a close beyond the far edge.
+            if close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
                 remove_zone_all_arrays(false, i)
 
 int current_demand_size_for_visuals = array.size(demandZones)
