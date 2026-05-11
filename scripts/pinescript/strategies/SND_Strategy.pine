@@ -167,7 +167,8 @@ display_is_debug = display_mode == "Debug"
 display_show_details = display_is_analysis or display_is_debug
 
 invalidate_on_wick   = input.bool(true, "Invalidate on Wick Touch", group = "📐 Zone Detection")
-max_zones            = input.int(4, "Max Zones Displayed (Per Side)", minval = 1, maxval = 50, group = "📐 Zone Detection")
+max_zones            = input.int(20, "Max Zones Stored", minval = 1, maxval = 50, group = "📐 Zone Detection")
+max_visible_zones_per_side = input.int(4, "Max Visible Zones (Per Side)", minval = 1, maxval = 50, group = "🎨 Display")
 zone_right_padding_bars = input.int(10, "Zone Right Padding Bars", minval = 1, maxval = 100, group = "🎨 Display")
 min_body_perc        = input.float(50.0, "Min Body %", minval = 0, maxval = 100, group = "📐 Zone Detection")
 structure_mode      = input.string("Relaxed (Wicks)", "Structure Detection", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
