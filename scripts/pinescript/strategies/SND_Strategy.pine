@@ -3098,7 +3098,8 @@ if show_zones and show_demand_zones and current_demand_size_for_visuals > 0 and 
             break
         Core.Zone z = array.get(demandZones, i)
         if z.active
-            bool should_show_visual = should_show_zone_visual(z, demandZones, true)
+            bool hide_mitigated_clean = display_is_clean and z.mitigated
+            bool should_show_visual = not hide_mitigated_clean and should_show_zone_visual(z, demandZones, true)
             if not should_show_visual
                 z := clear_zone_visual_objects(z, false)
                 array.set(demandZones, i, z)
@@ -3130,7 +3131,8 @@ if show_zones and show_supply_zones and current_supply_size_for_visuals > 0 and 
             break
         Core.Zone z = array.get(supplyZones, i)
         if z.active
-            bool should_show_visual = should_show_zone_visual(z, supplyZones, false)
+            bool hide_mitigated_clean = display_is_clean and z.mitigated
+            bool should_show_visual = not hide_mitigated_clean and should_show_zone_visual(z, supplyZones, false)
             if not should_show_visual
                 z := clear_zone_visual_objects(z, true)
                 array.set(supplyZones, i, z)
