@@ -76,6 +76,15 @@ const float SWEEP_TOLERANCE_PIPS = 0.5
 const float SWEEP_TOLERANCE_TICKS = 0.1
 
 const int HOURS_24_MS = 86400000
+const int ZONE_STATE_CANDIDATE = 0
+const int ZONE_STATE_FRESH = 1
+const int ZONE_STATE_LIQUIDITY_FORMED = 2
+const int ZONE_STATE_CONFIRMED = 3
+const int ZONE_STATE_ARMED = 4
+const int ZONE_STATE_MITIGATED = 5
+const int ZONE_STATE_USED = 6
+const int ZONE_STATE_INVALID = 7
+const int ZONE_STATE_EXPIRED = 8
 
 const float FOREX_LOT_SIZE = 100000.0
 const float GOLD_LOT_SIZE = 100.0
@@ -1025,6 +1034,8 @@ db_upsertZone(Core.Zone z, string zoneType) =>
              lastUpdateBar = bar_index,
              active = true,
              inactiveReason = "",
+             state = z.state,
+             stateReason = z.stateReason,
              liqLowPrice = z.liqLowPrice,
              liqLowBar = z.liqLowBar,
              liqHighPrice = z.liqHighPrice,
@@ -1044,6 +1055,8 @@ db_upsertZone(Core.Zone z, string zoneType) =>
         entry.lastUpdateBar := bar_index
         entry.active := true
         entry.inactiveReason := ""
+        entry.state := z.state
+        entry.stateReason := z.stateReason
         entry.liqLowPrice := z.liqLowPrice
         entry.liqLowBar := z.liqLowBar
         entry.liqHighPrice := z.liqHighPrice
@@ -1061,6 +1074,10 @@ db_markInactive(int targetUZID, string reason) =>
         Core.ZoneDBEntry entry = array.get(zoneDB, idx)
         entry.active := false
         entry.inactiveReason := reason
+        bool isLifecycleInvalidation = reason != "max_pruned" and reason != "removed"
+        if isLifecycleInvalidation
+            entry.state := ZONE_STATE_INVALID
+            entry.stateReason := reason
         entry.lastUpdateBar := bar_index
     true  // Consistent return type
 
@@ -1080,6 +1097,38 @@ db_updateZoneLiquidity(Core.Zone z) =>
     true  // Consistent return type
 
 var int global_zone_id_counter = 0  // Single Global counter for ALL zones (Demand + Supply)
+
+zone_state_name(int state) =>
+    switch state
+        ZONE_STATE_CANDIDATE => "Candidate"
+        ZONE_STATE_FRESH => "Fresh"
+        ZONE_STATE_LIQUIDITY_FORMED => "Liquidity"
+        ZONE_STATE_CONFIRMED => "Confirmed"
+        ZONE_STATE_ARMED => "Armed"
+        ZONE_STATE_MITIGATED => "Mitigated"
+        ZONE_STATE_USED => "Used"
+        ZONE_STATE_INVALID => "Invalid"
+        ZONE_STATE_EXPIRED => "Expired"
+        => "Unknown"
+
+zone_set_state(Core.Zone z, int state, string reason) =>
+    z.state := state
+    z.stateReason := reason
+    if state == ZONE_STATE_INVALID or state == ZONE_STATE_EXPIRED
+        z.active := false
+        if na(z.firstInvalidBarIndex)
+            z.firstInvalidBarIndex := bar_index
+        z.inactiveReason := reason
+    z
+
+zone_is_terminal(Core.Zone z) =>
+    z.state == ZONE_STATE_INVALID or z.state == ZONE_STATE_EXPIRED or z.state == ZONE_STATE_USED
+
+zone_is_armed_for_entry(Core.Zone z) =>
+    z.active and z.state == ZONE_STATE_ARMED and na(z.lastEntryBar)
+
+zone_is_visible_clean(Core.Zone z) =>
+    z.active and (z.state == ZONE_STATE_FRESH or z.state == ZONE_STATE_LIQUIDITY_FORMED or z.state == ZONE_STATE_CONFIRMED or z.state == ZONE_STATE_ARMED or z.state == ZONE_STATE_MITIGATED or z.state == ZONE_STATE_USED)
 
 getMaxHighBetween(int startBarAbs, int endBarAbs) =>
     float maxH = -1.0e10
@@ -1754,6 +1803,14 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             z.createdBarIndex := baseBarIdx
             z.isHistorical := isHistorical
             z.startTime := time[baseIdx]
+            z.state := ZONE_STATE_CANDIDATE
+            z.stateReason := "Candidate"
+            z.originBarIndex := baseBarIdx
+            z.departureEndBarIndex := na
+            z.firstInvalidBarIndex := na
+            z.liquiditySwingBarIndex := na
+            z.structureBreakBarIndex := na
+            z.entryEligibleBarIndex := na
             z.idLabel := idLbl
             z.touchCount := 0  // Initialize touch count for V5 AI tracking
             z.isAccuracy := isAccuracy  // Tag zone type for trade tracking
