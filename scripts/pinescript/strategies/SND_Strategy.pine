@@ -2006,6 +2006,10 @@ validate_entry_conditions(bool isDemand, int idx) =>
             canEnter := false
             reason := isDemand ? "Demand zone inactive" : "Supply zone inactive"
 
+    if canEnter and youtube_snd_rules and not zone_is_armed_for_entry(z)
+        canEnter := false
+        reason := "Zone not armed: " + zone_state_name(z.state) + " / " + z.stateReason
+
     if canEnter and is_time_dead_zone()
         canEnter := false
         reason := "Dead Zone: Blocked at " + str.tostring(minute(time)) + "m (avoid xx:50-xx:00)"
@@ -3283,7 +3287,7 @@ if show_zones and show_demand_zones and current_demand_size_for_visuals > 0 and 
         if i >= array.size(demandZones)
             break
         Core.Zone z = array.get(demandZones, i)
-        if z.active
+        if z.active and (debug_enabled or zone_is_visible_clean(z))
             bool should_show_visual = should_show_zone_visual(z, demandZones, true)
             if not should_show_visual
                 z := clear_zone_visual_objects(z, false)
@@ -3302,7 +3306,8 @@ if show_zones and show_demand_zones and current_demand_size_for_visuals > 0 and 
                         float lbl_mid = (z.top + z.bottom) / 2
                         label.set_x(z.idLabel, right_bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        label.set_text(z.idLabel, " " + get_zone_label_text(true, z.id) + " ")
+                        string demandStateSuffix = show_debug_labels ? ("\n" + zone_state_name(z.state) + ": " + z.stateReason) : ""
+                        label.set_text(z.idLabel, " " + get_zone_label_text(true, z.id) + demandStateSuffix + " ")
                         label.set_style(z.idLabel, label.style_label_left)
                         label.set_textcolor(z.idLabel, col_zone_label_text)
                         label.set_color(z.idLabel, get_zone_label_color(true, z.isAccuracy))
@@ -3315,7 +3320,7 @@ if show_zones and show_supply_zones and current_supply_size_for_visuals > 0 and 
         if i >= array.size(supplyZones)
             break
         Core.Zone z = array.get(supplyZones, i)
-        if z.active
+        if z.active and (debug_enabled or zone_is_visible_clean(z))
             bool should_show_visual = should_show_zone_visual(z, supplyZones, false)
             if not should_show_visual
                 z := clear_zone_visual_objects(z, true)
@@ -3334,7 +3339,8 @@ if show_zones and show_supply_zones and current_supply_size_for_visuals > 0 and 
                         float lbl_mid = (z.top + z.bottom) / 2
                         label.set_x(z.idLabel, right_bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        label.set_text(z.idLabel, " " + get_zone_label_text(false, z.id) + " ")
+                        string supplyStateSuffix = show_debug_labels ? ("\n" + zone_state_name(z.state) + ": " + z.stateReason) : ""
+                        label.set_text(z.idLabel, " " + get_zone_label_text(false, z.id) + supplyStateSuffix + " ")
                         label.set_style(z.idLabel, label.style_label_left)
                         label.set_textcolor(z.idLabel, col_zone_label_text)
                         label.set_color(z.idLabel, get_zone_label_color(false, z.isAccuracy))
@@ -3763,8 +3769,13 @@ process_long_entries() =>
                         array.set(_trade_zone_type, 0, "demand")
 
                     z.lastEntryBar := bar_index
+                    if youtube_snd_rules
+                        z := zone_set_state(z, ZONE_STATE_USED, "Long entry opened")
+                        z.inactiveReason := z.stateReason
                     z.active := false
                     z.primed := false  // Reset just in case
+                    array.set(demandZones, i, z)
+                    db_updateZoneLiquidity(z)
                     array.set(_last_global_long_entry_bar, 0, bar_index)
 
                     deactivateOverlappingDemandZones(z.top, z.bottom)
@@ -4210,8 +4221,13 @@ process_short_entries() =>
                         array.set(_trade_zone_type, 0, "supply")  // SUPPLY for shorts
 
                     z.lastEntryBar := bar_index
+                    if youtube_snd_rules
+                        z := zone_set_state(z, ZONE_STATE_USED, "Short entry opened")
+                        z.inactiveReason := z.stateReason
                     z.active := false
                     z.primed := false  // Reset just in case
+                    array.set(supplyZones, i, z)
+                    db_updateZoneLiquidity(z)
                     array.set(_last_global_short_entry_bar, 0, bar_index)
 
                     deactivateOverlappingSupplyZones(z.top, z.bottom)

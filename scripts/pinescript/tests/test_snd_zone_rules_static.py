@@ -64,6 +64,15 @@ def main() -> None:
     ]:
         require(strategy, needle, "Task 6 lifecycle safety guard")
 
+    for needle in [
+        "not zone_is_armed_for_entry(z)",
+        "ZONE_STATE_USED, \"Long entry opened\"",
+        "ZONE_STATE_USED, \"Short entry opened\"",
+        "debug_enabled or zone_is_visible_clean(z)",
+        "zone_state_name(z.state) + \": \" + z.stateReason",
+    ]:
+        require(strategy, needle, "Task 7 entry/drawing lifecycle gate")
+
     reject(strategy, "to 0 by -1", "negative Pine loop step")
     reject(strategy, " by -", "negative Pine loop step")
 
