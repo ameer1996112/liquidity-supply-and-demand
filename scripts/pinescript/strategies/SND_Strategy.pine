@@ -181,10 +181,16 @@ max_visible_zones_per_side = input.int(4, "Max Visible Zones (Per Side)", minval
 zone_right_padding_bars = input.int(10, "Zone Right Padding Bars", minval = 1, maxval = 100, group = "🎨 Display")
 min_body_perc        = input.float(50.0, "Min Body %", minval = 0, maxval = 100, group = "📐 Zone Detection")
 structure_mode      = input.string("Relaxed (Wicks)", "Structure Detection", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
+youtube_snd_rules = input.bool(true, "YouTube S&D Zone Rules", group = "📐 Zone Detection")
+youtube_accuracy_zones = input.bool(true, "YouTube Accuracy Zones", group = "📐 Zone Detection")
+youtube_strict_departure = input.bool(false, "Strict 3-Candle Departure", group = "📐 Zone Detection")
+youtube_zone_lifetime_hours = input.float(24.0, "Zone Lifetime Hours", minval = 0.0, maxval = 168.0, step = 1.0, group = "📐 Zone Detection")
 
 liq_pivot_len       = input.int(5, "Pivot Strength", minval = 1, group = "💧 Liquidity")
 pvtMax              = input.int(5, "Max Liquidity Lines", minval = 1, maxval = 500, group = "💧 Liquidity")
 require_major_liquidity = input.bool(true, "Require Strong Pivots", group = "💧 Liquidity")
+youtube_min_liq_candles = input.int(2, "Min Liquidity Candles", minval = 1, maxval = 5, group = "💧 Liquidity")
+youtube_close_based_bos = input.bool(true, "Close-Based BOS", group = "💧 Liquidity")
 useOneCandleLiquidity = true  // Always allow — 1-candle liq filtering is handled by the Python backend
 
 liq_max_distance_pips_forex = input.float(20.0, "Max Distance - Forex (pips)", minval = 5.0, group = "💧 Liquidity")
@@ -303,7 +309,7 @@ max_bars_held = input.int(36, "Time-Based Exit (Bars)", minval=1, group = "📊 
 enable_double_tp = input.bool(false, "Double TP Mode", group = "📊 Trade Execution")
 use_fvg_confirmation = input.bool(false, "Require FVG (Imbalance)", group = "📐 Zone Detection")
 enable_accuracy_zones = input.bool(true, "Accuracy Zones", group = "📐 Zone Detection")
-should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_index or is_xpt)
+should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_silver or is_index or is_futures or is_xpt)
 
 enable_webhook_alerts = true  // Always enabled
 webhook_include_zone_id = true  // Always include zone ID
@@ -1130,6 +1136,40 @@ zone_is_armed_for_entry(Core.Zone z) =>
 zone_is_visible_clean(Core.Zone z) =>
     z.active and (z.state == ZONE_STATE_FRESH or z.state == ZONE_STATE_LIQUIDITY_FORMED or z.state == ZONE_STATE_CONFIRMED or z.state == ZONE_STATE_ARMED or z.state == ZONE_STATE_MITIGATED or z.state == ZONE_STATE_USED)
 
+candle_is_bullish(int idx) =>
+    close[idx] > open[idx]
+
+candle_is_bearish(int idx) =>
+    close[idx] < open[idx]
+
+candle_body_high(int idx) =>
+    math.max(open[idx], close[idx])
+
+candle_body_low(int idx) =>
+    math.min(open[idx], close[idx])
+
+youtube_accuracy_applies(bool isDemand, int originIdx, int reactionIdx) =>
+    bool applies = false
+    if youtube_accuracy_zones and should_use_accuracy_zones and reactionIdx >= 0
+        if isDemand
+            applies := high[originIdx] > high[reactionIdx]
+        else
+            applies := low[originIdx] < low[reactionIdx]
+    applies
+
+youtube_zone_bounds(bool isDemand, int originIdx, int reactionIdx) =>
+    bool isAccuracy = youtube_accuracy_applies(isDemand, originIdx, reactionIdx)
+    float zTop = high[originIdx]
+    float zBottom = low[originIdx]
+    if isAccuracy
+        if isDemand
+            zTop := candle_body_high(originIdx)
+            zBottom := low[originIdx]
+        else
+            zTop := high[originIdx]
+            zBottom := candle_body_low(originIdx)
+    [zTop, zBottom, isAccuracy]
+
 getMaxHighBetween(int startBarAbs, int endBarAbs) =>
     float maxH = -1.0e10
     if not na(startBarAbs) and not na(endBarAbs) and endBarAbs >= startBarAbs
@@ -1727,41 +1767,33 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         bool proceed_creation = not use_fvg_confirmation or hasFVG
 
         bool isAccuracy = false
-
-        if proceed_creation
-
-            int reactionIdx = baseIdx - 1
-
-            if should_use_accuracy_zones and reactionIdx >= 0
-                if isDemand
-                    // Demand accuracy: Zone candle high > Reaction candle high
-                    if high[baseIdx] > high[reactionIdx]
-                        isAccuracy := true
-                else
-                    // Supply accuracy: Zone candle low < Reaction candle low
-                    if low[baseIdx] < low[reactionIdx]
-                        isAccuracy := true
-
         float zTop = na
         float zBottom = na
 
         if proceed_creation
-            // Zone boundary logic (matches good-marking reference):
-            //   Accuracy zones: proximal = baseOpen, distal = wick extreme
-            //   Normal zones: full base candle range (baseHigh to baseLow)
-            if isAccuracy
-                if isDemand
-                    // Demand Accuracy: Top = OPEN (body top), Bottom = LOW (extreme)
-                    zTop := baseOpen
-                    zBottom := departureWickLow
-                else
-                    // Supply Accuracy: Top = HIGH (extreme), Bottom = OPEN (body bottom)
-                    zTop := departureWickHigh
-                    zBottom := baseOpen
+            int reactionIdx = baseIdx - 1
+            if youtube_snd_rules
+                [ytTop, ytBottom, ytAccuracy] = youtube_zone_bounds(isDemand, baseIdx, reactionIdx)
+                zTop := ytTop
+                zBottom := ytBottom
+                isAccuracy := ytAccuracy
             else
-                // Normal zones: full candle range
-                zTop := isDemand ? baseHigh : departureWickHigh
-                zBottom := isDemand ? departureWickLow : baseLow
+                int reactionIdxLegacy = baseIdx - 1
+                if should_use_accuracy_zones and reactionIdxLegacy >= 0
+                    if isDemand and high[baseIdx] > high[reactionIdxLegacy]
+                        isAccuracy := true
+                    if not isDemand and low[baseIdx] < low[reactionIdxLegacy]
+                        isAccuracy := true
+                if isAccuracy
+                    if isDemand
+                        zTop := baseOpen
+                        zBottom := departureWickLow
+                    else
+                        zTop := departureWickHigh
+                        zBottom := baseOpen
+                else
+                    zTop := isDemand ? baseHigh : departureWickHigh
+                    zBottom := isDemand ? departureWickLow : baseLow
 
             // Cap zone size
             float max_zone_size = 50.0 * pip_size
@@ -1804,13 +1836,14 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             z.isHistorical := isHistorical
             z.startTime := time[baseIdx]
             z.state := ZONE_STATE_CANDIDATE
-            z.stateReason := "Candidate"
+            z.stateReason := "Origin detected"
             z.originBarIndex := baseBarIdx
-            z.departureEndBarIndex := na
+            z.departureEndBarIndex := bar_index
             z.firstInvalidBarIndex := na
             z.liquiditySwingBarIndex := na
             z.structureBreakBarIndex := na
             z.entryEligibleBarIndex := na
+            z := zone_set_state(z, ZONE_STATE_FRESH, "Fresh departure zone")
             z.idLabel := idLbl
             z.touchCount := 0  // Initialize touch count for V5 AI tracking
             z.isAccuracy := isAccuracy  // Tag zone type for trade tracking
