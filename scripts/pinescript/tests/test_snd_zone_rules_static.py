@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -18,6 +19,11 @@ def require(text: str, needle: str, label: str) -> None:
 def reject(text: str, needle: str, label: str) -> None:
     if needle in text:
         raise AssertionError(f"Forbidden {label}: {needle}")
+
+
+def reject_pattern(text: str, pattern: str, label: str) -> None:
+    if re.search(pattern, text):
+        raise AssertionError(f"Forbidden {label}: {pattern}")
 
 
 def main() -> None:
@@ -73,8 +79,18 @@ def main() -> None:
     ]:
         require(strategy, needle, "Task 7 entry/drawing lifecycle gate")
 
+    for needle in [
+        "clear_zone_visual_objects(Core.Zone z, bool includeTargetLine)",
+        "z := clear_zone_visual_objects(z, false)",
+        "z := clear_zone_visual_objects(z, true)",
+        "while demandInvalidScanIdx >= 0",
+        "while supplyInvalidScanIdx >= 0",
+    ]:
+        require(strategy, needle, "Task 8 runtime safety guard")
+
     reject(strategy, "to 0 by -1", "negative Pine loop step")
     reject(strategy, " by -", "negative Pine loop step")
+    reject_pattern(strategy, r"for\\s+\\w+\\s*=\\s*[^\\n]+\\s+to\\s+0\\b", "reverse Pine for loop")
 
     print("SND zone rule static contract passed")
 

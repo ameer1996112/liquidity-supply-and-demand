@@ -3224,9 +3224,12 @@ if demandSize > 0
 
     demandSize := array.size(demandZones)
     if demandSize > 0
-        for i = demandSize - 1 to 0
-            if i >= demandSize
-                break
+        int demandInvalidScanIdx = demandSize - 1
+        while demandInvalidScanIdx >= 0
+            int i = demandInvalidScanIdx
+            demandInvalidScanIdx -= 1
+            if i >= array.size(demandZones)
+                continue
             Core.Zone z = array.get(demandZones, i)
             if z.active
                 if current_close > z.top and not z.leftZone
@@ -3257,9 +3260,12 @@ if supplySize > 0
     current_close = close
     current_high  = high
 
-    for i = supplySize - 1 to 0
-        if i >= supplySize
-            break
+    int supplyInvalidScanIdx = supplySize - 1
+    while supplyInvalidScanIdx >= 0
+        int i = supplyInvalidScanIdx
+        supplyInvalidScanIdx -= 1
+        if i >= array.size(supplyZones)
+            continue
         Core.Zone z = array.get(supplyZones, i)
         if z.active
             if youtube_snd_rules
