@@ -51,8 +51,18 @@ def main() -> None:
         "zone_is_armed_for_entry(Core.Zone z)",
         "zone_pre_entry_invalidated(Core.Zone z, bool isDemand)",
         "zone_update_expiry(Core.Zone z)",
+        "zone_update_liquidity_and_bos(Core.Zone z, bool isDemand)",
     ]:
         require(strategy, helper, "strategy lifecycle helper")
+
+    for needle in [
+        "entry.state := z.state",
+        "entry.stateReason := z.stateReason",
+        "updated.state < ZONE_STATE_ARMED",
+        "int i = cached_demand_size - 1 - demandScan",
+        "int i = cached_supply_size - 1 - supplyScan",
+    ]:
+        require(strategy, needle, "Task 6 lifecycle safety guard")
 
     reject(strategy, "to 0 by -1", "negative Pine loop step")
     reject(strategy, " by -", "negative Pine loop step")

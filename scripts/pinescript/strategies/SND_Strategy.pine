@@ -1098,6 +1098,10 @@ db_updateZoneLiquidity(Core.Zone z) =>
     if not na(idx)
         Core.ZoneDBEntry entry = array.get(zoneDB, idx)
         entry.lastUpdateBar := bar_index
+        entry.active := z.active
+        entry.inactiveReason := z.inactiveReason
+        entry.state := z.state
+        entry.stateReason := z.stateReason
         entry.liqLowPrice := z.liqLowPrice
         entry.liqLowBar := z.liqLowBar
         entry.liqHighPrice := z.liqHighPrice
@@ -2179,6 +2183,46 @@ zone_update_expiry(Core.Zone z) =>
             updated := zone_set_state(updated, ZONE_STATE_EXPIRED, "Zone lifetime expired")
     updated
 
+zone_liquidity_touches_zone(Core.Zone z, bool isDemand) =>
+    bool touches = false
+    if isDemand and not na(z.liqLowPrice)
+        touches := z.liqLowPrice <= z.top and z.liqLowPrice >= z.bottom
+    if not isDemand and not na(z.liqHighPrice)
+        touches := z.liqHighPrice <= z.top and z.liqHighPrice >= z.bottom
+    touches
+
+zone_liquidity_has_min_candles(Core.Zone z) =>
+    z.liquidityCandleCount >= youtube_min_liq_candles
+
+zone_liquidity_ready(Core.Zone z, bool isDemand) =>
+    bool hasLevel = isDemand ? not na(z.liqLowPrice) : not na(z.liqHighPrice)
+    hasLevel and z.liquidityValid and zone_liquidity_has_min_candles(z) and not zone_liquidity_touches_zone(z, isDemand)
+
+zone_structure_broken(Core.Zone z, bool isDemand) =>
+    bool broken = false
+    if not na(z.structureSweepLevel)
+        if isDemand
+            broken := youtube_close_based_bos ? close > z.structureSweepLevel : high > z.structureSweepLevel
+        else
+            broken := youtube_close_based_bos ? close < z.structureSweepLevel : low < z.structureSweepLevel
+    broken
+
+zone_update_liquidity_and_bos(Core.Zone z, bool isDemand) =>
+    Core.Zone updated = z
+    bool canInvalidateBeforeEntry = updated.state < ZONE_STATE_ARMED
+    if canInvalidateBeforeEntry and zone_liquidity_touches_zone(updated, isDemand)
+        updated := zone_set_state(updated, ZONE_STATE_INVALID, "Liquidity touched zone")
+    else if zone_liquidity_ready(updated, isDemand) and updated.state == ZONE_STATE_FRESH
+        updated.liquiditySwingBarIndex := isDemand ? updated.liqLowBar : updated.liqHighBar
+        updated := zone_set_state(updated, ZONE_STATE_LIQUIDITY_FORMED, "Valid visual liquidity")
+    if updated.state == ZONE_STATE_LIQUIDITY_FORMED and zone_structure_broken(updated, isDemand)
+        updated.structureBreakBarIndex := bar_index
+        updated := zone_set_state(updated, ZONE_STATE_CONFIRMED, "Liquidity broke own structure")
+    if updated.state == ZONE_STATE_CONFIRMED and updated.liquiditySwept
+        updated.entryEligibleBarIndex := bar_index
+        updated := zone_set_state(updated, ZONE_STATE_ARMED, "Liquidity swept; entry allowed")
+    updated
+
 var bool  trade_is_accuracy_zone = false
 
 var int[] _stat_total_entry_checks           = array.new_int(1, 0)
@@ -2953,9 +2997,10 @@ if cached_demand_size > 0 and barstate.isconfirmed
     current_open = open
 
     int demand_liquidity_visible_count = 0
-    for i = 0 to cached_demand_size - 1
+    for demandScan = 0 to cached_demand_size - 1
+        int i = cached_demand_size - 1 - demandScan
         if i >= array.size(demandZones)
-            break
+            continue
         Core.Zone z = array.get(demandZones, i)
         if z.active
             demand_liquidity_visible_count += 1
@@ -3002,6 +3047,16 @@ if cached_demand_size > 0 and barstate.isconfirmed
                 f_scan_demand_liquidity(i)
 
             f_check_demand_sweeps(i)
+
+            if youtube_snd_rules
+                z := array.get(demandZones, i)
+                z := zone_update_liquidity_and_bos(z, true)
+                array.set(demandZones, i, z)
+                db_updateZoneLiquidity(z)
+                if z.state == ZONE_STATE_INVALID
+                    db_markInactive(z.id, z.stateReason)
+                    remove_zone_all_arrays(true, i)
+                    continue
 
             if should_update_liquidity_visual
                 updateDemandLiquidityVisual(i)
@@ -3063,9 +3118,10 @@ if cached_supply_size > 0 and barstate.isconfirmed
     current_low = low
 
     int supply_liquidity_visible_count = 0
-    for i = 0 to cached_supply_size - 1
+    for supplyScan = 0 to cached_supply_size - 1
+        int i = cached_supply_size - 1 - supplyScan
         if i >= array.size(supplyZones)
-            break
+            continue
         Core.Zone z = array.get(supplyZones, i)
         if z.active
             supply_liquidity_visible_count += 1
@@ -3112,6 +3168,16 @@ if cached_supply_size > 0 and barstate.isconfirmed
                 f_scan_supply_liquidity(i)
 
             f_check_supply_sweeps(i)
+
+            if youtube_snd_rules
+                z := array.get(supplyZones, i)
+                z := zone_update_liquidity_and_bos(z, false)
+                array.set(supplyZones, i, z)
+                db_updateZoneLiquidity(z)
+                if z.state == ZONE_STATE_INVALID
+                    db_markInactive(z.id, z.stateReason)
+                    remove_zone_all_arrays(false, i)
+                    continue
 
             if should_update_liquidity_visual
                 updateSupplyLiquidityVisual(i)
