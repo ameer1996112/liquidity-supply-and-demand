@@ -1078,13 +1078,19 @@ db_markInactive(int targetUZID, string reason) =>
     int idx = db_findIndexByUZID(targetUZID)
     if not na(idx)
         Core.ZoneDBEntry entry = array.get(zoneDB, idx)
-        entry.active := false
-        entry.inactiveReason := reason
-        bool isLifecycleInvalidation = reason != "max_pruned" and reason != "removed"
-        if isLifecycleInvalidation
-            entry.state := ZONE_STATE_INVALID
-            entry.stateReason := reason
-        entry.lastUpdateBar := bar_index
+        bool preserveExistingReason = not entry.active and reason == "removed" and not na(entry.inactiveReason) and str.length(entry.inactiveReason) > 0
+        if not preserveExistingReason
+            entry.active := false
+            entry.inactiveReason := reason
+            bool isExpiry = reason == "Zone lifetime expired"
+            bool isLifecycleInvalidation = reason != "max_pruned" and reason != "removed"
+            if isExpiry
+                entry.state := ZONE_STATE_EXPIRED
+                entry.stateReason := reason
+            else if isLifecycleInvalidation
+                entry.state := ZONE_STATE_INVALID
+                entry.stateReason := reason
+            entry.lastUpdateBar := bar_index
     true  // Consistent return type
 
 db_updateZoneLiquidity(Core.Zone z) =>
@@ -1169,6 +1175,54 @@ youtube_zone_bounds(bool isDemand, int originIdx, int reactionIdx) =>
             zTop := high[originIdx]
             zBottom := candle_body_low(originIdx)
     [zTop, zBottom, isAccuracy]
+
+youtube_departure_valid(bool isDemand, int originIdx, int legCandles) =>
+    bool directionOk = false
+    int firstDepartureIdx = originIdx - 1
+    if firstDepartureIdx >= 0
+        if isDemand
+            directionOk := legCandles >= 1 and candle_is_bullish(firstDepartureIdx)
+            if youtube_strict_departure and originIdx - 2 >= 0
+                directionOk := directionOk and candle_is_bullish(originIdx - 2)
+        else
+            directionOk := legCandles >= 1 and candle_is_bearish(firstDepartureIdx)
+            if youtube_strict_departure and originIdx - 2 >= 0
+                directionOk := directionOk and candle_is_bearish(originIdx - 2)
+    directionOk
+
+zone_touching(Core.Zone z) =>
+    high >= z.bottom and low <= z.top
+
+zone_close_inside(Core.Zone z) =>
+    close <= z.top and close >= z.bottom
+
+zone_distal_broken(Core.Zone z, bool isDemand) =>
+    isDemand ? close < z.bottom : close > z.top
+
+zone_is_departure_bar(Core.Zone z) =>
+    not na(z.departureEndBarIndex) and bar_index <= z.departureEndBarIndex
+
+zone_same_direction_departure_touch_allowed(bool isDemand) =>
+    isDemand ? candle_is_bullish(0) : candle_is_bearish(0)
+
+zone_pre_entry_invalidated(Core.Zone z, bool isDemand) =>
+    bool invalid = false
+    string reason = ""
+    bool touching = zone_touching(z)
+    bool closeInside = zone_close_inside(z)
+    bool distalBroken = zone_distal_broken(z, isDemand)
+    bool departureException = zone_is_departure_bar(z) and zone_same_direction_departure_touch_allowed(isDemand)
+    bool canPreInvalidate = z.state < ZONE_STATE_ARMED and not departureException
+    if canPreInvalidate and touching
+        invalid := true
+        reason := "Touched before liquidity+BOS"
+    if canPreInvalidate and closeInside
+        invalid := true
+        reason := "Closed inside before entry"
+    if canPreInvalidate and distalBroken
+        invalid := true
+        reason := "Distal break"
+    [invalid, reason]
 
 getMaxHighBetween(int startBarAbs, int endBarAbs) =>
     float maxH = -1.0e10
@@ -1795,6 +1849,12 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                     zTop := isDemand ? baseHigh : departureWickHigh
                     zBottom := isDemand ? departureWickLow : baseLow
 
+            bool departureOk = not youtube_snd_rules or youtube_departure_valid(isDemand, baseIdx, legCandles)
+            proceed_creation := proceed_creation and departureOk
+            if not proceed_creation
+                zTop := na
+                zBottom := na
+
             // Cap zone size
             float max_zone_size = 50.0 * pip_size
             if (zTop - zBottom) > max_zone_size
@@ -2107,6 +2167,17 @@ trade_caused_sweep     = array.get(_trade_caused_sweep, 0)
 trade_is_accuracy      = array.get(_trade_is_accuracy, 0)
 trade_entry_model      = array.get(_trade_entry_model, 0)
 trade_zone_type        = array.get(_trade_zone_type, 0)
+
+zone_has_open_trade(Core.Zone z) =>
+    strategy.position_size != 0 and not na(trade_zone_id) and trade_zone_id == z.id
+
+zone_update_expiry(Core.Zone z) =>
+    Core.Zone updated = z
+    if youtube_zone_lifetime_hours > 0 and not na(z.startTime) and not zone_has_open_trade(z)
+        float maxAgeMs = youtube_zone_lifetime_hours * 60.0 * 60.0 * 1000.0
+        if (time - z.startTime) > maxAgeMs and z.state != ZONE_STATE_USED
+            updated := zone_set_state(updated, ZONE_STATE_EXPIRED, "Zone lifetime expired")
+    updated
 
 var bool  trade_is_accuracy_zone = false
 
@@ -3092,14 +3163,24 @@ if demandSize > 0
                     z.leftZone := true
                     z.leftWithBearish := current_close < current_open
 
-                bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
-
-                bool close_below_zone     = current_close < z.bottom
-                bool wick_below_zone = current_low < z.bottom
-
-                // Closing inside a zone is a touch/mitigation event; invalidation requires a close beyond the far edge.
-                if close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
-                    remove_zone_all_arrays(true, i)
+                if youtube_snd_rules
+                    [preInvalid, preInvalidReason] = zone_pre_entry_invalidated(z, true)
+                    z := zone_update_expiry(z)
+                    if preInvalid
+                        z := zone_set_state(z, ZONE_STATE_INVALID, preInvalidReason)
+                        array.set(demandZones, i, z)
+                        db_markInactive(z.id, preInvalidReason)
+                        remove_zone_all_arrays(true, i)
+                    else if z.state == ZONE_STATE_EXPIRED
+                        array.set(demandZones, i, z)
+                        db_markInactive(z.id, z.stateReason)
+                        remove_zone_all_arrays(true, i)
+                else
+                    bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
+                    bool close_below_zone = current_close < z.bottom
+                    bool wick_below_zone = current_low < z.bottom
+                    if close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
+                        remove_zone_all_arrays(true, i)
 
 int supplySize = array.size(supplyZones)
 if supplySize > 0
@@ -3111,14 +3192,24 @@ if supplySize > 0
             break
         Core.Zone z = array.get(supplyZones, i)
         if z.active
-            bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
-
-            bool close_above_zone     = current_close > z.top
-            bool wick_above_zone = current_high > z.top
-
-            // Closing inside a zone is a touch/mitigation event; invalidation requires a close beyond the far edge.
-            if close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
-                remove_zone_all_arrays(false, i)
+            if youtube_snd_rules
+                [preInvalid, preInvalidReason] = zone_pre_entry_invalidated(z, false)
+                z := zone_update_expiry(z)
+                if preInvalid
+                    z := zone_set_state(z, ZONE_STATE_INVALID, preInvalidReason)
+                    array.set(supplyZones, i, z)
+                    db_markInactive(z.id, preInvalidReason)
+                    remove_zone_all_arrays(false, i)
+                else if z.state == ZONE_STATE_EXPIRED
+                    array.set(supplyZones, i, z)
+                    db_markInactive(z.id, z.stateReason)
+                    remove_zone_all_arrays(false, i)
+            else
+                bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
+                bool close_above_zone = current_close > z.top
+                bool wick_above_zone = current_high > z.top
+                if close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
+                    remove_zone_all_arrays(false, i)
 
 int current_demand_size_for_visuals = array.size(demandZones)
 if show_zones and show_demand_zones and current_demand_size_for_visuals > 0 and barstate.isconfirmed
