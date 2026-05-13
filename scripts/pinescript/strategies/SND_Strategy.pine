@@ -26,38 +26,50 @@
 
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
-import ameer_1996112/SND_Utils/23 as Utils
+import ameer_1996112/SND_Utils/24 as Utils
 import ameer_1996112/SND_Core/27 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
-     shorttitle = "S&D Algo [Pro]",
-     overlay = true,
-     max_bars_back = 5000,
-     initial_capital = 50000,      // Matches account_size_usd for accurate backtest P&L (was 10M which made % useless)
-     currency = currency.USD,
-     default_qty_type = strategy.fixed,
-     default_qty_value = 100,
-     pyramiding = 0,
-     process_orders_on_close = true,
-     calc_on_every_tick = false,
-     margin_long = 1,
-     margin_short = 1,
-     slippage = 3,
-     commission_type = strategy.commission.percent,
-     commission_value = 0)
+     shorttitle                      = "S&D Pro",
+     overlay                         = true,
+     max_bars_back                   = 5000,
+     initial_capital                 = 50000,
+     currency                        = currency.USD,
+     default_qty_type                = strategy.percent_of_equity,
+     default_qty_value               = 100,
+     pyramiding                      = 0,
+     process_orders_on_close         = true,
+     calc_on_every_tick              = false,
+     margin_long                     = 1,
+     margin_short                    = 1,
+     slippage                        = 2,
+     commission_type                 = strategy.commission.cash_per_order,
+     commission_value                = 3.5,
+     backtest_fill_limits_assumption = 1,
+     close_entries_rule              = "ANY")
+
+// ============================================================================
+// PROP FIRM RISK MANAGEMENT
+// ============================================================================
+grpRisk = "Prop Firm Risk Management"
+
+risk_pct          = input.float(0.4,  "risk_pct",     minval=0.1, maxval=2.0, step=0.1, group=grpRisk, tooltip="Percent of current equity risked per trade. 0.4% on a $50k account = $200 per trade.")
+daily_kill_pct    = input.float(4.0,  "daily_kill_pct",      minval=1.0, maxval=5.0, step=0.5, group=grpRisk, tooltip="Stop trading for the day after this drawdown from day-start equity. Keep below the prop firm daily DD limit (5% on ACG/FTMO).")
+total_kill_pct    = input.float(8.0,  "total_kill_pct",      minval=4.0, maxval=10.0, step=0.5, group=grpRisk, tooltip="Stop trading entirely after this drawdown from peak equity. Keep below the prop firm max DD limit (10% on ACG/FTMO).")
+consec_loss_kill  = input.int(2,      "consec_loss_kill",  minval=1, maxval=5, group=grpRisk, tooltip="Stop trading for the day after this many consecutive losing trades.")
+min_hold_minutes  = input.int(2,      "min_hold_minutes", minval=0, maxval=60, group=grpRisk, tooltip="Block exits before this many minutes after entry. ACG Pro requires 2 min minimum.")
+news_blackout_enabled = input.bool(false, "news_blackout_enabled", group=grpRisk, tooltip="Manual news event filter. Edit the news_times array in code to update.")
 
 const string WEBHOOK_STRATEGY_ID = "liq_sd_v1"
 const string WEBHOOK_STRATEGY_VERSION = "1"
 
 pip_size = Utils.get_auto_pip_size(syminfo.ticker, syminfo.mintick)
 
-
-config_profile = input.string("Balanced (Recommended)", "⚡ Configuration Profile",
-     options = ["Conservative (Live Trading)", "Balanced (Recommended)", "Aggressive (Paper Trading)", "Custom"],
-     group = "🎯 Quick Setup")
-
-use_profile_defaults = config_profile != "Custom"
-is_aggressive = config_profile == "Aggressive (Paper Trading)"
+grpEMAContext = "📈 EMA Context"
+ema_context_length = input.int(200, "ema_context_length", minval = 1, maxval = 500, group = grpEMAContext, tooltip = "EMA length used only for alert learning context.")
+ema_context_slope_lookback = input.int(10, "ema_context_slope_lookback", minval = 1, maxval = 100, group = grpEMAContext, tooltip = "Bars used to measure EMA slope in pips for alert learning context.")
+ema_context_neutral_atr_mult = input.float(0.10, "ema_context_neutral_atr_mult", minval = 0.0, maxval = 2.0, step = 0.05, group = grpEMAContext, tooltip = "Zone midpoint distance inside this ATR multiple is marked neutral.")
+show_ema_context_line = input.bool(true, "show_ema_context_line", group = grpEMAContext, tooltip = "Plot the EMA used for alert learning context.")
 
 
 const int MAX_BACKWARD_SCAN = 200
@@ -76,15 +88,6 @@ const float SWEEP_TOLERANCE_PIPS = 0.5
 const float SWEEP_TOLERANCE_TICKS = 0.1
 
 const int HOURS_24_MS = 86400000
-const int ZONE_STATE_CANDIDATE = 0
-const int ZONE_STATE_FRESH = 1
-const int ZONE_STATE_LIQUIDITY_FORMED = 2
-const int ZONE_STATE_CONFIRMED = 3
-const int ZONE_STATE_ARMED = 4
-const int ZONE_STATE_MITIGATED = 5
-const int ZONE_STATE_USED = 6
-const int ZONE_STATE_INVALID = 7
-const int ZONE_STATE_EXPIRED = 8
 
 const float FOREX_LOT_SIZE = 100000.0
 const float GOLD_LOT_SIZE = 100.0
@@ -167,43 +170,30 @@ float structure_high_20 = ta.highest(high, 20)
 float structure_low_20 = ta.lowest(low, 20)
 
 
-display_mode = input.string("Clean", "Display Mode",
-     options = ["Clean", "Analysis", "Debug"],
-     group = "🎨 Display")
-display_is_clean = display_mode == "Clean"
-display_is_analysis = display_mode == "Analysis"
-display_is_debug = display_mode == "Debug"
-display_show_details = display_is_analysis or display_is_debug
+invalidate_on_wick   = input.bool(true, "invalidate_on_wick", group = "📐 Zone Detection")
+max_zones            = input.int(12, "max_zones", minval = 1, maxval = 50, group = "📐 Zone Detection")
+min_body_perc        = input.float(52.0, "min_body_perc", minval = 0, maxval = 100, group = "📐 Zone Detection")
+structure_mode      = input.string("Relaxed (Wicks)", "structure_mode", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
+formation_leg_wick_inclusion = input.bool(true, "Formation-Leg Wick Inclusion", group = "📐 Zone Detection")
+formation_leg_scan_bars = input.int(4, "Formation Leg Scan Bars", minval = 1, maxval = 6, group = "📐 Zone Detection")
 
-invalidate_on_wick   = input.bool(true, "Invalidate on Wick Touch", group = "📐 Zone Detection")
-max_zones            = input.int(20, "Max Zones Stored", minval = 1, maxval = 50, group = "📐 Zone Detection")
-max_visible_zones_per_side = input.int(4, "Max Visible Zones (Per Side)", minval = 1, maxval = 50, group = "🎨 Display")
-zone_right_padding_bars = input.int(10, "Zone Right Padding Bars", minval = 1, maxval = 100, group = "🎨 Display")
-min_body_perc        = input.float(50.0, "Min Body %", minval = 0, maxval = 100, group = "📐 Zone Detection")
-structure_mode      = input.string("Relaxed (Wicks)", "Structure Detection", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
-youtube_snd_rules = input.bool(true, "YouTube S&D Zone Rules", group = "📐 Zone Detection")
-youtube_accuracy_zones = input.bool(true, "YouTube Accuracy Zones", group = "📐 Zone Detection")
-youtube_strict_departure = input.bool(false, "Strict 3-Candle Departure", group = "📐 Zone Detection")
-youtube_zone_lifetime_hours = input.float(24.0, "Zone Lifetime Hours", minval = 0.0, maxval = 168.0, step = 1.0, group = "📐 Zone Detection")
+liq_pivot_len       = input.int(10, "liq_pivot_len", minval = 1, group = "💧 Liquidity")
+pvtMax              = input.int(12, "pvtMax", minval = 1, maxval = 500, group = "💧 Liquidity")
+require_major_liquidity = input.bool(true, "require_major_liquidity", group = "💧 Liquidity")
+useOneCandleLiquidity = false  // RD 5m rule: liquidity must be formed by more than one candle
 
-liq_pivot_len       = input.int(5, "Pivot Strength", minval = 1, group = "💧 Liquidity")
-pvtMax              = input.int(5, "Max Liquidity Lines", minval = 1, maxval = 500, group = "💧 Liquidity")
-require_major_liquidity = input.bool(true, "Require Strong Pivots", group = "💧 Liquidity")
-youtube_min_liq_candles = input.int(2, "Min Liquidity Candles", minval = 1, maxval = 5, group = "💧 Liquidity")
-youtube_close_based_bos = input.bool(true, "Close-Based BOS", group = "💧 Liquidity")
-useOneCandleLiquidity = true  // Always allow — 1-candle liq filtering is handled by the Python backend
-
-liq_max_distance_pips_forex = input.float(20.0, "Max Distance - Forex (pips)", minval = 5.0, group = "💧 Liquidity")
-liq_max_distance_pips_gold  = input.float(150.0, "Max Distance - Gold (pips)", minval = 5.0, group = "💧 Liquidity")
-liq_max_distance_pips_index = input.float(500.0, "Max Distance - Indices (pips)", minval = 100.0, group = "💧 Liquidity")
+liq_max_distance_pips_forex = input.float(33.9, "liq_max_distance_pips_forex", minval = 5.0, group = "💧 Liquidity")
+liq_max_distance_pips_gold  = input.float(150.0, "liq_max_distance_pips_gold", minval = 5.0, group = "💧 Liquidity")
+liq_max_distance_pips_index = input.float(500.0, "liq_max_distance_pips_index", minval = 100.0, group = "💧 Liquidity")
 
 fractalsPeriod = 2  // Williams Fractals period
-plotLiq_user = input.bool(false, "Show Liquidity Pivot Lines", group = "🎨 Display")
-plotLiq = display_show_details or plotLiq_user
-show_fractals = input.bool(true, "Show Fractal Markers", group = "🎨 Display")
+plotLiq    = input.bool(true, "plotLiq", group = "🎨 Display")
+show_fractals = input.bool(true, "show_fractals", group = "🎨 Display")
+pvtTopColor = color.red  // Visual colors
+pvtBtmColor = color.green
 pvtStyle    = line.style_solid
-show_liquidity_connectors_user = input.bool(false, "Show Liquidity Connectors & Lines", group = "🎨 Display")
-show_liquidity_connectors = display_show_details or show_liquidity_connectors_user
+show_liquidity_connectors = input.bool(false, "show_liquidity_connectors", group = "🎨 Display")
+liq_line_color = color.new(color.gray, 35)
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
 liq_link_lookback_bars = 400
@@ -217,65 +207,64 @@ show_zones           = true
 show_demand_zones    = true
 show_supply_zones    = true
 show_entry_labels    = true
-show_ai_debug_comment = false
-zone_label_style_input = input.string("Compact", "Zone Label Style", options = ["Compact", "Detailed"], group = "🎨 Display")
-zone_label_style = display_is_clean ? "Compact" : zone_label_style_input
-zone_label_show_metrics_input = input.bool(true, "Zone Label: Show Grade/Score", group = "🎨 Display")
-zone_label_show_metrics = display_show_details and zone_label_show_metrics_input
-show_blocked_trade_labels = input.bool(false, "Show Blocked Trade Labels", group = "🎨 Display")
+zone_lab_mode = input.bool(false, "zone_lab_mode", group = "🎨 Display")
+show_active_zones_only = input.bool(true, "show_active_zones_only", group = "🎨 Display")
+show_accuracy_zones = input.bool(false, "show_accuracy_zones", group = "🎨 Display")
+show_invalid_zones = input.bool(false, "show_invalid_zones", group = "🎨 Display")
+show_mitigated_zones = input.bool(false, "show_mitigated_zones", group = "🎨 Display")
+show_candidate_zones = input.bool(false, "show_candidate_zones", group = "🎨 Display")
+show_rejection_reason_labels = input.bool(false, "show_rejection_reason_labels", group = "🎨 Display")
+zone_label_style = input.string("Compact", "zone_label_style", options = ["Compact", "Detailed"], group = "🎨 Display")
+zone_label_show_metrics = input.bool(true, "zone_label_show_metrics", group = "🎨 Display")
+show_blocked_trade_labels = input.bool(false, "show_blocked_trade_labels", group = "🎨 Display")
 long_label_offset_atr = 0.60
 long_label_offset_ticks = 0
 extend_bars          = 50
 
 
-trade_direction       = input.string("Both", "Trade Direction", options = ["Both", "Long Only", "Short Only"], group = "🎯 Quick Setup")
+trade_direction       = input.string("Both", "trade_direction", options = ["Both", "Long Only", "Short Only"], group = "🎯 Quick Setup")
 allow_long_trades     = trade_direction == "Both" or trade_direction == "Long Only"
 allow_short_trades    = trade_direction == "Both" or trade_direction == "Short Only"
 
-account_size_usd      = input.float(50000, "💰 Account Size ($)", minval = 100, step = 1000, group = "🎯 Quick Setup")
-risk_per_trade_pct    = input.float(0.5, "Risk Per Trade (%)", minval = 0.1, maxval = 10, step = 0.1, group = "🎯 Quick Setup")
-stop_loss_buffer_pips = input.float(1.0, "SL Buffer (Pips)", minval = 0, step = 0.1, group = "📊 Trade Execution")
-use_custom_rr         = input.bool(false, "☐ Override: Use Fixed RR", group = "📊 Trade Execution")
-risk_reward_ratio     = input.float(2.0, "   └─ Custom R:R Ratio", minval = 0.5, step = 0.1, group = "📊 Trade Execution")
-liq_entry_max_dist = input.float(10.0, "Max Zone-to-Liq Distance (Pips)", minval = 0.0, step = 1.0, group = "💧 Liquidity")
-min_tp_distance_pips = input.float(5.0, "Min TP Distance (Pips)", minval = 1.0, step = 1.0, group = "📊 Trade Execution")
+account_size_usd      = input.float(50000, "account_size_usd", minval = 100, step = 1000, group = "🎯 Quick Setup")
+risk_per_trade_pct    = input.float(0.5, "risk_per_trade_pct", minval = 0.1, maxval = 10, step = 0.1, group = "🎯 Quick Setup")
+stop_loss_buffer_pips = input.float(1.4, "stop_loss_buffer_pips", minval = 0, step = 0.1, group = "📊 Trade Execution")
+tp_rule_mode = input.string("RD 2026 Playbook", "tp_rule_mode", options = ["RD 2026 Playbook", "Custom Fixed RR", "Legacy Defaults"], group = "📊 Trade Execution", tooltip = "RD 2026 Playbook uses Gold and JPY/forex SL-size TP tables. Custom Fixed RR uses risk_reward_ratio. Legacy Defaults keeps old fixed defaults for non-forex instruments.")
+use_custom_rr         = input.bool(true, "use_custom_rr", group = "📊 Trade Execution")
+risk_reward_ratio     = input.float(4.0, "risk_reward_ratio", minval = 0.5, step = 0.1, group = "📊 Trade Execution")
+liq_entry_max_dist = input.float(8.7, "liq_entry_max_dist", minval = 0.0, step = 0.1, group = "💧 Liquidity")
+min_tp_distance_pips = input.float(11.0, "min_tp_distance_pips", minval = 1.0, step = 0.1, group = "📊 Trade Execution")
 
 use_stop_loss         = true  // Always use SL
 use_take_profit       = true  // Always use TP
 require_liquidity_sweep = true  // Always require liquidity sweep
 min_position_size_units = 1000  // Min position size
-max_position_size_lots = input.float(100.0, "Absolute Max Position Size (Lots)", minval = 0.1, step = 1.0, group = "🛡️ Prop Firm / Risk Safety")
-max_lots_per_10k       = input.float(10.0, "Relative Max Lots (Per $10k)", minval = 0.1, step = 1.0, group = "🛡️ Prop Firm / Risk Safety")
-max_usd_risk_cap      = input.float(0.0, "Max USD Risk Cap ($)", minval = 0.0, step = 50.0, group = "🛡️ Prop Firm / Risk Safety")
-use_half_risk_second_trade = input.bool(true, "Half Risk on 2nd Daily Trade", group = "🛡️ Prop Firm / Risk Safety")
+max_position_size_lots = input.float(100.0, "max_position_size_lots", minval = 0.1, step = 1.0, group = "🛡️ Prop Firm / Risk Safety")
+max_lots_per_10k       = input.float(10.0, "max_lots_per_10k", minval = 0.1, step = 1.0, group = "🛡️ Prop Firm / Risk Safety")
+max_usd_risk_cap      = input.float(0.0, "max_usd_risk_cap", minval = 0.0, step = 50.0, group = "🛡️ Prop Firm / Risk Safety")
+use_half_risk_second_trade = input.bool(true, "use_half_risk_second_trade", group = "🛡️ Prop Firm / Risk Safety")
 dry_run_mode          = false  // Dry run disabled by default
 
 debug_mode            = false
-debug_entry_labels    = false
-show_zone_debug_labels = false
-show_debug_labels      = false
 zone_label_size       = "Tiny"
-debug_level           = input.string("None", "Debug Level", options = ["None", "Basic", "Full"], group = "🎨 Display")
+debug_level           = input.string("None", "debug_level", options = ["None", "Basic", "Full"], group = "🎨 Display")
 debug_last_bars       = 200
-showZoneInspector = input.bool(false, "Zone Inspector Panel", group = "🎨 Display") or display_show_details
-showCompactStatusPanel = input.bool(true, "Compact Status Panel", group = "🎨 Display") and display_is_clean
+showZoneInspector     = input.bool(true, "showZoneInspector", group = "🎨 Display")
 manual_zone_id_input  = input.string(
      "",
-     "Zone Inspector: Zone ID (optional)",
-     group   = "🎨 Display"
- )
-showActiveProfile       = input.bool(true, "Show Active Profile (Bottom Center)", group = "🎨 Display")
-show_performance_table  = input.bool(true, "Performance Table", group = "🎨 Display")
-showResults             = input.bool(true, "Show Results Table", group = "🎨 Display")
-table_text_size         = input.string("Small", "Table Text Size", options = ["Tiny", "Small", "Normal"], group = "🎨 Display")
+	     "manual_zone_id_input",
+	     group   = "🎨 Display"
+	 )
+show_performance_table  = input.bool(true, "show_performance_table", group = "🎨 Display")
+showResults             = input.bool(true, "showResults", group = "🎨 Display")
+table_text_size         = input.string("Small", "table_text_size", options = ["Tiny", "Small", "Normal"], group = "🎨 Display")
 string tbl_sz = table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)
 var color TBL_BG  = color.new(color.rgb(30, 35, 40), 5)
 var color TBL_DBG = color.new(color.rgb(25, 30, 35), 5)
 var color TBL_LBL = color.rgb(200, 200, 200)
 var color TBL_DIM = color.rgb(150, 150, 150)
 var color TBL_DRK = color.rgb(25, 25, 25)
-take_profit_pips        = input.float(0.0, "Fixed TP Override (Pips)", minval = 0, group = "📊 Trade Execution")
-debug_liq_extra         = false
+take_profit_pips        = input.float(0.0, "take_profit_pips", minval = 0, group = "📊 Trade Execution")
 
 float pip_scale_factor = (is_gold or is_xpt) and pip_size <= 0.011 ? 10.0 : (is_index ? 10.0 : 1.0)
 
@@ -286,36 +275,36 @@ float effective_liq_max_dist = is_index ? liq_max_distance_pips_index : ((is_gol
 float effective_tp_pips = take_profit_pips * pip_scale_factor
 
 
-enable_trade_limit = input.bool(true, "Limit Daily Trades", group = "⏰ Session & Limits")
-max_trades_per_day = input.int(2, "   └─ Max Trades/Day", minval = 1, maxval = 10, group = "⏰ Session & Limits")
+enable_trade_limit = input.bool(true, "enable_trade_limit", group = "⏰ Session & Limits")
+max_trades_per_day = input.int(2, "max_trades_per_day", minval = 1, maxval = 10, group = "⏰ Session & Limits")
 
 filter_dead_zone = false  // Handled by backend risk page
-filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⏰ Session & Limits")
-trading_start_hour = input.int(6, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Session & Limits")
-trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Session & Limits")
-require_htf_flip = input.bool(true, "HTF Flip Context", group = "🤖 AI & Grade Filters")
+filter_trading_hours = input.bool(true, "filter_trading_hours", group = "⏰ Session & Limits")
+use_rd_5m_session = input.bool(true, "use_rd_5m_session", group = "⏰ Session & Limits", tooltip = "RD optimized 5m window: 07:00-09:00 UTC.")
+rd_session_start_hour_utc = input.int(7, "rd_session_start_hour_utc", minval = 0, maxval = 23, group = "⏰ Session & Limits")
+rd_session_end_hour_utc = input.int(9, "rd_session_end_hour_utc", minval = 1, maxval = 24, group = "⏰ Session & Limits")
+trading_start_hour = input.int(0, "trading_start_hour", minval = 0, maxval = 23, group = "⏰ Session & Limits")
+trading_end_hour = input.int(24, "trading_end_hour", minval = 0, maxval = 24, group = "⏰ Session & Limits")
+max_peak_to_touch_bars = input.int(20, "max_peak_to_touch_bars", minval = 1, maxval = 500, group = "📐 Entry Validation")
+max_sweep_to_touch_bars = input.int(25, "max_sweep_to_touch_bars", minval = 1, maxval = 500, group = "📐 Entry Validation")
 
-enable_ai_quality_filter = input.bool(true, "AI Quality Filter", group = "🤖 AI & Grade Filters")
-ai_quality_threshold = input.int(60, "   └─ Min Score (0-100)", minval = 0, maxval = 100, group = "🤖 AI & Grade Filters")
-enable_ai_lite_mode = input.bool(false, "   └─ Lite Mode (Block Only Score<30)", group = "🤖 AI & Grade Filters")
-enable_ai_shadow_mode = false
-enable_grade_filter = input.bool(false, "Grade Filter", group = "🤖 AI & Grade Filters")
-min_entry_grade     = input.string("C", "   └─ Min Grade", options=["A+", "A", "B+", "B", "C+", "C"], group = "🤖 AI & Grade Filters")
-max_peak_to_touch_bars = input.int(30, "Max Peak to Touch Bars", minval = 1, maxval = 500, group = "🤖 AI & Grade Filters")
-max_sweep_to_touch_bars = input.int(15, "Max Sweep to Touch Bars", minval = 1, maxval = 500, group = "🤖 AI & Grade Filters")
-
-use_break_even     = input.bool(false, "Break-Even Mode", group = "📊 Trade Execution")
-max_bars_held = input.int(36, "Time-Based Exit (Bars)", minval=1, group = "📊 Trade Execution")
-enable_double_tp = input.bool(false, "Double TP Mode", group = "📊 Trade Execution")
-use_fvg_confirmation = input.bool(false, "Require FVG (Imbalance)", group = "📐 Zone Detection")
-enable_accuracy_zones = input.bool(true, "Accuracy Zones", group = "📐 Zone Detection")
+use_break_even     = input.bool(false, "use_break_even", group = "📊 Trade Execution")
+max_bars_held = input.int(88, "max_bars_held", minval=1, group = "📊 Trade Execution")
+enable_double_tp = input.bool(false, "enable_double_tp", group = "📊 Trade Execution")
+entry_execution_mode = input.string("market_on_signal", "entry_execution_mode", options = ["market_on_signal", "wait_for_next_wick"], group = "📊 Trade Execution")
+wick_entry_pullback_pips = input.float(1.0, "wick_entry_pullback_pips", minval = 0.0, step = 0.1, group = "📊 Trade Execution")
+max_entry_delay_seconds = input.int(300, "max_entry_delay_seconds", minval = 0, maxval = 900, group = "📊 Trade Execution")
+entry_poll_interval_seconds = input.float(1.0, "entry_poll_interval_seconds", minval = 0.1, maxval = 10.0, step = 0.1, group = "📊 Trade Execution")
+max_spread_pips = input.float(3.0, "max_spread_pips", minval = 0.1, step = 0.1, group = "📊 Trade Execution")
+use_fvg_confirmation = input.bool(false, "use_fvg_confirmation", group = "📐 Zone Detection")
+enable_accuracy_zones = input.bool(true, "enable_accuracy_zones", group = "📐 Zone Detection")
 should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_silver or is_index or is_futures or is_xpt)
 
 enable_webhook_alerts = true  // Always enabled
 webhook_include_zone_id = true  // Always include zone ID
 
-show_grade_on_zone  = input.bool(true, "Show Grade on Zones", group = "🎨 Display")
-show_ai_score_on_label = input.bool(false, "Show AI Score on Labels", group = "🎨 Display")
+show_grade_on_zone  = input.bool(true, "show_grade_on_zone", group = "🎨 Display")
+show_ai_score_on_label = input.bool(false, "show_ai_score_on_label", group = "🎨 Display")
 enable_v6_v7_features = true
 ema_trend_length = 200  // Trend EMA (hardcoded)
 
@@ -358,79 +347,20 @@ plot_liquidity_distance = array.get(_plot_liquidity_distance, 0)
 plot_liquidity_spread = array.get(_plot_liquidity_spread, 0)
 
 
-max_daily_loss_pct    = input.float(4.0, "Daily Loss Limit (%) [Backtest Only]", minval = 0.1, group = "🛡️ Prop Firm / Risk Safety")
-max_daily_profit_pct  = input.float(5.0, "Daily Profit Target (%) [Backtest Only]", minval = 0.1, group = "🛡️ Prop Firm / Risk Safety")
+max_daily_loss_pct    = input.float(4.5, "max_daily_loss_pct", minval = 0.1, group = "🛡️ Prop Firm / Risk Safety")
+max_daily_profit_pct  = input.float(7.5, "max_daily_profit_pct", minval = 0.1, group = "🛡️ Prop Firm / Risk Safety")
 reset_daily_pnl       = true  // Always reset PnL daily
 
-enable_date_filter = input.bool(true, "Date Range Filter", group = "🎯 Quick Setup")
-start_date         = input.time(timestamp("01 Jan 2023 00:00 +0000"), "   └─ Start Date", group = "🎯 Quick Setup")
-end_date           = input.time(timestamp("31 Dec 2027 23:59 +0000"), "   └─ End Date", group = "🎯 Quick Setup")
+enable_date_filter = input.bool(true, "enable_date_filter", group = "🎯 Quick Setup")
+start_date         = input.time(timestamp("01 Jan 2023 00:00 +0000"), "start_date", group = "🎯 Quick Setup")
+end_date           = input.time(timestamp("31 Dec 2027 23:59 +0000"), "end_date", group = "🎯 Quick Setup")
 min_bar_index_for_entries = 100
 
 
-if use_profile_defaults
-    is_conservative = config_profile == "Conservative (Live Trading)"
-    is_balanced = config_profile == "Balanced (Recommended)"
-
-    if is_conservative
-        pvtMax := 5
-        liq_pivot_len := 5
-        liq_max_distance_pips_forex := 10.0
-        liq_max_distance_pips_gold := 100.0
-        liq_entry_max_dist := 8.0
-        ai_quality_threshold := 70
-        min_entry_grade := "B+"
-        if not use_custom_rr
-            risk_reward_ratio := 3.0
-        max_trades_per_day := 1
-        min_tp_distance_pips := 15.0
-    else if is_balanced
-        pvtMax := 5
-        liq_pivot_len := 5
-        liq_max_distance_pips_forex := 20.0
-        liq_max_distance_pips_gold := 150.0
-        liq_entry_max_dist := 10.0
-        ai_quality_threshold := 60
-        min_entry_grade := "C+"
-        if not use_custom_rr
-            risk_reward_ratio := 2.0
-        max_trades_per_day := 2
-        min_tp_distance_pips := 10.0
-    else  // Aggressive
-        pvtMax := 10
-        liq_pivot_len := 3
-        liq_max_distance_pips_forex := 20.0
-        liq_max_distance_pips_gold := 200.0
-        liq_entry_max_dist := 15.0
-        ai_quality_threshold := 50
-        min_entry_grade := "C"
-        if not use_custom_rr
-            risk_reward_ratio := 1.5
-        max_trades_per_day := 2
-        min_tp_distance_pips := 5.0
-
-
-    if is_aggressive and not (is_gold or is_index or is_xpt)
-        liq_max_distance_pips_forex := 12.0  // ← Reduced from 20 (split between Aggressive 20 and Balanced 15)
-        liq_entry_max_dist := 12.0           // ← Entry gate tighter than scan (12 pips scan, 12 pips gate = same quality)
-
-        min_entry_grade := "C+"              // ← Improved from "C" (better zone quality)
-        ai_quality_threshold := 55           // ← Improved from 50 (stricter AI filter, Balanced is 60)
-
-
-        min_tp_distance_pips := 8.0          // ← Up from 5 (prevents spread eating profits)
-
-    require_major_liquidity := is_conservative or is_balanced
-    structure_mode := is_conservative ? "Standard (Bodies)" : "Relaxed (Wicks)"
-    // Grade filter and HTF flip: only for forex (good-marking doesn't use these)
-    enable_grade_filter := (is_conservative or is_balanced) and not (is_gold or is_index or is_xpt)
-    require_htf_flip := (is_conservative or is_balanced) and not (is_gold or is_index or is_xpt)
-    stop_loss_buffer_pips := 1.0
-
-debug_enabled   = display_is_debug or debug_level != "None"
-debug_full      = display_is_debug or (debug_level == "Full") or (debug_level != "None" and debug_mode)
+debug_enabled   = debug_level != "None"
+debug_full      = (debug_level == "Full") or (debug_level != "None" and debug_mode)
 debug_basic     = debug_level == "Basic"
-showDebugPanels = display_is_debug or (debug_level != "None")
+showDebugPanels = (debug_level != "None")
 
 var int last_bar_index_for_debug = na
 last_bar_index_for_debug := bar_index
@@ -453,41 +383,76 @@ get_symbol_type() =>
 
 current_symbol = get_symbol_type()
 
-col_demand_bg     = color.new(#2BA8A0, 91)
-col_demand_border = color.new(#127C86, 24)
+// ============================================================================
+// PROP FIRM KILL SWITCHES
+// ============================================================================
 
-col_supply_bg     = color.new(#D9687C, 91)
-col_supply_border = color.new(#A83F52, 24)
+var float pf_day_start_equity  = strategy.equity
+var float pf_peak_equity       = strategy.initial_capital
+var int   pf_consecutive_losses = 0
 
-col_acc_demand_bg     = color.new(#2BA8A0, 86)
-col_acc_demand_border = color.new(#0E6672, 8)
-col_acc_supply_bg     = color.new(#D9687C, 86)
-col_acc_supply_border = color.new(#8E3142, 8)
+if ta.change(time("D")) != 0
+    pf_day_start_equity    := strategy.equity
+    pf_consecutive_losses  := 0
 
-col_zone_label_bg = color.new(color.rgb(28, 34, 42), 4)
-col_zone_label_text = color.rgb(245, 248, 250)
-col_fractal_high = color.new(#A83F52, 18)
-col_fractal_low = color.new(#127C86, 18)
-col_liq_inducement = color.new(#D89B35, 25)
-col_liq_target = color.new(#6E7FAF, 25)
-pvtTopColor = col_fractal_high
-pvtBtmColor = col_fractal_low
-liq_line_color = color.new(col_liq_target, 45)
+pf_peak_equity := math.max(pf_peak_equity, strategy.equity)
 
-get_zone_bg_color(bool isDemand, bool isAccuracy) =>
-    isDemand ? (isAccuracy ? col_acc_demand_bg : col_demand_bg) : (isAccuracy ? col_acc_supply_bg : col_supply_bg)
+if strategy.closedtrades > 0 and strategy.closedtrades > nz(strategy.closedtrades[1], 0)
+    float _pf_last_pnl = strategy.closedtrades.profit(strategy.closedtrades - 1)
+    pf_consecutive_losses := _pf_last_pnl < 0 ? pf_consecutive_losses + 1 : 0
 
-get_zone_border_color(bool isDemand, bool isAccuracy) =>
-    isDemand ? (isAccuracy ? col_acc_demand_border : col_demand_border) : (isAccuracy ? col_acc_supply_border : col_supply_border)
+float pf_current_day_dd_pct   = pf_day_start_equity > 0 ? (pf_day_start_equity - strategy.equity) / pf_day_start_equity * 100 : 0.0
+float pf_current_total_dd_pct = strategy.initial_capital > 0 ? (pf_peak_equity - strategy.equity) / strategy.initial_capital * 100 : 0.0
 
-get_zone_border_width(bool isAccuracy) =>
-    isAccuracy ? 2 : 1
+bool pf_daily_kill   = pf_current_day_dd_pct   >= daily_kill_pct
+bool pf_total_kill   = pf_current_total_dd_pct >= total_kill_pct
+bool pf_session_kill = pf_consecutive_losses   >= consec_loss_kill
+bool pf_trading_disabled = pf_daily_kill or pf_total_kill or pf_session_kill
 
-get_zone_label_text(bool isDemand, int zoneId) =>
-    (isDemand ? "D-" : "S-") + str.tostring(zoneId)
+if (pf_daily_kill or pf_total_kill) and strategy.position_size != 0
+    strategy.close_all(comment = pf_daily_kill ? "DAILY_KILL" : "TOTAL_KILL")
 
-get_zone_label_color(bool isDemand, bool isAccuracy) =>
-    display_is_clean ? col_zone_label_bg : (isDemand ? (isAccuracy ? col_acc_demand_border : col_demand_border) : (isAccuracy ? col_acc_supply_border : col_supply_border))
+// ============================================================================
+// MIN HOLD ENFORCEMENT
+// ============================================================================
+
+var int pf_entry_time_ms = 0
+if strategy.position_size != 0 and nz(strategy.position_size[1], 0) == 0
+    pf_entry_time_ms := time
+
+bool pf_min_hold_satisfied = (time - pf_entry_time_ms) >= (min_hold_minutes * 60 * 1000)
+
+// ============================================================================
+// NEWS BLACKOUT (manual list — edit weekly from forexfactory.com red-folder events)
+// ============================================================================
+pf_news_times = array.from(
+     timestamp("2026-04-28 12:30:00 GMT-4"),
+     timestamp("2026-05-02 08:30:00 GMT-4"),
+     timestamp("2026-05-07 14:00:00 GMT-4")
+   )
+
+bool pf_is_news_blackout = false
+if news_blackout_enabled
+    for _pf_i = 0 to array.size(pf_news_times) - 1
+        _pf_ts = array.get(pf_news_times, _pf_i)
+        if time >= _pf_ts - 2 * 60 * 1000 and time <= _pf_ts + 2 * 60 * 1000
+            pf_is_news_blackout := true
+
+col_demand_bg     = color.new(#26a69a, 88)  // Very subtle (12% visible)
+col_demand_border = color.new(#26a69a, 40)  // Teal border, semi-transparent
+
+col_supply_bg     = color.new(#ef5350, 88)  // Very subtle (12% visible)
+col_supply_border = color.new(#ef5350, 40)  // Red border, semi-transparent
+
+col_acc_demand_bg     = color.new(#2196F3, 70)  // Blue, more visible (30%)
+col_acc_demand_border = #42A5F5  // Bright blue border
+col_acc_supply_bg     = color.new(#AB47BC, 70)  // Purple, more visible (30%)
+col_acc_supply_border = #BA68C8  // Bright purple border
+col_hidden_visual     = color.new(color.black, 100)
+col_used_zone_bg      = color.new(color.gray, 90)
+col_used_zone_border  = color.new(color.gray, 55)
+col_invalid_zone_bg   = color.new(color.gray, 94)
+col_invalid_zone_border = color.new(color.gray, 70)
 
 float tol = pip_size * 1.0
 
@@ -535,9 +500,9 @@ get_gold_tp_rules(sl_pips) =>
 
     if sl_pips <= 50.0
         tp_ratio := 4.5
-        be_trigger_rr := 4.0   // Move to BE generally
-        be_sl_pips_min := 5.0  // Min 5 pips profit
-        move_to_be := true
+        be_trigger_rr := na
+        be_sl_pips_min := na
+        move_to_be := false
     else if sl_pips <= 100.0
         tp_ratio := 3.0
         be_trigger_rr := 2.75
@@ -603,7 +568,7 @@ get_tp_ratio(symbol_type, sl_pips) =>
     float be_sl = na
     bool move_be = false
 
-    if use_custom_rr and not is_index
+    if use_custom_rr and tp_rule_mode == "Custom Fixed RR" and not is_index
         base_ratio := risk_reward_ratio
         be_trig := na
         be_sl := na
@@ -613,29 +578,11 @@ get_tp_ratio(symbol_type, sl_pips) =>
         be_trig := na
         be_sl := na
         move_be := false
-    else if is_gold or is_xpt
+    else if tp_rule_mode == "Legacy Defaults" and (is_gold or is_xpt)
         base_ratio := 4.0
         be_trig := na
         be_sl := na
         move_be := false
-    else if is_aggressive and use_profile_defaults
-        if is_gold or is_xpt
-            [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules_aggressive(sl_pips)
-            base_ratio := g_tp
-            be_trig := g_bet
-            be_sl := g_bes
-            move_be := g_mbe
-        else if is_jpy_pair or (not is_silver and not is_crypto)
-            [f_tp, f_bet, f_bes, f_mbe] = get_forex_tp_rules(sl_pips)
-            base_ratio := f_tp
-            be_trig := f_bet
-            be_sl := f_bes
-            move_be := f_mbe
-        else
-            base_ratio := 4.0
-            be_trig := na
-            be_sl := na
-            move_be := false
     else if is_gold or is_xpt
         [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules(sl_pips)
         base_ratio := g_tp
@@ -656,7 +603,9 @@ get_tp_ratio(symbol_type, sl_pips) =>
 
 float feature_rsi = ta.rsi(close, 14)
 float feature_ema200 = ta.ema(close, 200)
+float feature_ema_context = ta.ema(close, ema_context_length)
 int feature_trend = close > feature_ema200 ? 1 : 0
+
 [diplus, diminus, feature_adx] = ta.dmi(14, 14)
 int feature_hour = hour(time)
 
@@ -992,8 +941,8 @@ isZoneBaseBar  = (isFractalHigh_result or isFractalLow_result) ?
 fractalHigh = (not isZoneBaseBar and isFractalHigh_result) ? high[fractalsPeriod] : na
 fractalLow  = (not isZoneBaseBar and isFractalLow_result) ? low[fractalsPeriod] : na
 
-plotshape(show_fractals and not na(fractalHigh), style = shape.triangledown, location = location.abovebar, color = col_fractal_high, size = size.tiny, offset = -fractalsPeriod)
-plotshape(show_fractals and not na(fractalLow),  style = shape.triangleup,   location = location.belowbar, color = col_fractal_low,  size = size.tiny, offset = -fractalsPeriod)
+plotshape(show_fractals and not na(fractalHigh), style = shape.triangleup,   location = location.abovebar, color = color.green, size = size.small, offset = -fractalsPeriod)
+plotshape(show_fractals and not na(fractalLow),  style = shape.triangledown, location = location.belowbar, color = color.red,   size = size.small, offset = -fractalsPeriod)
 
 var array<float> liqPvtHighPrices = array.new_float()
 var array<int>   liqPvtHighBars   = array.new_int()
@@ -1040,8 +989,6 @@ db_upsertZone(Core.Zone z, string zoneType) =>
              lastUpdateBar = bar_index,
              active = true,
              inactiveReason = "",
-             state = z.state,
-             stateReason = z.stateReason,
              liqLowPrice = z.liqLowPrice,
              liqLowBar = z.liqLowBar,
              liqHighPrice = z.liqHighPrice,
@@ -1061,8 +1008,6 @@ db_upsertZone(Core.Zone z, string zoneType) =>
         entry.lastUpdateBar := bar_index
         entry.active := true
         entry.inactiveReason := ""
-        entry.state := z.state
-        entry.stateReason := z.stateReason
         entry.liqLowPrice := z.liqLowPrice
         entry.liqLowBar := z.liqLowBar
         entry.liqHighPrice := z.liqHighPrice
@@ -1078,19 +1023,9 @@ db_markInactive(int targetUZID, string reason) =>
     int idx = db_findIndexByUZID(targetUZID)
     if not na(idx)
         Core.ZoneDBEntry entry = array.get(zoneDB, idx)
-        bool preserveExistingReason = not entry.active and reason == "removed" and not na(entry.inactiveReason) and str.length(entry.inactiveReason) > 0
-        if not preserveExistingReason
-            entry.active := false
-            entry.inactiveReason := reason
-            bool isExpiry = reason == "Zone lifetime expired"
-            bool isLifecycleInvalidation = reason != "max_pruned" and reason != "removed"
-            if isExpiry
-                entry.state := ZONE_STATE_EXPIRED
-                entry.stateReason := reason
-            else if isLifecycleInvalidation
-                entry.state := ZONE_STATE_INVALID
-                entry.stateReason := reason
-            entry.lastUpdateBar := bar_index
+        entry.active := false
+        entry.inactiveReason := reason
+        entry.lastUpdateBar := bar_index
     true  // Consistent return type
 
 db_updateZoneLiquidity(Core.Zone z) =>
@@ -1098,10 +1033,6 @@ db_updateZoneLiquidity(Core.Zone z) =>
     if not na(idx)
         Core.ZoneDBEntry entry = array.get(zoneDB, idx)
         entry.lastUpdateBar := bar_index
-        entry.active := z.active
-        entry.inactiveReason := z.inactiveReason
-        entry.state := z.state
-        entry.stateReason := z.stateReason
         entry.liqLowPrice := z.liqLowPrice
         entry.liqLowBar := z.liqLowBar
         entry.liqHighPrice := z.liqHighPrice
@@ -1113,120 +1044,6 @@ db_updateZoneLiquidity(Core.Zone z) =>
     true  // Consistent return type
 
 var int global_zone_id_counter = 0  // Single Global counter for ALL zones (Demand + Supply)
-
-zone_state_name(int state) =>
-    switch state
-        ZONE_STATE_CANDIDATE => "Candidate"
-        ZONE_STATE_FRESH => "Fresh"
-        ZONE_STATE_LIQUIDITY_FORMED => "Liquidity"
-        ZONE_STATE_CONFIRMED => "Confirmed"
-        ZONE_STATE_ARMED => "Armed"
-        ZONE_STATE_MITIGATED => "Mitigated"
-        ZONE_STATE_USED => "Used"
-        ZONE_STATE_INVALID => "Invalid"
-        ZONE_STATE_EXPIRED => "Expired"
-        => "Unknown"
-
-zone_set_state(Core.Zone z, int state, string reason) =>
-    z.state := state
-    z.stateReason := reason
-    if state == ZONE_STATE_INVALID or state == ZONE_STATE_EXPIRED
-        z.active := false
-        if na(z.firstInvalidBarIndex)
-            z.firstInvalidBarIndex := bar_index
-        z.inactiveReason := reason
-    z
-
-zone_is_terminal(Core.Zone z) =>
-    z.state == ZONE_STATE_INVALID or z.state == ZONE_STATE_EXPIRED or z.state == ZONE_STATE_USED
-
-zone_is_armed_for_entry(Core.Zone z) =>
-    z.active and z.state == ZONE_STATE_ARMED and na(z.lastEntryBar)
-
-zone_is_visible_clean(Core.Zone z) =>
-    z.active and (z.state == ZONE_STATE_FRESH or z.state == ZONE_STATE_LIQUIDITY_FORMED or z.state == ZONE_STATE_CONFIRMED or z.state == ZONE_STATE_ARMED or z.state == ZONE_STATE_MITIGATED or z.state == ZONE_STATE_USED)
-
-candle_is_bullish(int idx) =>
-    close[idx] > open[idx]
-
-candle_is_bearish(int idx) =>
-    close[idx] < open[idx]
-
-candle_body_high(int idx) =>
-    math.max(open[idx], close[idx])
-
-candle_body_low(int idx) =>
-    math.min(open[idx], close[idx])
-
-youtube_accuracy_applies(bool isDemand, int originIdx, int reactionIdx) =>
-    bool applies = false
-    if youtube_accuracy_zones and should_use_accuracy_zones and reactionIdx >= 0
-        if isDemand
-            applies := high[originIdx] > high[reactionIdx]
-        else
-            applies := low[originIdx] < low[reactionIdx]
-    applies
-
-youtube_zone_bounds(bool isDemand, int originIdx, int reactionIdx) =>
-    bool isAccuracy = youtube_accuracy_applies(isDemand, originIdx, reactionIdx)
-    float zTop = high[originIdx]
-    float zBottom = low[originIdx]
-    if isAccuracy
-        if isDemand
-            zTop := candle_body_high(originIdx)
-            zBottom := low[originIdx]
-        else
-            zTop := high[originIdx]
-            zBottom := candle_body_low(originIdx)
-    [zTop, zBottom, isAccuracy]
-
-youtube_departure_valid(bool isDemand, int originIdx, int legCandles) =>
-    bool directionOk = false
-    int firstDepartureIdx = originIdx - 1
-    if firstDepartureIdx >= 0
-        if isDemand
-            directionOk := legCandles >= 1 and candle_is_bullish(firstDepartureIdx)
-            if youtube_strict_departure and originIdx - 2 >= 0
-                directionOk := directionOk and candle_is_bullish(originIdx - 2)
-        else
-            directionOk := legCandles >= 1 and candle_is_bearish(firstDepartureIdx)
-            if youtube_strict_departure and originIdx - 2 >= 0
-                directionOk := directionOk and candle_is_bearish(originIdx - 2)
-    directionOk
-
-zone_touching(Core.Zone z) =>
-    high >= z.bottom and low <= z.top
-
-zone_close_inside(Core.Zone z) =>
-    close <= z.top and close >= z.bottom
-
-zone_distal_broken(Core.Zone z, bool isDemand) =>
-    isDemand ? close < z.bottom : close > z.top
-
-zone_is_departure_bar(Core.Zone z) =>
-    not na(z.departureEndBarIndex) and bar_index <= z.departureEndBarIndex
-
-zone_same_direction_departure_touch_allowed(bool isDemand) =>
-    isDemand ? candle_is_bullish(0) : candle_is_bearish(0)
-
-zone_pre_entry_invalidated(Core.Zone z, bool isDemand) =>
-    bool invalid = false
-    string reason = ""
-    bool touching = zone_touching(z)
-    bool closeInside = zone_close_inside(z)
-    bool distalBroken = zone_distal_broken(z, isDemand)
-    bool departureException = zone_is_departure_bar(z) and zone_same_direction_departure_touch_allowed(isDemand)
-    bool canPreInvalidate = z.state < ZONE_STATE_ARMED and not departureException
-    if canPreInvalidate and touching
-        invalid := true
-        reason := "Touched before liquidity+BOS"
-    if canPreInvalidate and closeInside
-        invalid := true
-        reason := "Closed inside before entry"
-    if canPreInvalidate and distalBroken
-        invalid := true
-        reason := "Distal break"
-    [invalid, reason]
 
 getMaxHighBetween(int startBarAbs, int endBarAbs) =>
     float maxH = -1.0e10
@@ -1358,7 +1175,8 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
         float bestLiqPrice = 1.0e10  // Start high, look for lowest valid pivot
         int bestLiqBar = na
 
-        int maxOff = bar_index - z.createdBarIndex - 2
+        int rawMaxOff = bar_index - z.createdBarIndex - 2
+        int maxOff = math.min(rawMaxOff, MAX_LIQ_SCAN_BARS)
 
         if maxOff >= 0
             for off = 0 to maxOff
@@ -1475,7 +1293,8 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
         float bestLiqPrice = 0.0  // Start low, look for highest valid pivot
         int bestLiqBar = na
 
-        int maxOff = bar_index - z.createdBarIndex - 2
+        int rawMaxOff = bar_index - z.createdBarIndex - 2
+        int maxOff = math.min(rawMaxOff, MAX_LIQ_SCAN_BARS)
 
         if maxOff >= 0
             for off = 0 to maxOff
@@ -1656,57 +1475,104 @@ trimBaseTimeArrays() =>
     while array.size(used_supply_base_times) > maxCount
         array.pop(used_supply_base_times)
 
-clear_zone_visual_objects(Core.Zone z, bool includeTargetLine) =>
-    if not na(z.boxId)
-        box.delete(z.boxId)
-        z.boxId := na
-    if not na(z.connectorLine)
-        line.delete(z.connectorLine)
-        z.connectorLine := na
-    if includeTargetLine and not na(z.targetLine)
-        line.delete(z.targetLine)
-        z.targetLine := na
-    if not na(z.inducementHLine)
-        line.delete(z.inducementHLine)
-        z.inducementHLine := na
-    if not na(z.targetHLine)
-        line.delete(z.targetHLine)
-        z.targetHLine := na
-    if not na(z.idLabel)
-        label.delete(z.idLabel)
-        z.idLabel := na
-    z
-
-ensure_zone_visual_objects(Core.Zone z, bool isDemand, int rightBar) =>
-    if na(z.boxId)
-        z.boxId := box.new(left = z.createdBarIndex, top = z.top, right = rightBar, bottom = z.bottom,
-             border_color = get_zone_border_color(isDemand, z.isAccuracy),
-             border_width = get_zone_border_width(z.isAccuracy),
-             bgcolor = get_zone_bg_color(isDemand, z.isAccuracy),
-             xloc = xloc.bar_index)
-    if na(z.idLabel)
-        float mid = (z.top + z.bottom) / 2.0
-        z.idLabel := label.new(x = rightBar, y = mid, text = " " + get_zone_label_text(isDemand, z.id) + " ",
-             style = label.style_label_left,
-             textcolor = col_zone_label_text,
-             color = get_zone_label_color(isDemand, z.isAccuracy),
-             size = size.tiny,
-             textalign = text.align_center,
-             xloc = xloc.bar_index)
-    z
-
 trimZoneArrays(bool isDemand) =>
     maxCount = max_zones
     if isDemand
         while array.size(demandZones) > maxCount
             Core.Zone z = array.pop(demandZones)
             db_markInactive(z.id, "max_pruned")  // Mark as inactive before removal
-            z := clear_zone_visual_objects(z, false)
+            box.delete(z.boxId)
+            if not na(z.connectorLine)
+                line.delete(z.connectorLine)
+            if not na(z.inducementHLine)
+                line.delete(z.inducementHLine)
+            if not na(z.targetHLine)
+                line.delete(z.targetHLine)
+            if not na(z.idLabel)
+                label.delete(z.idLabel)
     else
         while array.size(supplyZones) > maxCount
             Core.Zone z = array.pop(supplyZones)
             db_markInactive(z.id, "max_pruned")  // Mark as inactive before removal
-            z := clear_zone_visual_objects(z, true)
+            box.delete(z.boxId)
+            if not na(z.connectorLine)
+                line.delete(z.connectorLine)
+            if not na(z.targetLine)
+                line.delete(z.targetLine)
+            if not na(z.inducementHLine)
+                line.delete(z.inducementHLine)
+            if not na(z.targetHLine)
+                line.delete(z.targetHLine)
+            if not na(z.idLabel)
+                label.delete(z.idLabel)
+
+zone_inactive_reason(Core.Zone z) =>
+    na(z.inactiveReason) ? "" : z.inactiveReason
+
+zone_is_active_tradable(Core.Zone z) =>
+    z.active and not z.mitigated and zone_inactive_reason(z) == ""
+
+zone_is_used_or_mitigated(Core.Zone z) =>
+    z.mitigated or (not z.active and not na(z.lastEntryBar))
+
+zone_has_pending_reason(string reason) =>
+    str.contains(reason, "WAITING_") or str.contains(reason, "PRIMED") or str.contains(reason, "Model:")
+
+zone_is_invalid_or_rejected(Core.Zone z) =>
+    string reason = zone_inactive_reason(z)
+    str.length(reason) > 0 and not zone_has_pending_reason(reason)
+
+zone_should_show_visual(Core.Zone z) =>
+    bool activeTradable = zone_is_active_tradable(z)
+    bool usedOrMitigated = zone_is_used_or_mitigated(z)
+    bool invalidOrRejected = zone_is_invalid_or_rejected(z)
+    bool activeDisplayZone = z.active and not z.mitigated and not invalidOrRejected
+    bool candidate = not activeDisplayZone and not usedOrMitigated and not invalidOrRejected
+    bool allowedByState = activeDisplayZone
+    if zone_lab_mode
+        allowedByState := activeDisplayZone or (show_mitigated_zones and usedOrMitigated) or (show_invalid_zones and invalidOrRejected) or (show_candidate_zones and candidate)
+    else
+        allowedByState := activeDisplayZone
+    allowedByState and (not z.isAccuracy or show_accuracy_zones)
+
+apply_zone_visual(Core.Zone z, bool isDemand) =>
+    bool visible = show_zones and zone_should_show_visual(z)
+    bool usedOrMitigated = zone_is_used_or_mitigated(z)
+    bool invalidOrRejected = zone_is_invalid_or_rejected(z)
+    if not na(z.boxId)
+        if visible
+            color bgColor = isDemand ? col_demand_bg : col_supply_bg
+            color borderColor = isDemand ? col_demand_border : col_supply_border
+            int borderWidth = z.isAccuracy ? 2 : 1
+            if usedOrMitigated
+                bgColor := col_used_zone_bg
+                borderColor := col_used_zone_border
+                borderWidth := 1
+            else if invalidOrRejected
+                bgColor := col_invalid_zone_bg
+                borderColor := col_invalid_zone_border
+                borderWidth := 1
+            else if z.isAccuracy
+                bgColor := isDemand ? col_acc_demand_bg : col_acc_supply_bg
+                borderColor := isDemand ? col_acc_demand_border : col_acc_supply_border
+                borderWidth := 2
+            box.set_bgcolor(z.boxId, bgColor)
+            box.set_border_color(z.boxId, borderColor)
+            box.set_border_width(z.boxId, borderWidth)
+        else
+            box.set_bgcolor(z.boxId, col_hidden_visual)
+            box.set_border_color(z.boxId, col_hidden_visual)
+            box.set_border_width(z.boxId, 1)
+    if not na(z.idLabel)
+        if visible
+            color labelColor = usedOrMitigated or invalidOrRejected ? col_used_zone_border : (z.isAccuracy ? (isDemand ? color.new(#2196F3, 0) : color.new(#AB47BC, 0)) : (isDemand ? color.new(#26a69a, 0) : color.new(#ef5350, 0)))
+            label.set_color(z.idLabel, labelColor)
+            label.set_textcolor(z.idLabel, color.white)
+        else
+            label.set_text(z.idLabel, "")
+            label.set_color(z.idLabel, col_hidden_visual)
+            label.set_textcolor(z.idLabel, col_hidden_visual)
+    visible
 
 createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID) =>
     baseBarIdx = bar_index - baseIdx
@@ -1731,16 +1597,6 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         float baseLow  = low[baseIdx]
         float baseOpen = open[baseIdx]
         float baseClose = close[baseIdx]
-        float departureWickLow = baseLow
-        float departureWickHigh = baseHigh
-
-        for k = 1 to legCandles
-            int departureIdx = baseIdx - k
-            if departureIdx >= 0
-                if low[departureIdx] < departureWickLow
-                    departureWickLow := low[departureIdx]
-                if high[departureIdx] > departureWickHigh
-                    departureWickHigh := high[departureIdx]
 
         // ── v3.2: Body/wick split zone detection (Mangoe methodology) ──────
         // Tracks both body range and wick range separately:
@@ -1825,39 +1681,105 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         bool proceed_creation = not use_fvg_confirmation or hasFVG
 
         bool isAccuracy = false
+
+        if proceed_creation
+
+            int reactionIdx = baseIdx - 1
+
+            if show_accuracy_zones and should_use_accuracy_zones and reactionIdx >= 0
+                if isDemand
+                    // Demand accuracy: Zone candle high > Reaction candle high
+                    if high[baseIdx] > high[reactionIdx]
+                        isAccuracy := true
+                else
+                    // Supply accuracy: Zone candle low < Reaction candle low
+                    if low[baseIdx] < low[reactionIdx]
+                        isAccuracy := true
+
         float zTop = na
         float zBottom = na
 
         if proceed_creation
-            int reactionIdx = baseIdx - 1
-            if youtube_snd_rules
-                [ytTop, ytBottom, ytAccuracy] = youtube_zone_bounds(isDemand, baseIdx, reactionIdx)
-                zTop := ytTop
-                zBottom := ytBottom
-                isAccuracy := ytAccuracy
-            else
-                int reactionIdxLegacy = baseIdx - 1
-                if should_use_accuracy_zones and reactionIdxLegacy >= 0
-                    if isDemand and high[baseIdx] > high[reactionIdxLegacy]
-                        isAccuracy := true
-                    if not isDemand and low[baseIdx] < low[reactionIdxLegacy]
-                        isAccuracy := true
-                if isAccuracy
-                    if isDemand
-                        zTop := baseOpen
-                        zBottom := departureWickLow
-                    else
-                        zTop := departureWickHigh
-                        zBottom := baseOpen
+            // Zone boundary logic (matches good-marking reference):
+            //   Accuracy zones: proximal = baseOpen, distal = wick extreme
+            //   Normal zones: full base candle range (baseHigh to baseLow)
+            if isAccuracy
+                if isDemand
+                    // Demand Accuracy: Top = OPEN (body top), Bottom = LOW (extreme)
+                    zTop := baseOpen
+                    zBottom := baseLow
                 else
-                    zTop := isDemand ? baseHigh : departureWickHigh
-                    zBottom := isDemand ? departureWickLow : baseLow
+                    // Supply Accuracy: Top = HIGH (extreme), Bottom = OPEN (body bottom)
+                    zTop := baseHigh
+                    zBottom := baseOpen
+            else
+                // Normal zones: full candle range
+                zTop := baseHigh
+                zBottom := baseLow
 
-            bool departureOk = not youtube_snd_rules or youtube_departure_valid(isDemand, baseIdx, legCandles)
-            proceed_creation := proceed_creation and departureOk
-            if not proceed_creation
-                zTop := na
-                zBottom := na
+            int maxDepartureWickScan = 4
+            for wickScan = 1 to maxDepartureWickScan
+                int displacementIdx = baseIdx - wickScan
+                if displacementIdx < 0
+                    break
+
+                float dispOpen = open[displacementIdx]
+                float dispClose = close[displacementIdx]
+                float dispHigh = high[displacementIdx]
+                float dispLow = low[displacementIdx]
+                float dispBodyHigh = math.max(dispOpen, dispClose)
+                float dispBodyLow = math.min(dispOpen, dispClose)
+
+                bool foundDemandReclaim = isDemand and dispClose < dispOpen
+                bool foundSupplyReclaim = not isDemand and dispClose > dispOpen
+
+                // Early departure reclaim wick rule: include only wick-only expansion from the first opposite candle.
+                if foundDemandReclaim
+                    if dispLow < zBottom and dispBodyLow >= zBottom
+                        zBottom := dispLow
+                    break
+                else if foundSupplyReclaim
+                    if dispHigh > zTop and dispBodyHigh <= zTop
+                        zTop := dispHigh
+                    break
+
+            if formation_leg_wick_inclusion
+                bool legConfirmsDemand = false
+                bool legConfirmsSupply = false
+                for confirmScan = 1 to formation_leg_scan_bars
+                    int confirmIdx = baseIdx - confirmScan
+                    if confirmIdx < 0
+                        break
+                    if close[confirmIdx] > zTop
+                        legConfirmsDemand := true
+                    if close[confirmIdx] < zBottom
+                        legConfirmsSupply := true
+
+                for legScan = 1 to formation_leg_scan_bars
+                    int legIdx = baseIdx - legScan
+                    if legIdx < 0
+                        break
+
+                    float legOpen = open[legIdx]
+                    float legClose = close[legIdx]
+                    float legHigh = high[legIdx]
+                    float legLow = low[legIdx]
+                    float legRange = legHigh - legLow
+                    float legBody = math.abs(legClose - legOpen)
+                    bool legBullish = legClose > legOpen
+                    bool legBearish = legClose < legOpen
+                    bool legNeutral = legRange > 0 and legBody <= legRange * 0.50
+
+                    if isDemand
+                        if legBearish and not legNeutral
+                            break
+                        if legBullish and legLow < zBottom and legClose > zBottom and (legClose > zTop or legConfirmsDemand)
+                            zBottom := legLow
+                    else
+                        if legBullish and not legNeutral
+                            break
+                        if legBearish and legHigh > zTop and legClose < zTop and (legClose < zBottom or legConfirmsSupply)
+                            zTop := legHigh
 
             // Cap zone size
             float max_zone_size = 50.0 * pip_size
@@ -1869,26 +1791,39 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         color zoneBorderColorFinal = na
 
         if not na(zTop) and not na(zBottom)
-            zoneBorderWidth := get_zone_border_width(isAccuracy)
-            zoneBgColor := get_zone_bg_color(isDemand, isAccuracy)
-            zoneBorderColorFinal := get_zone_border_color(isDemand, isAccuracy)
-            int zoneRightBar = bar_index + zone_right_padding_bars
+            zoneBorderWidth := isAccuracy ? 2 : 1  // Slightly thicker border for accuracy zones
 
-            box b = box.new(left = baseBarIdx, top = zTop, right = zoneRightBar, bottom = zBottom,
+            if isAccuracy
+                if isDemand
+                    zoneBgColor := col_acc_demand_bg
+                    zoneBorderColorFinal := col_acc_demand_border
+                else
+                    zoneBgColor := col_acc_supply_bg
+                    zoneBorderColorFinal := col_acc_supply_border
+            else
+                zoneBgColor := isDemand ? col_demand_bg : col_supply_bg
+                zoneBorderColorFinal := isDemand ? col_demand_border : col_supply_border
+
+            box b = box.new(left = baseBarIdx, top = zTop, right = baseBarIdx + extend_bars, bottom = zBottom,
                  border_color = zoneBorderColorFinal,
                  border_width = zoneBorderWidth,
                  bgcolor = zoneBgColor,
                  xloc = xloc.bar_index)
 
-            string id_text = " " + get_zone_label_text(isDemand, zoneUZID) + " "
+            string sideTag = isDemand ? "D-" : "S-"
+            string compactText = sideTag + str.tostring(zoneUZID)
+            string detailedText = (isDemand ? "Demand " : "Supply ") + compactText
+            string id_text = " " + (zone_label_style == "Detailed" ? detailedText : compactText) + " "
             float mid = (zTop + zBottom) / 2.0
-            label idLbl = label.new(x = zoneRightBar, y = mid, text = id_text,
-                 style = label.style_label_left,
-                 textcolor = col_zone_label_text,
-                 color = get_zone_label_color(isDemand, isAccuracy),
-                 size = size.tiny,
-                 textalign = text.align_center,
-                 xloc = xloc.bar_index)
+            color lbl_bg_color = na
+            if isAccuracy
+                lbl_bg_color := isDemand ? color.new(#2196F3, 0) : color.new(#AB47BC, 0)  // Blue for demand ACC, Purple for supply ACC
+            else
+                lbl_bg_color := isDemand ? color.new(#26a69a, 0) : color.new(#ef5350, 0)  // Teal for demand, Coral for supply
+            label idLbl = label.new(x = baseBarIdx, y = mid, text = id_text,
+                 style = label.style_label_left, textcolor = color.white, color = lbl_bg_color,
+                 size = size.tiny,  // Forced tiny size for clean chart
+                 textalign = text.align_center, xloc = xloc.bar_index)
 
             Core.Zone z = Core.Zone.new()
             z.id := zoneUZID
@@ -1899,15 +1834,6 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             z.createdBarIndex := baseBarIdx
             z.isHistorical := isHistorical
             z.startTime := time[baseIdx]
-            z.state := ZONE_STATE_CANDIDATE
-            z.stateReason := "Origin detected"
-            z.originBarIndex := baseBarIdx
-            z.departureEndBarIndex := bar_index
-            z.firstInvalidBarIndex := na
-            z.liquiditySwingBarIndex := na
-            z.structureBreakBarIndex := na
-            z.entryEligibleBarIndex := na
-            z := zone_set_state(z, ZONE_STATE_FRESH, "Fresh departure zone")
             z.idLabel := idLbl
             z.touchCount := 0  // Initialize touch count for V5 AI tracking
             z.isAccuracy := isAccuracy  // Tag zone type for trade tracking
@@ -1929,6 +1855,12 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 z.baseQuality := 50.0
                 z.departureStrength := 50.0
 
+            if show_grade_on_zone and zone_label_style == "Compact"
+                string gradeStr = "[" + z.grade + "] "
+                label.set_text(idLbl, gradeStr + id_text)
+
+            apply_zone_visual(z, isDemand)
+
             if isDemand
                 array.unshift(demandZones, z)
                 db_upsertZone(z, "DEMAND")
@@ -1943,13 +1875,40 @@ remove_zone_all_arrays(bool isDemand, int idx) =>
         if idx >= 0 and idx < array.size(demandZones)
             Core.Zone z = array.get(demandZones, idx)
             db_markInactive(z.id, "removed")  // Mark as inactive before removal
-            z := clear_zone_visual_objects(z, false)
+            box.delete(z.boxId)
+            if not na(z.connectorLine)
+                line.delete(z.connectorLine)
+                z.connectorLine := na  // Explicitly free memory
+            if not na(z.inducementHLine)
+                line.delete(z.inducementHLine)
+                z.inducementHLine := na  // Explicitly free memory
+            if not na(z.targetHLine)
+                line.delete(z.targetHLine)
+                z.targetHLine := na  // Explicitly free memory
+            if not na(z.idLabel)
+                label.delete(z.idLabel)
+                z.idLabel := na  // Explicitly free memory
             array.remove(demandZones, idx)
     else
         if idx >= 0 and idx < array.size(supplyZones)
             Core.Zone z = array.get(supplyZones, idx)
             db_markInactive(z.id, "removed")  // Mark as inactive before removal
-            z := clear_zone_visual_objects(z, true)
+            box.delete(z.boxId)
+            if not na(z.connectorLine)
+                line.delete(z.connectorLine)
+                z.connectorLine := na  // Explicitly free memory
+            if not na(z.targetLine)
+                line.delete(z.targetLine)
+                z.targetLine := na  // Explicitly free memory
+            if not na(z.inducementHLine)
+                line.delete(z.inducementHLine)
+                z.inducementHLine := na  // Explicitly free memory
+            if not na(z.targetHLine)
+                line.delete(z.targetHLine)
+                z.targetHLine := na  // Explicitly free memory
+            if not na(z.idLabel)
+                label.delete(z.idLabel)
+                z.idLabel := na  // Explicitly free memory
             array.remove(supplyZones, idx)
 
 getLiquidityDistance(Core.Zone z, bool isSupply) =>
@@ -1979,6 +1938,9 @@ is_time_dead_zone() =>
 is_outside_trading_hours() =>
     if not filter_trading_hours
         false
+    else if use_rd_5m_session
+        int utcHour = hour(time, "UTC")
+        utcHour < rd_session_start_hour_utc or utcHour >= rd_session_end_hour_utc
     else
         int israelHour = hour(time, "Asia/Jerusalem")
         israelHour < trading_start_hour or israelHour >= trading_end_hour
@@ -2006,23 +1968,26 @@ validate_entry_conditions(bool isDemand, int idx) =>
             canEnter := false
             reason := isDemand ? "Demand zone inactive" : "Supply zone inactive"
 
-    if canEnter and youtube_snd_rules and not zone_is_armed_for_entry(z)
-        canEnter := false
-        reason := "Zone not armed: " + zone_state_name(z.state) + " / " + z.stateReason
-
     if canEnter and is_time_dead_zone()
         canEnter := false
         reason := "Dead Zone: Blocked at " + str.tostring(minute(time)) + "m (avoid xx:50-xx:00)"
 
     if canEnter and is_outside_trading_hours()
         canEnter := false
-        int israelHour = hour(time, "Asia/Jerusalem")
-        reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: " + str.tostring(trading_start_hour) + ":00-" + str.tostring(trading_end_hour) + ":00)"
+        if use_rd_5m_session
+            int utcHour = hour(time, "UTC")
+            reason := "Outside RD 5m Session: " + str.tostring(utcHour) + ":00 UTC (allowed: " + str.tostring(rd_session_start_hour_utc) + ":00-" + str.tostring(rd_session_end_hour_utc) + ":00 UTC)"
+        else
+            int israelHour = hour(time, "Asia/Jerusalem")
+            reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: " + str.tostring(trading_start_hour) + ":00-" + str.tostring(trading_end_hour) + ":00)"
 
     if canEnter
         if canEnter and not z.causedSweep
             canEnter := false
             reason := isDemand ? "Waiting for Inducement Sweep (Demand)" : "Waiting for Inducement Sweep (Supply)"
+        if canEnter and z.touchedPreSweep
+            canEnter := false
+            reason := isDemand ? "Zone touched before liquidity sweep (Demand)" : "Zone touched before liquidity sweep (Supply)"
         if canEnter and z.isHistorical
             canEnter := false
             reason := isDemand ? "Demand zone created in historical backfill" : "Supply zone created in historical backfill"
@@ -2078,6 +2043,11 @@ validate_entry_conditions(bool isDemand, int idx) =>
                 canEnter := false
                 reason := isDemand ? "No wick INTO demand zone" : "No wick INTO supply zone"
 
+            bool closesInsideZone = close >= z.bottom and close <= z.top
+            if canEnter and closesInsideZone
+                canEnter := false
+                reason := isDemand ? "Entry candle closed inside zone (Demand)" : "Entry candle closed inside zone (Supply)"
+
         bool zone_already_used = not na(z.lastEntryBar)
         if canEnter and zone_already_used
             canEnter := false
@@ -2106,7 +2076,8 @@ validate_entry_conditions(bool isDemand, int idx) =>
 
 var float[] _trade_entry_price      = array.new_float(1, na)
 var float[] _trade_original_sl      = array.new_float(1, na)
-var float trade_original_sl_pips    = na  // Only reset (not set) in entry blocks — kept as scalar
+var float[] _trade_original_sl_pips = array.new_float(1, na)
+trade_original_sl_pips              = array.get(_trade_original_sl_pips, 0)
 var float[] _trade_current_sl       = array.new_float(1, na)
 var bool  labels_created            = false
 var float[] _trade_tp1_price        = array.new_float(1, na)
@@ -2176,57 +2147,6 @@ trade_is_accuracy      = array.get(_trade_is_accuracy, 0)
 trade_entry_model      = array.get(_trade_entry_model, 0)
 trade_zone_type        = array.get(_trade_zone_type, 0)
 
-zone_has_open_trade(Core.Zone z) =>
-    strategy.position_size != 0 and not na(trade_zone_id) and trade_zone_id == z.id
-
-zone_update_expiry(Core.Zone z) =>
-    Core.Zone updated = z
-    if youtube_zone_lifetime_hours > 0 and not na(z.startTime) and not zone_has_open_trade(z)
-        float maxAgeMs = youtube_zone_lifetime_hours * 60.0 * 60.0 * 1000.0
-        if (time - z.startTime) > maxAgeMs and z.state != ZONE_STATE_USED
-            updated := zone_set_state(updated, ZONE_STATE_EXPIRED, "Zone lifetime expired")
-    updated
-
-zone_liquidity_touches_zone(Core.Zone z, bool isDemand) =>
-    bool touches = false
-    if isDemand and not na(z.liqLowPrice)
-        touches := z.liqLowPrice <= z.top and z.liqLowPrice >= z.bottom
-    if not isDemand and not na(z.liqHighPrice)
-        touches := z.liqHighPrice <= z.top and z.liqHighPrice >= z.bottom
-    touches
-
-zone_liquidity_has_min_candles(Core.Zone z) =>
-    z.liquidityCandleCount >= youtube_min_liq_candles
-
-zone_liquidity_ready(Core.Zone z, bool isDemand) =>
-    bool hasLevel = isDemand ? not na(z.liqLowPrice) : not na(z.liqHighPrice)
-    hasLevel and z.liquidityValid and zone_liquidity_has_min_candles(z) and not zone_liquidity_touches_zone(z, isDemand)
-
-zone_structure_broken(Core.Zone z, bool isDemand) =>
-    bool broken = false
-    if not na(z.structureSweepLevel)
-        if isDemand
-            broken := youtube_close_based_bos ? close > z.structureSweepLevel : high > z.structureSweepLevel
-        else
-            broken := youtube_close_based_bos ? close < z.structureSweepLevel : low < z.structureSweepLevel
-    broken
-
-zone_update_liquidity_and_bos(Core.Zone z, bool isDemand) =>
-    Core.Zone updated = z
-    bool canInvalidateBeforeEntry = updated.state < ZONE_STATE_ARMED
-    if canInvalidateBeforeEntry and zone_liquidity_touches_zone(updated, isDemand)
-        updated := zone_set_state(updated, ZONE_STATE_INVALID, "Liquidity touched zone")
-    else if zone_liquidity_ready(updated, isDemand) and updated.state == ZONE_STATE_FRESH
-        updated.liquiditySwingBarIndex := isDemand ? updated.liqLowBar : updated.liqHighBar
-        updated := zone_set_state(updated, ZONE_STATE_LIQUIDITY_FORMED, "Valid visual liquidity")
-    if updated.state == ZONE_STATE_LIQUIDITY_FORMED and zone_structure_broken(updated, isDemand)
-        updated.structureBreakBarIndex := bar_index
-        updated := zone_set_state(updated, ZONE_STATE_CONFIRMED, "Liquidity broke own structure")
-    if updated.state == ZONE_STATE_CONFIRMED and updated.liquiditySwept
-        updated.entryEligibleBarIndex := bar_index
-        updated := zone_set_state(updated, ZONE_STATE_ARMED, "Liquidity swept; entry allowed")
-    updated
-
 var bool  trade_is_accuracy_zone = false
 
 var int[] _stat_total_entry_checks           = array.new_int(1, 0)
@@ -2235,9 +2155,6 @@ var int[] _stat_entries_blocked_by_liquidity = array.new_int(1, 0)
 stat_total_entry_checks           = array.get(_stat_total_entry_checks, 0)
 stat_entries_blocked_by_timing    = array.get(_stat_entries_blocked_by_timing, 0)
 stat_entries_blocked_by_liquidity = array.get(_stat_entries_blocked_by_liquidity, 0)
-
-var string[] _trade_entry_grade = array.new_string(1, "C")
-trade_entry_grade = array.get(_trade_entry_grade, 0)
 
 var int stat_trades_accuracy_total  = 0
 var int stat_trades_accuracy_wins   = 0
@@ -2257,98 +2174,14 @@ var float stat_rr_sum_other   = 0.0
 
 var int   stat_rr_count_other = 0
 
-var int stat_grade_A_total = 0
-var int stat_grade_A_wins  = 0
-var int stat_grade_B_total = 0
-var int stat_grade_B_wins  = 0
-var int stat_grade_C_total = 0
-var int stat_grade_C_wins  = 0
-
-
 var table performanceTable = na
-
-count_active_zones(array<Core.Zone> zones) =>
-    int count = 0
-    int zoneCount = array.size(zones)
-    if zoneCount > 0
-        for i = 0 to zoneCount - 1
-            Core.Zone z = array.get(zones, i)
-            if z.active
-                count += 1
-    count
-
-zone_visual_distance(Core.Zone z, bool isDemand) =>
-    isDemand ? math.max(close - z.top, 0.0) : math.max(z.bottom - close, 0.0)
-
-should_show_zone_visual(Core.Zone z, array<Core.Zone> zones, bool isDemand) =>
-    float currentDistance = zone_visual_distance(z, isDemand)
-    int closerZoneCount = 0
-    int zoneCount = array.size(zones)
-    if zoneCount > 0
-        for i = 0 to zoneCount - 1
-            Core.Zone other = array.get(zones, i)
-            if other.active and not na(other.createdBarIndex)
-                float otherDistance = zone_visual_distance(other, isDemand)
-                bool isCloser = otherDistance < currentDistance
-                bool isNewerTie = otherDistance == currentDistance and other.createdBarIndex > z.createdBarIndex
-                if isCloser or isNewerTie
-                    closerZoneCount += 1
-    closerZoneCount < max_visible_zones_per_side
-
-get_latest_zone_id_text() =>
-    string latest = "N/A"
-    int latestBar = na
-    int demandCount = array.size(demandZones)
-    if demandCount > 0
-        for i = 0 to demandCount - 1
-            Core.Zone dz = array.get(demandZones, i)
-            if dz.active and (na(latestBar) or dz.createdBarIndex > latestBar)
-                latest := "D-" + str.tostring(dz.id)
-                latestBar := dz.createdBarIndex
-    int supplyCount = array.size(supplyZones)
-    if supplyCount > 0
-        for i = 0 to supplyCount - 1
-            Core.Zone sz = array.get(supplyZones, i)
-            if sz.active and (na(latestBar) or sz.createdBarIndex > latestBar)
-                latest := "S-" + str.tostring(sz.id)
-                latestBar := sz.createdBarIndex
-    latest
-
-draw_compact_status_table(tbl) =>
-    table result = tbl
-    if showCompactStatusPanel
-        if na(result)
-            result := table.new(position.bottom_right, 2, 5,
-                 bgcolor = color.new(color.rgb(24, 29, 36), 8),
-                 frame_color = color.new(color.rgb(90, 100, 110), 75), frame_width = 1,
-                 border_color = color.new(color.rgb(70, 80, 90), 65), border_width = 1)
-        if barstate.isconfirmed
-            int activeDemandCount = count_active_zones(demandZones)
-            int activeSupplyCount = count_active_zones(supplyZones)
-            string aiState = enable_ai_quality_filter ? "ON" : "OFF"
-            string hoursState = is_outside_trading_hours() ? "Closed" : "Open"
-            table.cell(result, 0, 0, "STATUS", text_color = color.white, bgcolor = color.new(color.rgb(35, 42, 50), 0), text_size = size.tiny, text_halign = text.align_left)
-            table.cell(result, 1, 0, display_mode, text_color = color.rgb(210, 225, 235), bgcolor = color.new(color.rgb(35, 42, 50), 0), text_size = size.tiny, text_halign = text.align_right)
-            table.cell(result, 0, 1, "Demand", text_color = TBL_LBL, bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_right)
-            table.cell(result, 1, 1, str.tostring(activeDemandCount), text_color = col_demand_border, bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_left)
-            table.cell(result, 0, 2, "Supply", text_color = TBL_LBL, bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_right)
-            table.cell(result, 1, 2, str.tostring(activeSupplyCount), text_color = col_supply_border, bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_left)
-            table.cell(result, 0, 3, "Latest", text_color = TBL_LBL, bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_right)
-            table.cell(result, 1, 3, get_latest_zone_id_text(), text_color = color.rgb(220, 225, 230), bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_left)
-            table.cell(result, 0, 4, "AI / Hours", text_color = TBL_LBL, bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_right)
-            table.cell(result, 1, 4, aiState + " / " + hoursState, text_color = hoursState == "Open" ? color.rgb(80, 190, 140) : color.rgb(210, 150, 80), bgcolor = TBL_DBG, text_size = size.tiny, text_halign = text.align_left)
-    else
-        if not na(result)
-            table.delete(result)
-            result := na
-    result
 
 draw_performance_table(tbl) =>
     table result = tbl
 
     if show_performance_table and showResults
         if na(result)
-            result := table.new(position.top_right, 2, 9, 
+            result := table.new(position.top_right, 2, 6, 
                  bgcolor = color.new(color.rgb(30, 35, 40), 5), 
                  border_width = 1, border_color = color.new(color.white, 70), 
                  frame_width = 1, frame_color = color.new(color.white, 70))
@@ -2396,21 +2229,8 @@ draw_performance_table(tbl) =>
             string dd_str = "-$" + str.tostring(math.abs(max_dd), "#,##0.00")
             table.cell(result, 1, 5, dd_str, text_color = color.rgb(255, 100, 100), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = tbl_sz)
 
-            table.cell(result, 0, 6, "A-Grade WR", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = tbl_sz)
-            string a_wr_str = str.tostring(Utils.safe_percent(stat_grade_A_wins, stat_grade_A_total), "#.0") + "% (" + str.tostring(stat_grade_A_total) + ")"
-            table.cell(result, 1, 6, a_wr_str, text_color = color.white, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = tbl_sz)
-
-            table.cell(result, 0, 7, "B-Grade WR", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = tbl_sz)
-            string b_wr_str = str.tostring(Utils.safe_percent(stat_grade_B_wins, stat_grade_B_total), "#.0") + "% (" + str.tostring(stat_grade_B_total) + ")"
-            table.cell(result, 1, 7, b_wr_str, text_color = color.white, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = tbl_sz)
-
-            table.cell(result, 0, 8, "AI Filter", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = tbl_sz)
-            string ai_filter_str = enable_ai_quality_filter ? ("ON (≥" + str.tostring(ai_quality_threshold) + ")") : "OFF"
-            color ai_color = enable_ai_quality_filter ? color.rgb(0, 200, 100) : color.rgb(150, 150, 150)
-            table.cell(result, 1, 8, ai_filter_str, text_color = ai_color, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = tbl_sz)
-
     if (not show_performance_table or not showResults) and not na(result)
-        for r = 0 to 8
+        for r = 0 to 5
             table.cell(result, 0, r, "", bgcolor = color.new(color.black, 100))
             table.cell(result, 1, r, "", bgcolor = color.new(color.black, 100))
 
@@ -2577,23 +2397,13 @@ deactivateDemandZone(idx) =>
     if idx >= 0 and idx < array.size(demandZones)
         Core.Zone z = array.get(demandZones, idx)
         z.active := false
-        if display_is_clean
-            z := clear_zone_visual_objects(z, false)
-        else if not na(z.boxId)
-            box.set_bgcolor(z.boxId, color.new(col_demand_bg, 96))
-            box.set_border_color(z.boxId, color.new(col_demand_border, 75))
-        array.set(demandZones, idx, z)
+        apply_zone_visual(z, true)
 
 deactivateSupplyZone(idx) =>
     if idx >= 0 and idx < array.size(supplyZones)
         Core.Zone z = array.get(supplyZones, idx)
         z.active := false
-        if display_is_clean
-            z := clear_zone_visual_objects(z, true)
-        else if not na(z.boxId)
-            box.set_bgcolor(z.boxId, color.new(col_supply_bg, 96))
-            box.set_border_color(z.boxId, color.new(col_supply_border, 75))
-        array.set(supplyZones, idx, z)
+        apply_zone_visual(z, false)
 
 deactivateOverlappingSupplyZones(refLow, refHigh) =>
     for k = 0 to array.size(supplyZones) - 1
@@ -2745,13 +2555,14 @@ clearDemandLiquidityVisual(idx) =>
 updateDemandLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(demandZones)
         Core.Zone z = array.get(demandZones, idx)
+        bool showLiquidityVisuals = zone_should_show_visual(z) and zone_lab_mode and show_liquidity_connectors
 
-        if show_liquidity_connectors
+        if showLiquidityVisuals
             if not na(z.inducementHLine)
                 line.delete(z.inducementHLine)
 
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                color indColor = z.liquiditySwept ? color.new(col_liq_inducement, 0) : col_liq_inducement
+                color indColor = z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50)
                 int lineEnd = bar_index + 20
                 z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                                x2 = lineEnd, y2 = z.liqLowPrice,
@@ -2762,7 +2573,7 @@ updateDemandLiquidityVisual(idx) =>
                 line.delete(z.targetHLine)
 
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
-                color tgtColor = z.targetSwept ? color.new(col_liq_target, 0) : col_liq_target
+                color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
                 int lineEnd = bar_index + 20
                 z.targetHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                            x2 = lineEnd, y2 = z.liqHighPrice,
@@ -2776,7 +2587,7 @@ updateDemandLiquidityVisual(idx) =>
                 line.delete(z.targetHLine)
                 z.targetHLine := na
 
-        if na(z.liquidityPrice) or na(z.liquidityBarIndex) or na(z.createdBarIndex) or not show_liquidity_connectors
+        if na(z.liquidityPrice) or na(z.liquidityBarIndex) or na(z.createdBarIndex) or not showLiquidityVisuals
             if not na(z.connectorLine)
                 line.delete(z.connectorLine)
                 z.connectorLine := na
@@ -2811,13 +2622,14 @@ clearSupplyLiquidityVisual(idx) =>
 updateSupplyLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(supplyZones)
         Core.Zone z = array.get(supplyZones, idx)
+        bool showLiquidityVisuals = zone_should_show_visual(z) and zone_lab_mode and show_liquidity_connectors
 
-        if show_liquidity_connectors
+        if showLiquidityVisuals
             if not na(z.inducementHLine)
                 line.delete(z.inducementHLine)
 
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
-                color indColor = z.liquiditySwept ? color.new(col_liq_inducement, 0) : col_liq_inducement
+                color indColor = z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50)
                 int lineEnd = bar_index + 20
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = lineEnd, y2 = z.liqHighPrice,
@@ -2828,7 +2640,7 @@ updateSupplyLiquidityVisual(idx) =>
                 line.delete(z.targetHLine)
 
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                color tgtColor = z.targetSwept ? color.new(col_liq_target, 0) : col_liq_target
+                color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
                 int lineEnd = bar_index + 20
                 z.targetHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                            x2 = lineEnd, y2 = z.liqLowPrice,
@@ -2842,7 +2654,7 @@ updateSupplyLiquidityVisual(idx) =>
                 line.delete(z.targetHLine)
                 z.targetHLine := na
 
-        if na(z.liqHighPrice) or na(z.liqHighBar) or na(z.createdBarIndex) or not show_liquidity_connectors
+        if na(z.liqHighPrice) or na(z.liqHighBar) or na(z.createdBarIndex) or not showLiquidityVisuals
             if not na(z.connectorLine)
                 line.delete(z.connectorLine)
                 z.connectorLine := na
@@ -2865,7 +2677,7 @@ updateSupplyLiquidityVisual(idx) =>
                 if not na(z.targetLine)
                     line.delete(z.targetLine)
 
-                targetColor = color.new(col_liq_target, 40)
+                targetColor = color.new(color.gray, 25)
                 targetStyle = line.style_solid
                 targetWidth = z.targetSwept ? 2 : 1
                 z.targetLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice, x2 = z.liqLowBar, y2 = z.liqLowPrice,
@@ -2948,15 +2760,6 @@ isValidEntry(isDemand, idx) =>
     [canEnter, reason, z] = validate_entry_conditions(isDemand, idx)
 
 
-    if canEnter and enable_grade_filter
-
-        int minGradeVal = Core.get_grade_value(min_entry_grade)
-        int zoneGradeVal = Core.get_grade_value(z.grade)
-
-        if zoneGradeVal < minGradeVal
-            canEnter := false
-            reason := "Grade too low (" + z.grade + " < " + min_entry_grade + ")"
-
     if canEnter
         float bodySize = math.abs(close - open)
         float candleRange = high - low
@@ -3000,15 +2803,11 @@ if cached_demand_size > 0 and barstate.isconfirmed
     current_close = close
     current_open = open
 
-    int demand_liquidity_visible_count = 0
-    for demandScan = 0 to cached_demand_size - 1
-        int i = cached_demand_size - 1 - demandScan
+    for i = 0 to cached_demand_size - 1
         if i >= array.size(demandZones)
-            continue
+            break
         Core.Zone z = array.get(demandZones, i)
         if z.active
-            demand_liquidity_visible_count += 1
-            bool should_update_liquidity_visual = demand_liquidity_visible_count <= max_visible_zones_per_side
             if z.isHistorical
                 continue  // Skip all liquidity validation for historical zones
 
@@ -3047,23 +2846,12 @@ if cached_demand_size > 0 and barstate.isconfirmed
                 z.structureSweepLevel := na
                 z.inactiveReason := "Ghost Data Cleared"
 
-            if not z.liquidityValid or na(z.lastEntryBar)
+            if not z.liquidityValid
                 f_scan_demand_liquidity(i)
 
             f_check_demand_sweeps(i)
 
-            if youtube_snd_rules
-                z := array.get(demandZones, i)
-                z := zone_update_liquidity_and_bos(z, true)
-                array.set(demandZones, i, z)
-                db_updateZoneLiquidity(z)
-                if z.state == ZONE_STATE_INVALID
-                    db_markInactive(z.id, z.stateReason)
-                    remove_zone_all_arrays(true, i)
-                    continue
-
-            if should_update_liquidity_visual
-                updateDemandLiquidityVisual(i)
+            updateDemandLiquidityVisual(i)
 
             if current_close > z.top and not z.leftZone
                 z.leftZone := true
@@ -3112,24 +2900,24 @@ if cached_demand_size > 0 and barstate.isconfirmed
 
                     if is_liq_bar or delayed_retouch
                         z.touchedPreSweep := true
+                        array.set(demandZones, i, z)
+                        db_updateZoneLiquidity(z)
 
                 if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
                     z.mitigated := true
+                    array.set(demandZones, i, z)
+                    db_updateZoneLiquidity(z)
 
 if cached_supply_size > 0 and barstate.isconfirmed
     current_close = close
     current_open = open
     current_low = low
 
-    int supply_liquidity_visible_count = 0
-    for supplyScan = 0 to cached_supply_size - 1
-        int i = cached_supply_size - 1 - supplyScan
+    for i = 0 to cached_supply_size - 1
         if i >= array.size(supplyZones)
-            continue
+            break
         Core.Zone z = array.get(supplyZones, i)
         if z.active
-            supply_liquidity_visible_count += 1
-            bool should_update_liquidity_visual = supply_liquidity_visible_count <= max_visible_zones_per_side
             if z.isHistorical
                 continue  // Skip all liquidity validation for historical zones
 
@@ -3168,23 +2956,12 @@ if cached_supply_size > 0 and barstate.isconfirmed
                 z.structureSweepLevel := na
                 z.inactiveReason := "Ghost Data Cleared"
 
-            if not z.liquidityValid or na(z.lastEntryBar)
+            if not z.liquidityValid
                 f_scan_supply_liquidity(i)
 
             f_check_supply_sweeps(i)
 
-            if youtube_snd_rules
-                z := array.get(supplyZones, i)
-                z := zone_update_liquidity_and_bos(z, false)
-                array.set(supplyZones, i, z)
-                db_updateZoneLiquidity(z)
-                if z.state == ZONE_STATE_INVALID
-                    db_markInactive(z.id, z.stateReason)
-                    remove_zone_all_arrays(false, i)
-                    continue
-
-            if should_update_liquidity_visual
-                updateSupplyLiquidityVisual(i)
+            updateSupplyLiquidityVisual(i)
 
             if current_close < z.bottom and not z.leftZone
                 z.leftZone := true
@@ -3204,6 +2981,8 @@ if cached_supply_size > 0 and barstate.isconfirmed
                     z.lastTouchBar := bar_index
                     z.wasTouched := true
                     z.touchedPreSweep := true
+                    array.set(supplyZones, i, z)
+                    db_updateZoneLiquidity(z)
 
                     // Incremental peak update: just check current bar vs stored peak (O(1) instead of O(N))
                     if na(z.peakPrice) or low < z.peakPrice
@@ -3214,143 +2993,109 @@ if cached_supply_size > 0 and barstate.isconfirmed
 
                 if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
                     z.mitigated := true
+                    array.set(supplyZones, i, z)
+                    db_updateZoneLiquidity(z)
 
 int demandSize = array.size(demandZones)
 if demandSize > 0
     current_close = close
     current_open  = open
     current_low   = low
+    bool is_bearish_c  = current_close < current_open
     pip_buffer    = pip_size * 0.1
 
     demandSize := array.size(demandZones)
     if demandSize > 0
-        int demandInvalidScanIdx = demandSize - 1
-        while demandInvalidScanIdx >= 0
-            int i = demandInvalidScanIdx
-            demandInvalidScanIdx -= 1
-            if i >= array.size(demandZones)
-                continue
+        for i = demandSize - 1 to 0
+            if i >= demandSize
+                break
             Core.Zone z = array.get(demandZones, i)
             if z.active
                 if current_close > z.top and not z.leftZone
                     z.leftZone := true
                     z.leftWithBearish := current_close < current_open
 
-                if youtube_snd_rules
-                    [preInvalid, preInvalidReason] = zone_pre_entry_invalidated(z, true)
-                    z := zone_update_expiry(z)
-                    if preInvalid
-                        z := zone_set_state(z, ZONE_STATE_INVALID, preInvalidReason)
-                        array.set(demandZones, i, z)
-                        db_markInactive(z.id, preInvalidReason)
-                        remove_zone_all_arrays(true, i)
-                    else if z.state == ZONE_STATE_EXPIRED
-                        array.set(demandZones, i, z)
-                        db_markInactive(z.id, z.stateReason)
-                        remove_zone_all_arrays(true, i)
-                else
-                    bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
-                    bool close_below_zone = current_close < z.bottom
-                    bool wick_below_zone = current_low < z.bottom
-                    if close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
-                        remove_zone_all_arrays(true, i)
+                bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
+
+                bool close_inside_demand = current_close <= z.top and current_close >= z.bottom
+                bool close_below_zone     = current_close < z.bottom
+                bool wick_below_zone = current_low < z.bottom
+
+                if close_inside_demand or close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
+                    remove_zone_all_arrays(true, i)
 
 int supplySize = array.size(supplyZones)
 if supplySize > 0
     current_close = close
+    current_open  = open
     current_high  = high
 
-    int supplyInvalidScanIdx = supplySize - 1
-    while supplyInvalidScanIdx >= 0
-        int i = supplyInvalidScanIdx
-        supplyInvalidScanIdx -= 1
-        if i >= array.size(supplyZones)
-            continue
+    for i = supplySize - 1 to 0
+        if i >= supplySize
+            break
         Core.Zone z = array.get(supplyZones, i)
         if z.active
-            if youtube_snd_rules
-                [preInvalid, preInvalidReason] = zone_pre_entry_invalidated(z, false)
-                z := zone_update_expiry(z)
-                if preInvalid
-                    z := zone_set_state(z, ZONE_STATE_INVALID, preInvalidReason)
-                    array.set(supplyZones, i, z)
-                    db_markInactive(z.id, preInvalidReason)
-                    remove_zone_all_arrays(false, i)
-                else if z.state == ZONE_STATE_EXPIRED
-                    array.set(supplyZones, i, z)
-                    db_markInactive(z.id, z.stateReason)
-                    remove_zone_all_arrays(false, i)
-            else
-                bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
-                bool close_above_zone = current_close > z.top
-                bool wick_above_zone = current_high > z.top
-                if close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
-                    remove_zone_all_arrays(false, i)
+            bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
 
-int current_demand_size_for_visuals = array.size(demandZones)
-if show_zones and show_demand_zones and current_demand_size_for_visuals > 0 and barstate.isconfirmed
-    for i = 0 to current_demand_size_for_visuals - 1
+            bool close_inside_supply = current_close >= z.bottom and current_close <= z.top
+            bool close_above_zone     = current_close > z.top
+            bool wick_above_zone = current_high > z.top
+
+            if close_inside_supply or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
+                remove_zone_all_arrays(false, i)
+
+if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isconfirmed
+    for i = 0 to cached_demand_size - 1
         if i >= array.size(demandZones)
             break
         Core.Zone z = array.get(demandZones, i)
-        if z.active and (debug_enabled or zone_is_visible_clean(z))
-            bool should_show_visual = should_show_zone_visual(z, demandZones, true)
-            if not should_show_visual
-                z := clear_zone_visual_objects(z, false)
-                array.set(demandZones, i, z)
-            else if not na(z.createdBarIndex)
-                int right_bar_index = bar_index + zone_right_padding_bars
-                z := ensure_zone_visual_objects(z, true, right_bar_index)
-                array.set(demandZones, i, z)
+        if z.active or zone_lab_mode
+            bool zoneVisible = apply_zone_visual(z, true)
+            if zoneVisible and not na(z.createdBarIndex)
+                int left_bar_index = z.createdBarIndex
+                int right_bar_index = left_bar_index + extend_bars
                 if not na(z.boxId)
-                    box.set_right(z.boxId, right_bar_index)
-                    box.set_bgcolor(z.boxId, get_zone_bg_color(true, z.isAccuracy))
-                    box.set_border_width(z.boxId, get_zone_border_width(z.isAccuracy))
-                    box.set_border_color(z.boxId, get_zone_border_color(true, z.isAccuracy))
+                    box.set_right(z.boxId,right_bar_index)
 
                     if not na(z.idLabel)
                         float lbl_mid = (z.top + z.bottom) / 2
-                        label.set_x(z.idLabel, right_bar_index)
+                        label.set_x(z.idLabel, bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        string demandStateSuffix = show_debug_labels ? ("\n" + zone_state_name(z.state) + ": " + z.stateReason) : ""
-                        label.set_text(z.idLabel, " " + get_zone_label_text(true, z.id) + demandStateSuffix + " ")
+                        string demandAccTag = z.isAccuracy ? "⭐ ACC " : ""
+                        string demandCompact = demandAccTag + "D-" + str.tostring(z.id)
+                        string demandDetailed = "Demand " + demandCompact
+                        string demandMetrics = zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
+                        string demandText = zone_label_style == "Detailed" ? (demandDetailed + demandMetrics) : demandCompact
+                        label.set_text(z.idLabel, " " + demandText + " ")
                         label.set_style(z.idLabel, label.style_label_left)
-                        label.set_textcolor(z.idLabel, col_zone_label_text)
-                        label.set_color(z.idLabel, get_zone_label_color(true, z.isAccuracy))
-                        label.set_size(z.idLabel, size.tiny)
+                        label.set_size(z.idLabel, size.normal)
                         label.set_textalign(z.idLabel, text.align_center)
 
-int current_supply_size_for_visuals = array.size(supplyZones)
-if show_zones and show_supply_zones and current_supply_size_for_visuals > 0 and barstate.isconfirmed
-    for i = 0 to current_supply_size_for_visuals - 1
+if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isconfirmed
+    for i = 0 to cached_supply_size - 1
         if i >= array.size(supplyZones)
             break
         Core.Zone z = array.get(supplyZones, i)
-        if z.active and (debug_enabled or zone_is_visible_clean(z))
-            bool should_show_visual = should_show_zone_visual(z, supplyZones, false)
-            if not should_show_visual
-                z := clear_zone_visual_objects(z, true)
-                array.set(supplyZones, i, z)
-            else if not na(z.createdBarIndex)
-                int right_bar_index = bar_index + zone_right_padding_bars
-                z := ensure_zone_visual_objects(z, false, right_bar_index)
-                array.set(supplyZones, i, z)
+        if z.active or zone_lab_mode
+            bool zoneVisible = apply_zone_visual(z, false)
+            if zoneVisible and not na(z.createdBarIndex)
+                int left_bar_index = z.createdBarIndex
+                int right_bar_index = left_bar_index + extend_bars
                 if not na(z.boxId)
-                    box.set_right(z.boxId, right_bar_index)
-                    box.set_bgcolor(z.boxId, get_zone_bg_color(false, z.isAccuracy))
-                    box.set_border_width(z.boxId, get_zone_border_width(z.isAccuracy))
-                    box.set_border_color(z.boxId, get_zone_border_color(false, z.isAccuracy))
+                    box.set_right(z.boxId,right_bar_index)
 
                     if not na(z.idLabel)
                         float lbl_mid = (z.top + z.bottom) / 2
-                        label.set_x(z.idLabel, right_bar_index)
+                        label.set_x(z.idLabel, bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        string supplyStateSuffix = show_debug_labels ? ("\n" + zone_state_name(z.state) + ": " + z.stateReason) : ""
-                        label.set_text(z.idLabel, " " + get_zone_label_text(false, z.id) + supplyStateSuffix + " ")
+                        string supplyAccTag = z.isAccuracy ? "⭐ ACC " : ""
+                        string supplyCompact = supplyAccTag + "S-" + str.tostring(z.id)
+                        string supplyDetailed = "Supply " + supplyCompact
+                        string supplyMetrics = zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
+                        string supplyText = zone_label_style == "Detailed" ? (supplyDetailed + supplyMetrics) : supplyCompact
+                        label.set_text(z.idLabel, " " + supplyText + " ")
                         label.set_style(z.idLabel, label.style_label_left)
-                        label.set_textcolor(z.idLabel, col_zone_label_text)
-                        label.set_color(z.idLabel, get_zone_label_color(false, z.isAccuracy))
-                        label.set_size(z.idLabel, size.tiny)
+                        label.set_size(z.idLabel, size.normal)
                         label.set_textalign(z.idLabel, text.align_center)
 
 
@@ -3508,9 +3253,6 @@ process_long_entries() =>
                     [tp_r, be_trig, be_sl, move_be] = get_tp_ratio(syminfo.ticker, sl_pips)
 
 
-                    if enable_double_tp
-                        tp_r := tp_r * 2.0
-
                     if not na(tp_r)
                         take_profit_price := entry_price + (pip_distance * tp_r)
 
@@ -3538,19 +3280,19 @@ process_long_entries() =>
                         continue
 
                 float balance  = account_size_usd
-                float risk_pct = risk_per_trade_pct
+                float trade_risk_pct = risk_per_trade_pct
 
                 if use_half_risk_second_trade and array.get(_current_day_trades, 0) == 1 and max_trades_per_day == 2
-                    risk_pct := risk_pct * 0.5
+                    trade_risk_pct := trade_risk_pct * 0.5
 
-                [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, risk_pct, false)
+                [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, trade_risk_pct, false)
 
                 stop_loss_price := pos_sl_fixed
 
                 array.set(_last_pos_size_entry, 0, entry_price)
                 array.set(_last_pos_size_sl, 0, stop_loss_price)
                 array.set(_last_pos_size_balance, 0, balance)
-                array.set(_last_pos_size_risk_pct, 0, risk_pct)
+                array.set(_last_pos_size_risk_pct, 0, trade_risk_pct)
                 array.set(_last_pos_size_sl_pips, 0, sl_pips)
                 array.set(_last_pos_size_valid, 0, pos_is_valid)
                 array.set(_last_pos_size_error, 0, pos_error_msg)
@@ -3574,7 +3316,7 @@ process_long_entries() =>
                                   style = label.style_label_down, color = color.new(color.red, 0),
                                   textcolor = color.white, size = size.normal)
 
-                if pos_is_valid and pos_qty_units > 0 and not na(pos_qty_units)
+                if pos_is_valid and pos_qty_units > 0 and not na(pos_qty_units) and not pf_trading_disabled and not pf_is_news_blackout
                     [isEntryPermitted, entryPermitReason] = isValidDemandEntry(i)
 
                     if not isEntryPermitted
@@ -3662,7 +3404,7 @@ process_long_entries() =>
                         guardian_arrival,        // arrival_type
                         guardian_structure_break, // market_structure_break
                         account_size_usd,         // _account_balance (Corrected)
-                        risk_pct,                // _risk_percent (synced to backend)
+                        trade_risk_pct,          // _risk_percent (synced to backend)
                         f_liq_dist_pips,         // liq_distance_pips
                         f_liq_spread_pips,       // liq_spread_pips
                         time_close,              // current_time (bar close = signal fires at bar close)
@@ -3679,7 +3421,13 @@ process_long_entries() =>
                         bar_index - z.createdBarIndex, // bars_since_zone
                         WEBHOOK_STRATEGY_ID,
                         WEBHOOK_STRATEGY_VERSION,
-                        entry_trade_key
+                        entry_trade_key,
+                        entry_execution_mode,
+                        entry_price,
+                        wick_entry_pullback_pips,
+                        max_entry_delay_seconds,
+                        entry_poll_interval_seconds,
+                        max_spread_pips
                     ) : ""
 
                     if dry_run_mode
@@ -3712,6 +3460,18 @@ process_long_entries() =>
                         [ai_pine_score_val, _ai_bd] = Core.calculate_ai_quality_score(z, true, feature_rvol, feature_session, feature_trend, feature_adx, feature_htf_trend, feature_rsi, (z.top - z.bottom) / atr14)
                         // Pine rule-based AI score — sent to backend as context feature, not a gate
                         ai_features += " | F:ai_pine_score=" + str.tostring(ai_pine_score_val, "#.0")
+                        float ema_context_zone_mid = (z.top + z.bottom) / 2.0
+                        float ema_context_neutral_buffer = atr14 * ema_context_neutral_atr_mult
+                        float ema_context_zone_mid_distance_pips = pip_size > 0 ? (ema_context_zone_mid - feature_ema_context) / pip_size : na
+                        int ema_context_zone_side = math.abs(ema_context_zone_mid - feature_ema_context) <= ema_context_neutral_buffer ? 0 : (ema_context_zone_mid > feature_ema_context ? 1 : -1)
+                        float ema_context_slope = pip_size > 0 ? (feature_ema_context - feature_ema_context[ema_context_slope_lookback]) / pip_size : na
+                        int ema_context_aligned = ema_context_zone_side == 1 ? 1 : 0
+                        ai_features += " | F:ema_context_length=" + str.tostring(ema_context_length)
+                        ai_features += " | F:ema_context_value=" + str.tostring(feature_ema_context, format.mintick)
+                        ai_features += " | F:ema_context_zone_mid_distance_pips=" + (not na(ema_context_zone_mid_distance_pips) ? str.tostring(ema_context_zone_mid_distance_pips, "#.##") : "N/A")
+                        ai_features += " | F:ema_context_zone_side=" + str.tostring(ema_context_zone_side)
+                        ai_features += " | F:ema_context_slope=" + (not na(ema_context_slope) ? str.tostring(ema_context_slope, "#.##") : "N/A")
+                        ai_features += " | F:ema_context_aligned=" + str.tostring(ema_context_aligned)
                         float zone_height_pips = pip_size > 0 ? (z.top - z.bottom) / pip_size : 0.0
                         string dna_session = feature_session == 0 ? "As" : (feature_session == 1 ? "Ld" : (feature_session == 2 ? "NY" : "Of"))
                         string dna_model   = chosenModel == "FLIP" ? "Flp" : (chosenModel == "BOC" ? "BoC" : "Dir")
@@ -3727,7 +3487,7 @@ process_long_entries() =>
                                       + "|Sn:" + dna_session
                                       + "|T:"  + (feature_trend == 1 ? "1" : "0")
                                       + "|H:"  + (feature_htf_trend == 1 ? "1" : "0")
-                        string entryComment = (show_entry_labels ? "" : typeTag) + ai_dna + (show_ai_debug_comment ? ai_features : "")
+                        string entryComment = (show_entry_labels ? "" : typeTag) + ai_dna
 
                         if enable_webhook_alerts
                             strategy.entry("Long", strategy.long, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload)
@@ -3744,7 +3504,7 @@ process_long_entries() =>
                         array.set(_active_entry_id, 0, "Long")
                         array.set(_trade_entry_price, 0, entry_price)
                         array.set(_trade_original_sl, 0, stop_loss_price)
-                        array.set(_trade_entry_grade, 0, z.grade)
+                        array.set(_trade_original_sl_pips, 0, sl_pips)
                         array.set(_trade_current_sl, 0, stop_loss_price)
                         array.set(_trade_tp1_price, 0, take_profit_price)
                         array.set(_current_day_trades, 0, array.get(_current_day_trades, 0) + 1)
@@ -3775,13 +3535,9 @@ process_long_entries() =>
                         array.set(_trade_zone_type, 0, "demand")
 
                     z.lastEntryBar := bar_index
-                    if youtube_snd_rules
-                        z := zone_set_state(z, ZONE_STATE_USED, "Long entry opened")
-                        z.inactiveReason := z.stateReason
                     z.active := false
                     z.primed := false  // Reset just in case
-                    array.set(demandZones, i, z)
-                    db_updateZoneLiquidity(z)
+                    apply_zone_visual(z, true)
                     array.set(_last_global_long_entry_bar, 0, bar_index)
 
                     deactivateOverlappingDemandZones(z.top, z.bottom)
@@ -3960,9 +3716,6 @@ process_short_entries() =>
                     [tp_r, be_trig, be_sl, move_be] = get_tp_ratio(syminfo.ticker, sl_pips)
 
 
-                    if enable_double_tp
-                        tp_r := tp_r * 2.0
-
                     if not na(tp_r)
                         take_profit_price := entry_price - (pip_distance * tp_r)
 
@@ -3990,19 +3743,19 @@ process_short_entries() =>
                         continue
 
                 float balance  = account_size_usd
-                float risk_pct = risk_per_trade_pct
+                float trade_risk_pct = risk_per_trade_pct
 
                 if use_half_risk_second_trade and array.get(_current_day_trades, 0) == 1 and max_trades_per_day == 2
-                    risk_pct := risk_pct * 0.5
+                    trade_risk_pct := trade_risk_pct * 0.5
 
-                [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, risk_pct, true)
+                [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, trade_risk_pct, true)
 
                 stop_loss_price := pos_sl_fixed
 
                 array.set(_last_pos_size_entry, 0, entry_price)
                 array.set(_last_pos_size_sl, 0, stop_loss_price)
                 array.set(_last_pos_size_balance, 0, balance)
-                array.set(_last_pos_size_risk_pct, 0, risk_pct)
+                array.set(_last_pos_size_risk_pct, 0, trade_risk_pct)
                 array.set(_last_pos_size_sl_pips, 0, sl_pips)
                 array.set(_last_pos_size_valid, 0, pos_is_valid)
                 array.set(_last_pos_size_error, 0, pos_error_msg)
@@ -4026,7 +3779,7 @@ process_short_entries() =>
                                   style = label.style_label_up, color = color.new(color.red, 0),
                                   textcolor = color.white, size = size.normal)
 
-                if pos_is_valid and pos_qty_units > 0 and not na(pos_qty_units)
+                if pos_is_valid and pos_qty_units > 0 and not na(pos_qty_units) and not pf_trading_disabled and not pf_is_news_blackout
                     [isEntryPermitted, entryPermitReason] = isValidSupplyEntry(i)
 
                     if not isEntryPermitted
@@ -4114,7 +3867,7 @@ process_short_entries() =>
                         guardian_arrival_short,        // arrival_type
                         guardian_structure_break_short, // market_structure_break
                         account_size_usd,               // _account_balance (Corrected)
-                        risk_pct,                      // _risk_percent (synced to backend)
+                        trade_risk_pct,                // _risk_percent (synced to backend)
                         f_liq_dist_pips_short,         // liq_distance_pips
                         f_liq_spread_pips_short,       // liq_spread_pips
                         time_close,                    // current_time (bar close = signal fires at bar close)
@@ -4131,7 +3884,13 @@ process_short_entries() =>
                         bar_index - z.createdBarIndex, // bars_since_zone
                         WEBHOOK_STRATEGY_ID,
                         WEBHOOK_STRATEGY_VERSION,
-                        entry_trade_key_short
+                        entry_trade_key_short,
+                        entry_execution_mode,
+                        entry_price,
+                        wick_entry_pullback_pips,
+                        max_entry_delay_seconds,
+                        entry_poll_interval_seconds,
+                        max_spread_pips
                     ) : ""
 
                     if dry_run_mode
@@ -4164,6 +3923,18 @@ process_short_entries() =>
                         [ai_pine_score_val, _ai_bd] = Core.calculate_ai_quality_score(z, false, feature_rvol, feature_session, feature_trend, feature_adx, feature_htf_trend, feature_rsi, (z.top - z.bottom) / atr14)
                         // Pine rule-based AI score — sent to backend as context feature, not a gate
                         ai_features += " | F:ai_pine_score=" + str.tostring(ai_pine_score_val, "#.0")
+                        float ema_context_zone_mid = (z.top + z.bottom) / 2.0
+                        float ema_context_neutral_buffer = atr14 * ema_context_neutral_atr_mult
+                        float ema_context_zone_mid_distance_pips = pip_size > 0 ? (ema_context_zone_mid - feature_ema_context) / pip_size : na
+                        int ema_context_zone_side = math.abs(ema_context_zone_mid - feature_ema_context) <= ema_context_neutral_buffer ? 0 : (ema_context_zone_mid > feature_ema_context ? 1 : -1)
+                        float ema_context_slope = pip_size > 0 ? (feature_ema_context - feature_ema_context[ema_context_slope_lookback]) / pip_size : na
+                        int ema_context_aligned = ema_context_zone_side == -1 ? 1 : 0
+                        ai_features += " | F:ema_context_length=" + str.tostring(ema_context_length)
+                        ai_features += " | F:ema_context_value=" + str.tostring(feature_ema_context, format.mintick)
+                        ai_features += " | F:ema_context_zone_mid_distance_pips=" + (not na(ema_context_zone_mid_distance_pips) ? str.tostring(ema_context_zone_mid_distance_pips, "#.##") : "N/A")
+                        ai_features += " | F:ema_context_zone_side=" + str.tostring(ema_context_zone_side)
+                        ai_features += " | F:ema_context_slope=" + (not na(ema_context_slope) ? str.tostring(ema_context_slope, "#.##") : "N/A")
+                        ai_features += " | F:ema_context_aligned=" + str.tostring(ema_context_aligned)
                         float zone_height_pips = pip_size > 0 ? (z.top - z.bottom) / pip_size : 0.0
                         string dna_session = feature_session == 0 ? "As" : (feature_session == 1 ? "Ld" : (feature_session == 2 ? "NY" : "Of"))
                         string dna_model   = chosenModel == "FLIP" ? "Flp" : (chosenModel == "BOC" ? "BoC" : "Dir")
@@ -4179,7 +3950,7 @@ process_short_entries() =>
                                       + "|Sn:" + dna_session
                                       + "|T:"  + (feature_trend == 1 ? "1" : "0")
                                       + "|H:"  + (feature_htf_trend == 1 ? "1" : "0")
-                        string entryComment = (show_entry_labels ? "" : typeTag) + ai_dna + (show_ai_debug_comment ? ai_features : "")
+                        string entryComment = (show_entry_labels ? "" : typeTag) + ai_dna
 
                         if enable_webhook_alerts
                             strategy.entry("Short", strategy.short, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload_short)
@@ -4196,7 +3967,7 @@ process_short_entries() =>
                         array.set(_active_entry_id, 0, "Short")
                         array.set(_trade_entry_price, 0, entry_price)
                         array.set(_trade_original_sl, 0, stop_loss_price)
-                        array.set(_trade_entry_grade, 0, z.grade)
+                        array.set(_trade_original_sl_pips, 0, sl_pips)
                         array.set(_trade_current_sl, 0, stop_loss_price)
                         array.set(_trade_tp1_price, 0, take_profit_price)
                         array.set(_current_day_trades, 0, array.get(_current_day_trades, 0) + 1)
@@ -4227,13 +3998,9 @@ process_short_entries() =>
                         array.set(_trade_zone_type, 0, "supply")  // SUPPLY for shorts
 
                     z.lastEntryBar := bar_index
-                    if youtube_snd_rules
-                        z := zone_set_state(z, ZONE_STATE_USED, "Short entry opened")
-                        z.inactiveReason := z.stateReason
                     z.active := false
                     z.primed := false  // Reset just in case
-                    array.set(supplyZones, i, z)
-                    db_updateZoneLiquidity(z)
+                    apply_zone_visual(z, false)
                     array.set(_last_global_short_entry_bar, 0, bar_index)
 
                     deactivateOverlappingSupplyZones(z.top, z.bottom)
@@ -4262,6 +4029,7 @@ process_short_entries()
 active_entry_id        := array.get(_active_entry_id, 0)
 trade_entry_price      := array.get(_trade_entry_price, 0)
 trade_original_sl      := array.get(_trade_original_sl, 0)
+trade_original_sl_pips := array.get(_trade_original_sl_pips, 0)
 trade_current_sl       := array.get(_trade_current_sl, 0)
 trade_tp1_price        := array.get(_trade_tp1_price, 0)
 trade_key              := array.get(_trade_key, 0)
@@ -4269,7 +4037,6 @@ tp1_hit                := array.get(_tp1_hit, 0)
 trade_be_trigger_rr    := array.get(_trade_be_trigger_rr, 0)
 trade_be_sl_pips       := array.get(_trade_be_sl_pips, 0)
 trade_be_moved         := array.get(_trade_be_moved, 0)
-trade_entry_grade      := array.get(_trade_entry_grade, 0)
 current_day_trades     := array.get(_current_day_trades, 0)
 last_global_long_entry_bar  := array.get(_last_global_long_entry_bar, 0)
 last_global_short_entry_bar := array.get(_last_global_short_entry_bar, 0)
@@ -4458,7 +4225,7 @@ if strategy.position_size != 0 and use_stop_loss and not na(trade_entry_price) a
         current_profit_pips := (trade_entry_price - close) / pip_size
         current_profit_rr := trade_original_sl_pips != 0 ? current_profit_pips / trade_original_sl_pips : 0
 
-    if current_profit_rr >= 10.0
+    if current_profit_rr >= 10.0 and pf_min_hold_satisfied
         if active_entry_id == "Long"
             strategy.close("Long", comment = "Hard Close at 1:10")
         else if active_entry_id == "Long Flip"
@@ -4492,13 +4259,14 @@ if strategy.position_size != 0 and use_stop_loss and not na(trade_entry_price) a
 if strategy.opentrades > 0
     int last_entry_bar = strategy.opentrades.entry_bar_index(strategy.opentrades - 1)
 
-    if (bar_index - last_entry_bar) >= max_bars_held
+    if (bar_index - last_entry_bar) >= max_bars_held and pf_min_hold_satisfied
         strategy.close_all(comment = "Time Stop (Bars)")
 
         trade_entry_price      := na
         array.set(_trade_entry_price, 0, na)
         trade_original_sl      := na
         array.set(_trade_original_sl, 0, na)
+        array.set(_trade_original_sl_pips, 0, na)
         trade_original_sl_pips := na
         trade_current_sl       := na
         array.set(_trade_current_sl, 0, na)
@@ -4599,20 +4367,6 @@ if trade_just_closed
         else
             stat_trades_normal_losses += 1
 
-    if str.contains(trade_entry_grade, "A")
-        stat_grade_A_total += 1
-        if was_win
-            stat_grade_A_wins += 1
-    else if str.contains(trade_entry_grade, "B")
-        stat_grade_B_total += 1
-        if was_win
-            stat_grade_B_wins += 1
-    else
-        stat_grade_C_total += 1
-        if was_win
-            stat_grade_C_wins += 1
-
-
     bucket = Utils.get_symbol_bucket(syminfo.ticker)
     if bucket == "XAU"
         stat_rr_sum_xau += pnl_r
@@ -4628,6 +4382,7 @@ if trade_just_closed
     array.set(_trade_entry_price, 0, na)
     trade_original_sl := na
     array.set(_trade_original_sl, 0, na)
+    array.set(_trade_original_sl_pips, 0, na)
     trade_original_sl_pips := na
     trade_current_sl := na
     array.set(_trade_current_sl, 0, na)
@@ -4644,9 +4399,6 @@ if trade_just_closed
     array.set(_trade_be_sl_pips, 0, na)
     trade_be_moved := false
     array.set(_trade_be_moved, 0, false)
-    trade_entry_grade := "C"
-    array.set(_trade_entry_grade, 0, "C")
-
     trade_entry_bar_index := na
     array.set(_trade_entry_bar_index, 0, na)
     trade_worst_price := na
@@ -4683,7 +4435,7 @@ _controlLine(_lines, _activeFlags, __high, __low) =>
             float tolerance = pip_size * 0.1
             bool isCrossed = (__high >= lvlLow - tolerance and __low <= lvlLow + tolerance) or (__high >= lvlHigh - tolerance and __low <= lvlHigh + tolerance)
             if isActive and isCrossed
-                line.set_color(lineRef, color.new(col_liq_target, 15))
+                line.set_color(lineRef, color.new(color.purple, 0))
                 if i < array.size(_activeFlags)
                     array.set(_activeFlags, i, false)
             else if isActive and (not isCrossed) and bar_index >= line.get_x1(lineRef)
@@ -4719,11 +4471,10 @@ if plotLiq and barstate.isconfirmed
     _controlLine(_highLiqLines, _highLiqActive, high, low)
 
 var table zoneInspector = na
-var table compactStatusTable = na
 var label inspectorIndLabel = na
 var label inspectorTgtLabel = na
 
-if showZoneInspector and display_show_details and isRecentBarForDebug()
+if showZoneInspector and debug_enabled and isRecentBarForDebug()
     if na(zoneInspector)
         zoneInspector := table.new(position.bottom_right, 2, 35, 
              bgcolor = color.new(color.rgb(20, 25, 30), 10), 
@@ -5098,7 +4849,7 @@ if showZoneInspector and display_show_details and isRecentBarForDebug()
         if not na(inducementPrice)
             inducementStr := str.tostring(inducementPrice, format.mintick) + " @ " + str.tostring(inducementBar)
         table.cell(zoneInspector, 0, nextRow, inducementLabel, text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-        inducementColor = inducementStr != "N/A" ? color.new(col_liq_inducement, 0) : color.rgb(150, 150, 150)
+        inducementColor = inducementStr != "N/A" ? color.rgb(100, 200, 255) : color.rgb(150, 150, 150)
         table.cell(zoneInspector, 1, nextRow, inducementStr, text_color = inducementColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
         nextRow += 1
 
@@ -5109,7 +4860,7 @@ if showZoneInspector and display_show_details and isRecentBarForDebug()
         if not na(targetPrice)
             targetStr := str.tostring(targetPrice, format.mintick) + " @ " + str.tostring(targetBar)
         table.cell(zoneInspector, 0, nextRow, targetLabel, text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-        targetColor = targetStr != "N/A" ? color.new(col_liq_target, 0) : color.rgb(150, 150, 150)
+        targetColor = targetStr != "N/A" ? color.new(color.purple, 0) : color.rgb(150, 150, 150)
         table.cell(zoneInspector, 1, nextRow, targetStr, text_color = targetColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
         nextRow += 1
 
@@ -5212,7 +4963,7 @@ if showZoneInspector and display_show_details and isRecentBarForDebug()
             if not na(indTime) and not na(inducementPrice)
                 string indFormat = (isInspectorDemand ? "📍 IND (L): " : "📍 IND (H): ") + str.tostring(inducementPrice, format.mintick) + " @ " + str.tostring(inducementBar)
                 if na(inspectorIndLabel)
-                    inspectorIndLabel := label.new(indTime, inducementPrice, indFormat, xloc=xloc.bar_time, style=label.style_label_up, color=color.new(col_liq_inducement, 20), textcolor=color.white, size=size.small)
+                    inspectorIndLabel := label.new(indTime, inducementPrice, indFormat, xloc=xloc.bar_time, style=label.style_label_up, color=color.new(color.orange, 20), textcolor=color.white, size=size.small)
                 else
                     label.set_xy(inspectorIndLabel, indTime, inducementPrice)
                     label.set_text(inspectorIndLabel, indFormat)
@@ -5223,7 +4974,7 @@ if showZoneInspector and display_show_details and isRecentBarForDebug()
             if not na(targetTime) and not na(targetPrice)
                 string tgtFormat = (isInspectorDemand ? "🎯 TARGET (H): " : "🎯 TARGET (L): ") + str.tostring(targetPrice, format.mintick) + " @ " + str.tostring(targetBar)
                 if na(inspectorTgtLabel)
-                    inspectorTgtLabel := label.new(targetTime, targetPrice, tgtFormat, xloc=xloc.bar_time, style=label.style_label_down, color=color.new(col_liq_target, 20), textcolor=color.white, size=size.small)
+                    inspectorTgtLabel := label.new(targetTime, targetPrice, tgtFormat, xloc=xloc.bar_time, style=label.style_label_down, color=color.new(color.purple, 20), textcolor=color.white, size=size.small)
                 else
                     label.set_xy(inspectorTgtLabel, targetTime, targetPrice)
                     label.set_text(inspectorTgtLabel, tgtFormat)
@@ -5240,79 +4991,12 @@ else
         table.delete(zoneInspector)
         zoneInspector := na
 
-compactStatusTable := draw_compact_status_table(compactStatusTable)
 performanceTable := draw_performance_table(performanceTable)
-
-var table profileStatusTable = na
-
-if showDebugPanels and showActiveProfile
-    if na(profileStatusTable)
-        profileStatusTable := table.new(position.bottom_center, 2, 9, 
-             bgcolor = color.new(color.rgb(20, 25, 30), 10), 
-             frame_color = color.new(color.rgb(100, 110, 120), 80), frame_width = 1, 
-             border_color = color.new(color.rgb(60, 70, 80), 50), border_width = 1)
-    table.cell(profileStatusTable, 0, 0, "⚡ ACTIVE PROFILE", 
-        text_color = color.white, 
-        bgcolor = color.new(color.rgb(0, 120, 215), 20),
-        text_size = size.normal,
-        text_halign = text.align_center)
-    table.cell(profileStatusTable, 1, 0, config_profile, 
-        text_color = use_profile_defaults ? color.yellow : color.white, 
-        bgcolor = color.new(color.rgb(0, 120, 215), 20),
-        text_size = size.normal,
-        text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 1, "pvtMax", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 1, str.tostring(pvtMax), text_color = color.white, text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 2, "AI Threshold", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 2, str.tostring(ai_quality_threshold), text_color = color.white, text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 3, "RR Ratio", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    string rr_label = use_custom_rr ? "1:" + str.tostring(risk_reward_ratio, "#.#") : (is_aggressive and use_profile_defaults ? "SL-based" : "1:" + str.tostring(risk_reward_ratio, "#.#"))
-    table.cell(profileStatusTable, 1, 3, rr_label, text_color = color.white, text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 4, "RR Mode", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    string rr_mode = ""
-    color rr_mode_color = color.white
-    if use_custom_rr
-        rr_mode := "OVERRIDDEN: Fixed 1:" + str.tostring(risk_reward_ratio, "#.#")
-        rr_mode_color := color.orange
-    else if is_aggressive and use_profile_defaults
-        rr_mode := "✓ YOUR RULES (Aggressive)"
-        rr_mode_color := color.lime
-    else if use_profile_defaults and (config_profile == "Conservative (Live Trading)" or config_profile == "Balanced (Recommended)")
-        rr_mode := "SL-based (Profile)"
-        rr_mode_color := color.white
-    else
-        rr_mode := "SL-based (Default)"
-        rr_mode_color := color.gray
-    table.cell(profileStatusTable, 1, 4, rr_mode, text_color = rr_mode_color, text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 5, "Max Trades/Day", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 5, str.tostring(max_trades_per_day), text_color = color.white, text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 6, "Structure Mode", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 6, structure_mode, text_color = color.white, text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 7, "Grade Filter", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 7, enable_grade_filter ? min_entry_grade + "+" : "OFF", 
-        text_color = enable_grade_filter ? color.green : color.gray, 
-        text_halign = text.align_left)
-
-    table.cell(profileStatusTable, 0, 8, "Time Filters", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    time_filter_status = (filter_dead_zone ? "✓" : "✗") + " Dead Zone | " + (filter_trading_hours ? "✓" : "✗") + " Hours"
-    table.cell(profileStatusTable, 1, 8, time_filter_status, 
-        text_color = (filter_dead_zone and filter_trading_hours) ? color.green : color.orange, 
-        text_halign = text.align_left)
-else
-    if not na(profileStatusTable)
-        table.delete(profileStatusTable)
-        profileStatusTable := na
 
 plot(strategy.position_size != 0 ? trade_tp1_price : na, "Trade TP Level", color = color.new(color.lime, 50), style = plot.style_linebr, linewidth = 2)
 plot(strategy.position_size != 0 ? trade_current_sl : na, "Trade SL Level", color = color.new(color.red, 50), style = plot.style_linebr, linewidth = 2)
 plot(strategy.position_size != 0 ? trade_entry_price : na, "Trade Entry", color = color.new(color.blue, 50), style = plot.style_linebr, linewidth = 1)
+plot(show_ema_context_line ? feature_ema_context : na, "EMA Context", color = color.new(color.blue, 0), linewidth = 2)
 
 plot(plot_id, "W0: Zone ID", display = display.none)
 plot(plot_type, "W1: Zone Type", display = display.none)
@@ -5332,3 +5016,28 @@ plot(plot_base_quality, "W14: Base Quality", display = display.none)
 plot(plot_departure_strength, "W15: Departure Strength", display = display.none)
 plot(plot_liquidity_distance, "W16: Liquidity Dist", display = display.none)
 plot(plot_liquidity_spread, "W17: Liquidity Spread", display = display.none)
+
+// ============================================================================
+// PROP FIRM STATUS TABLE
+// ============================================================================
+if barstate.islast
+    var table pf_risk_table = table.new(position.bottom_right, 2, 5, bgcolor=color.new(color.black, 80), border_width=1)
+
+    table.cell(pf_risk_table, 0, 0, "Daily DD",      text_color=color.white, text_size=size.small)
+    table.cell(pf_risk_table, 1, 0, str.tostring(pf_current_day_dd_pct, "#.##") + "%",
+         text_color = pf_current_day_dd_pct >= daily_kill_pct * 0.75 ? color.red : color.lime, text_size=size.small)
+
+    table.cell(pf_risk_table, 0, 1, "Total DD",      text_color=color.white, text_size=size.small)
+    table.cell(pf_risk_table, 1, 1, str.tostring(pf_current_total_dd_pct, "#.##") + "%",
+         text_color = pf_current_total_dd_pct >= total_kill_pct * 0.75 ? color.red : color.lime, text_size=size.small)
+
+    table.cell(pf_risk_table, 0, 2, "Consec Losses", text_color=color.white, text_size=size.small)
+    table.cell(pf_risk_table, 1, 2, str.tostring(pf_consecutive_losses),
+         text_color = pf_consecutive_losses >= consec_loss_kill - 1 ? color.red : color.lime, text_size=size.small)
+
+    table.cell(pf_risk_table, 0, 3, "Trading",       text_color=color.white, text_size=size.small)
+    table.cell(pf_risk_table, 1, 3, pf_trading_disabled ? "DISABLED" : "ENABLED",
+         text_color = pf_trading_disabled ? color.red : color.lime, text_size=size.small)
+
+    table.cell(pf_risk_table, 0, 4, "Risk/Trade",    text_color=color.white, text_size=size.small)
+    table.cell(pf_risk_table, 1, 4, str.tostring(risk_pct, "#.#") + "%", text_color=color.white, text_size=size.small)
