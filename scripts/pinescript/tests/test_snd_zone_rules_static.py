@@ -90,6 +90,7 @@ def main() -> None:
 
     reject(strategy, "to 0 by -1", "negative Pine loop step")
     reject(strategy, " by -", "negative Pine loop step")
+    reject(strategy, "SND_Core/26", "stale Core import without lifecycle fields")
     reject_pattern(strategy, r"for\\s+\\w+\\s*=\\s*[^\\n]+\\s+to\\s+0\\b", "reverse Pine for loop")
 
     print("SND zone rule static contract passed")
