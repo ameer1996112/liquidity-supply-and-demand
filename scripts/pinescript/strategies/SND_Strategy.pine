@@ -187,10 +187,10 @@ liq_max_distance_pips_gold  = input.float(150.0, "liq_max_distance_pips_gold", m
 liq_max_distance_pips_index = input.float(500.0, "liq_max_distance_pips_index", minval = 100.0, group = "💧 Liquidity")
 
 fractalsPeriod = 2  // Williams Fractals period
-plotLiq    = input.bool(true, "plotLiq", group = "🎨 Display")
-show_fractals = input.bool(true, "show_fractals", group = "🎨 Display")
-pvtTopColor = color.red  // Visual colors
-pvtBtmColor = color.green
+plotLiq    = input.bool(false, "plotLiq", group = "🎨 Display")
+show_fractals = input.bool(false, "show_fractals", group = "🎨 Display")
+pvtTopColor = color.new(#ff6b81, 35)  // Visual colors
+pvtBtmColor = color.new(#2dd4bf, 35)
 pvtStyle    = line.style_solid
 show_liquidity_connectors = input.bool(false, "show_liquidity_connectors", group = "🎨 Display")
 liq_line_color = color.new(color.gray, 35)
@@ -209,13 +209,12 @@ show_supply_zones    = true
 show_entry_labels    = true
 zone_lab_mode = input.bool(false, "zone_lab_mode", group = "🎨 Display")
 show_active_zones_only = input.bool(true, "show_active_zones_only", group = "🎨 Display")
-show_accuracy_zones = input.bool(false, "show_accuracy_zones", group = "🎨 Display")
 show_invalid_zones = input.bool(false, "show_invalid_zones", group = "🎨 Display")
 show_mitigated_zones = input.bool(false, "show_mitigated_zones", group = "🎨 Display")
 show_candidate_zones = input.bool(false, "show_candidate_zones", group = "🎨 Display")
 show_rejection_reason_labels = input.bool(false, "show_rejection_reason_labels", group = "🎨 Display")
 zone_label_style = input.string("Compact", "zone_label_style", options = ["Compact", "Detailed"], group = "🎨 Display")
-zone_label_show_metrics = input.bool(true, "zone_label_show_metrics", group = "🎨 Display")
+zone_label_show_metrics = input.bool(false, "zone_label_show_metrics", group = "🎨 Display")
 show_blocked_trade_labels = input.bool(false, "show_blocked_trade_labels", group = "🎨 Display")
 long_label_offset_atr = 0.60
 long_label_offset_ticks = 0
@@ -438,21 +437,21 @@ if news_blackout_enabled
         if time >= _pf_ts - 2 * 60 * 1000 and time <= _pf_ts + 2 * 60 * 1000
             pf_is_news_blackout := true
 
-col_demand_bg     = color.new(#26a69a, 88)  // Very subtle (12% visible)
-col_demand_border = color.new(#26a69a, 40)  // Teal border, semi-transparent
+col_demand_bg     = color.new(#2dd4bf, 90)  // Premium teal wash
+col_demand_border = color.new(#14b8a6, 35)  // Crisp teal border
 
-col_supply_bg     = color.new(#ef5350, 88)  // Very subtle (12% visible)
-col_supply_border = color.new(#ef5350, 40)  // Red border, semi-transparent
+col_supply_bg     = color.new(#fb7185, 90)  // Premium rose wash
+col_supply_border = color.new(#f43f5e, 35)  // Crisp rose border
 
-col_acc_demand_bg     = color.new(#2196F3, 70)  // Blue, more visible (30%)
-col_acc_demand_border = #42A5F5  // Bright blue border
-col_acc_supply_bg     = color.new(#AB47BC, 70)  // Purple, more visible (30%)
-col_acc_supply_border = #BA68C8  // Bright purple border
+col_acc_demand_bg     = color.new(#38bdf8, 84)  // Muted blue refinement
+col_acc_demand_border = color.new(#0ea5e9, 20)
+col_acc_supply_bg     = color.new(#c084fc, 84)  // Muted purple refinement
+col_acc_supply_border = color.new(#a855f7, 20)
 col_hidden_visual     = color.new(color.black, 100)
-col_used_zone_bg      = color.new(color.gray, 90)
-col_used_zone_border  = color.new(color.gray, 55)
-col_invalid_zone_bg   = color.new(color.gray, 94)
-col_invalid_zone_border = color.new(color.gray, 70)
+col_used_zone_bg      = color.new(#9ca3af, 92)
+col_used_zone_border  = color.new(#9ca3af, 62)
+col_invalid_zone_bg   = color.new(#6b7280, 96)
+col_invalid_zone_border = color.new(#6b7280, 74)
 
 float tol = pip_size * 1.0
 
@@ -1533,7 +1532,7 @@ zone_should_show_visual(Core.Zone z) =>
         allowedByState := activeDisplayZone or (show_mitigated_zones and usedOrMitigated) or (show_invalid_zones and invalidOrRejected) or (show_candidate_zones and candidate)
     else
         allowedByState := activeDisplayZone
-    allowedByState and (not z.isAccuracy or show_accuracy_zones)
+    allowedByState
 
 apply_zone_visual(Core.Zone z, bool isDemand) =>
     bool visible = show_zones and zone_should_show_visual(z)
@@ -1686,7 +1685,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
 
             int reactionIdx = baseIdx - 1
 
-            if show_accuracy_zones and should_use_accuracy_zones and reactionIdx >= 0
+            if should_use_accuracy_zones and reactionIdx >= 0
                 if isDemand
                     // Demand accuracy: Zone candle high > Reaction candle high
                     if high[baseIdx] > high[reactionIdx]
@@ -3059,16 +3058,16 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
 
                     if not na(z.idLabel)
                         float lbl_mid = (z.top + z.bottom) / 2
-                        label.set_x(z.idLabel, bar_index)
+                        label.set_x(z.idLabel, right_bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        string demandAccTag = z.isAccuracy ? "⭐ ACC " : ""
+                        string demandAccTag = z.isAccuracy ? "ACC " : ""
                         string demandCompact = demandAccTag + "D-" + str.tostring(z.id)
                         string demandDetailed = "Demand " + demandCompact
-                        string demandMetrics = zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
+                        string demandMetrics = zone_lab_mode and zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
                         string demandText = zone_label_style == "Detailed" ? (demandDetailed + demandMetrics) : demandCompact
                         label.set_text(z.idLabel, " " + demandText + " ")
                         label.set_style(z.idLabel, label.style_label_left)
-                        label.set_size(z.idLabel, size.normal)
+                        label.set_size(z.idLabel, size.tiny)
                         label.set_textalign(z.idLabel, text.align_center)
 
 if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isconfirmed
@@ -3086,16 +3085,16 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
 
                     if not na(z.idLabel)
                         float lbl_mid = (z.top + z.bottom) / 2
-                        label.set_x(z.idLabel, bar_index)
+                        label.set_x(z.idLabel, right_bar_index)
                         label.set_y(z.idLabel, lbl_mid)
-                        string supplyAccTag = z.isAccuracy ? "⭐ ACC " : ""
+                        string supplyAccTag = z.isAccuracy ? "ACC " : ""
                         string supplyCompact = supplyAccTag + "S-" + str.tostring(z.id)
                         string supplyDetailed = "Supply " + supplyCompact
-                        string supplyMetrics = zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
+                        string supplyMetrics = zone_lab_mode and zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
                         string supplyText = zone_label_style == "Detailed" ? (supplyDetailed + supplyMetrics) : supplyCompact
                         label.set_text(z.idLabel, " " + supplyText + " ")
                         label.set_style(z.idLabel, label.style_label_left)
-                        label.set_size(z.idLabel, size.normal)
+                        label.set_size(z.idLabel, size.tiny)
                         label.set_textalign(z.idLabel, text.align_center)
 
 
