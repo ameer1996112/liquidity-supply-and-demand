@@ -96,3 +96,72 @@ def test_build_received_signal_row_includes_strategy_fields():
     assert row["strategy_config_id"] == 7
     assert row["zone_id"] == 18126
     assert row["trade_key"] == "EURUSD|buy|18126|1713356700000"
+
+
+def test_build_received_signal_row_saves_triggered_zone_snapshot_only_for_entry_zone():
+    payload = {
+        **_base_payload(),
+        "zone_id": "18126",
+        "zone_type": "demand",
+        "zone_top": "1.101",
+        "zone_bottom": "1.099",
+        "zone_grade": "A",
+        "score": "84.5",
+        "entry_model": "DIR_CLOSE",
+        "liq_swept": "true",
+        "target_swept": "true",
+        "caused_sweep": "true",
+        "is_accuracy": "false",
+        "liquidity_distance_pips": "8.7",
+        "liquidity_spread_pips": "22.4",
+        "sweep_to_touch_bars": "3",
+        "peak_to_touch_bars": "11",
+        "liq_source": "MAKUCHAKU_PIVOT",
+        "bars_since_zone": "18",
+        "rr_ratio": "2.5",
+        "sl_pips": "4.2",
+        "trade_key": "EURUSD|buy|18126|1713356700000",
+    }
+
+    row = build_received_signal_row(
+        payload,
+        run_mode="LIVE",
+        account_id="default",
+        receipt_id="receipt-1",
+        account_balance=50000.0,
+    )
+
+    assert row["zone_id"] == 18126
+    assert row["zone_type"] == "demand"
+    assert row["zone_top"] == 1.101
+    assert row["zone_bottom"] == 1.099
+    assert row["liq_swept"] is True
+    assert row["target_swept"] is True
+    assert row["liquidity_distance_pips"] == 8.7
+    assert row["setup_evidence"]["focus_zone"] == {
+        "id": 18126,
+        "type": "demand",
+        "high": 1.101,
+        "low": 1.099,
+        "label": "Demand #18126",
+        "source": "entry_webhook",
+    }
+    assert row["setup_evidence"]["triggered_zone"]["zone"]["id"] == 18126
+    assert row["setup_evidence"]["triggered_zone"]["liquidity"]["swept"] is True
+    assert payload["setup_evidence"] == row["setup_evidence"]
+
+
+def test_build_received_signal_row_does_not_create_zone_snapshot_without_zone_id():
+    payload = _base_payload()
+
+    row = build_received_signal_row(
+        payload,
+        run_mode="LIVE",
+        account_id="default",
+        receipt_id="receipt-1",
+        account_balance=50000.0,
+    )
+
+    assert "zone_id" not in row
+    assert "setup_evidence" not in row
+    assert "setup_evidence" not in payload
