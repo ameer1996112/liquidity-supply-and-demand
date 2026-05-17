@@ -16,7 +16,7 @@ def main() -> None:
 
     required = [
         'replay_live_mode = input.bool(true, "Replay Live Mode", group="⑦ Advanced / Debug")',
-        'replay_rescan_bars = input.int(5, "Replay Recent Rescan Bars", minval=0, maxval=10, group="⑦ Advanced / Debug")',
+        'replay_rescan_bars = input.int(6, "Replay Recent Rescan Bars", minval=0, maxval=10, group="⑦ Advanced / Debug")',
         "is_base_time_used(baseTime, used_demand_base_times)",
         "is_base_time_used(baseTime, used_supply_base_times)",
         "if barstate.isconfirmed and not initial_scan_done and not replay_live_mode and bar_index > 50",
@@ -36,12 +36,20 @@ def main() -> None:
         "int replayScanOffset = replayScanCount",
         "while replayScanOffset >= 0",
         "replayScanOffset -= 1",
+        "is_origin_base_cluster_member(int scanIdx, int anchorIdx, bool isDemand) =>",
         "resolve_first_base_idx(int candidateBaseIdx, bool isDemand) =>",
         "int resolvedBaseIdx = resolve_first_base_idx(baseIdx, isDemand)",
-        "bool olderMoreDistal = isDemand ? low[olderIdx] <= low[firstBaseIdx] + syminfo.mintick : high[olderIdx] >= high[firstBaseIdx] - syminfo.mintick",
-        "if sameSideBase and olderMoreDistal",
+        "bool foundSameSideOrigin = isDemand ? Utils.is_bearish(close[candidateBaseIdx], open[candidateBaseIdx]) : Utils.is_bullish(close[candidateBaseIdx], open[candidateBaseIdx])",
+        "bool clusterMember = is_origin_base_cluster_member(olderIdx, anchorIdx, isDemand)",
+        "if sameSideBase\n                firstBaseIdx := olderIdx",
+        "foundSameSideOrigin ? firstBaseIdx : na",
+        "int attemptBaseTime = time[baseIdx]",
+        "if na(resolvedBaseIdx)",
+        "mark_replay_rescan_attempt(attemptBaseTime, isDemand)",
         "int baseTime = time[resolvedBaseIdx]",
         "if createZone(resolvedBaseIdx, isDemand, isHistorical, 1, legCandles, nextCounter + 1)",
+        "maybeCreateDetectedZone(replayOffset + 4, true, isHistorical, 4, nextCounter, rememberReplayAttempt)",
+        "maybeCreateDetectedZone(replayOffset + 4, false, isHistorical, 4, nextCounter, rememberReplayAttempt)",
     ]
 
     for needle in required:
@@ -54,6 +62,7 @@ def main() -> None:
         "is_base_bar_used(baseBarIdx",
         "is_base_bar_used(baseBarIdxDemand",
         "is_base_bar_used(baseBarIdxSupply",
+        "if sameSideBase and olderMoreDistal",
     ]
 
     for needle in forbidden:

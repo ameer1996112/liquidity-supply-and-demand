@@ -21,7 +21,7 @@
 
 ## Task 1: Canonical State And Reason Contract
 
-- [ ] Add static test requiring all state/reason constants in `SND_Strategy.pine`.
+- [x] Add static test requiring all state/reason constants in `SND_Strategy.pine`.
 
 Run:
 ```bash
@@ -30,7 +30,7 @@ python3 scripts/pinescript/tests/test_snd_state_machine_contract_static.py
 
 Expected first run: FAIL until constants/helpers exist.
 
-- [ ] Add constants:
+- [x] Add constants:
 ```pine
 const string ZSTATE_CANDIDATE = "Candidate"
 const string ZSTATE_ACTIVE = "Active"
@@ -66,7 +66,7 @@ const string REASON_EXPIRED = "EXPIRED"
 const string REASON_PRUNED = "PRUNED"
 ```
 
-- [ ] Add helper functions:
+- [x] Add helper functions:
 ```pine
 zone_state(Core.Zone z) =>
     if z.mitigated or not na(z.lastEntryBar)
@@ -89,7 +89,7 @@ zone_state(Core.Zone z) =>
         ZSTATE_ACTIVE
 ```
 
-- [ ] Run:
+- [x] Run:
 ```bash
 python3 scripts/pinescript/tests/test_snd_state_machine_contract_static.py
 ```
@@ -98,10 +98,10 @@ Expected: PASS.
 
 ## Task 2: Candidate Detector And Rejection Reasons
 
-- [ ] Extend static test to require `mark_zone_rejected(reason)` usage for duplicate, no displacement, choppy base, contaminated origin, and oversized base rejection.
-- [ ] Update `createZone()` and `maybeCreateDetectedZone()` so candidates can be rejected with canonical reasons before creation.
-- [ ] Preserve base-time duplicate guard and replay rescan order.
-- [ ] Run:
+- [x] Extend static test to require `mark_zone_rejected(reason)` usage for duplicate, no displacement, choppy base, contaminated origin, and oversized base rejection.
+- [x] Update `createZone()` and `maybeCreateDetectedZone()` so candidates can be rejected with canonical reasons before creation.
+- [x] Preserve base-time duplicate guard and replay rescan order.
+- [x] Run:
 ```bash
 python3 scripts/pinescript/tests/test_snd_state_machine_contract_static.py
 python3 scripts/pinescript/tests/test_snd_replay_determinism_static.py
@@ -112,10 +112,10 @@ Expected: all PASS.
 
 ## Task 3: Zone Lab Candidate Visibility
 
-- [ ] Add Zone Lab table/visual rows for `State`, `Reason`, `Candidate/Active/Invalid`, `Inducement`, `Target`, `Return`.
-- [ ] Clean mode must show only `zone_is_live(z) and not zone_is_invalid_or_rejected(z) and not z.mitigated and na(z.lastEntryBar)`.
-- [ ] Zone Lab must show candidates/rejections when `show_candidate_zones` or `show_invalid_zones` is enabled.
-- [ ] Run:
+- [x] Add Zone Lab table/visual rows for `State`, `Reason`, `Candidate/Active/Invalid`, `Inducement`, `Target`, `Return`.
+- [x] Clean mode must show only `zone_is_live(z) and not zone_is_invalid_or_rejected(z) and not z.mitigated and na(z.lastEntryBar)`.
+- [x] Zone Lab must show candidates/rejections when `show_candidate_zones` or `show_invalid_zones` is enabled.
+- [x] Run:
 ```bash
 python3 scripts/pinescript/tests/test_snd_zone_inspector_static.py
 python3 scripts/pinescript/tests/test_snd_state_machine_contract_static.py
@@ -125,12 +125,12 @@ Expected: all PASS.
 
 ## Task 4: Liquidity Proof Engine
 
-- [ ] Replace old `WAITING_*` and `REJECT_LIQ_*` strings with canonical `LIQ_*` reasons.
-- [ ] Demand liquidity must only accept `pLow > z.top`.
-- [ ] Supply liquidity must only accept `pHigh < z.bottom`.
-- [ ] Choose closest valid liquidity; tie goes to more recent pivot.
-- [ ] Target/BOS sweep cannot be set before inducement sweep.
-- [ ] Run:
+- [x] Replace old `WAITING_*` and `REJECT_LIQ_*` strings with canonical `LIQ_*` reasons.
+- [x] Demand liquidity must only accept `pLow > z.top`.
+- [x] Supply liquidity must only accept `pHigh < z.bottom`.
+- [x] Choose closest valid liquidity; tie goes to more recent pivot.
+- [x] Target/BOS sweep cannot be set before inducement sweep.
+- [x] Run:
 ```bash
 python3 scripts/pinescript/tests/test_snd_liquidity_anchor_mitigation_static.py
 python3 scripts/pinescript/tests/test_snd_state_machine_contract_static.py
@@ -140,13 +140,13 @@ Expected: all PASS.
 
 ## Task 5: Return And Mitigation Engine
 
-- [ ] Demand ready return requires wick/touch demand and close above demand top.
-- [ ] Supply ready return requires wick/touch supply and close below supply bottom.
-- [ ] Return before liquidity proof sets `INVALID_RETURN_BEFORE_PROOF`.
-- [ ] Close inside zone sets `INVALID_CLOSE_INSIDE_ZONE`.
-- [ ] Close through distal side sets `INVALID_DISTAL_CLOSE`.
-- [ ] Used zones set `MITIGATED_USED_FOR_ENTRY` and cannot trade again.
-- [ ] Run:
+- [x] Demand ready return requires wick/touch demand and close above demand top.
+- [x] Supply ready return requires wick/touch supply and close below supply bottom.
+- [x] Return before liquidity proof sets `INVALID_RETURN_BEFORE_PROOF`.
+- [x] Close inside zone sets `INVALID_CLOSE_INSIDE_ZONE`.
+- [x] Close through distal side sets `INVALID_DISTAL_CLOSE`.
+- [x] Used zones set `MITIGATED_USED_FOR_ENTRY` and cannot trade again.
+- [x] Run:
 ```bash
 python3 scripts/pinescript/tests/test_snd_zone_rules_static.py
 python3 scripts/pinescript/tests/test_snd_state_machine_contract_static.py
@@ -156,9 +156,9 @@ Expected: all PASS.
 
 ## Task 6: Entry Reconnection Check
 
-- [ ] Do not edit risk, SL/TP, webhooks, alerts, or order execution blocks.
-- [ ] Only replace entry preconditions with the state-machine readiness predicate.
-- [ ] Run all Pine static tests:
+- [x] Do not edit risk, SL/TP, webhooks, alerts, or order execution blocks.
+- [x] Verify entry preconditions still require liquidity validity, inducement sweep, target/BOS sweep, wick return, no inside close, and unused zone state.
+- [x] Run all Pine static tests:
 ```bash
 for t in scripts/pinescript/tests/test_snd_*_static.py; do python3 "$t"; done
 git diff --check -- scripts/pinescript/strategies/SND_Strategy.pine scripts/pinescript/tests

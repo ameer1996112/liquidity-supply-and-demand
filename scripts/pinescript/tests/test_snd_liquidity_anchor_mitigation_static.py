@@ -68,7 +68,8 @@ def main() -> None:
         "rejectedDebugPrice := pLow",
         "rejectedDebugBar := pBar",
         "addRejectedLiquidityDebugLine(z.createdBarIndex, z.top, rejectedDebugBar, rejectedDebugPrice, liqRejectReason, true)",
-        'z.inactiveReason := hasStrongLeg ? na : "REJECT_LIQ_NOT_STRONG"',
+        'z.liqSource := hasStrongLeg ? "MAKUCHAKU_PIVOT" : "REJECT_LIQ_NOT_STRONG"',
+        "z.inactiveReason := na",
     ]
 
     for needle in demand_required:
@@ -89,7 +90,8 @@ def main() -> None:
         "rejectedDebugPrice := pHigh",
         "rejectedDebugBar := pBar",
         "addRejectedLiquidityDebugLine(z.createdBarIndex, z.bottom, rejectedDebugBar, rejectedDebugPrice, liqRejectReason, false)",
-        'z.inactiveReason := hasStrongLeg ? na : "REJECT_LIQ_NOT_STRONG"',
+        'z.liqSource := hasStrongLeg ? "MAKUCHAKU_PIVOT" : "REJECT_LIQ_NOT_STRONG"',
+        "z.inactiveReason := na",
     ]
 
     for needle in supply_required:

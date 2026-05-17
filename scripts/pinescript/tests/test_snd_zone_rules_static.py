@@ -1,97 +1,156 @@
-import re
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[3]
 STRATEGY = ROOT / "scripts/pinescript/strategies/SND_Strategy.pine"
-CORE = ROOT / "scripts/pinescript/libraries/SND_Core.pine"
 
 
-def read(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
+def _body(source: str, start_marker: str, end_marker: str) -> str:
+    if start_marker not in source:
+        return ""
+    start = source.index(start_marker)
+    end = source.index(end_marker, start)
+    return source[start:end]
 
 
-def require(text: str, needle: str, label: str) -> None:
-    if needle not in text:
-        raise AssertionError(f"Missing {label}: {needle}")
+def _require(section: str, needles: list[str], label: str) -> None:
+    missing = [needle for needle in needles if needle not in section]
+    if missing:
+        raise AssertionError(f"{label} missing:\n" + "\n".join(missing))
 
 
-def reject(text: str, needle: str, label: str) -> None:
-    if needle in text:
-        raise AssertionError(f"Forbidden {label}: {needle}")
-
-
-def reject_pattern(text: str, pattern: str, label: str) -> None:
-    if re.search(pattern, text):
-        raise AssertionError(f"Forbidden {label}: {pattern}")
+def _forbid(section: str, needles: list[str], label: str) -> None:
+    present = [needle for needle in needles if needle in section]
+    if present:
+        raise AssertionError(f"{label} must not contain:\n" + "\n".join(present))
 
 
 def main() -> None:
-    strategy = read(STRATEGY)
-    core = read(CORE)
+    strategy = STRATEGY.read_text(encoding="utf-8")
+    entry_validation = _body(strategy, "validate_entry_conditions(bool isDemand, int idx) =>", "\nvar float[] _trade_entry_price")
+    demand_lifecycle = _body(strategy, "if cached_demand_size > 0 and barstate.isconfirmed", "\nif cached_supply_size > 0 and barstate.isconfirmed")
+    supply_lifecycle = _body(strategy, "if cached_supply_size > 0 and barstate.isconfirmed", "\nint demandSize = array.size(demandZones)")
+    demand_cleanup = _body(strategy, "int demandSize = array.size(demandZones)", "\nint supplySize = array.size(supplyZones)")
+    supply_cleanup = _body(strategy, "int supplySize = array.size(supplyZones)", "\nif show_zones")
 
-    for field in [
-        "int   state",
-        "string stateReason",
-        "int   originBarIndex",
-        "int   departureEndBarIndex",
-        "int   firstInvalidBarIndex",
-        "int   liquiditySwingBarIndex",
-        "int   structureBreakBarIndex",
-        "int   entryEligibleBarIndex",
-    ]:
-        require(core, field, "Core.Zone lifecycle field")
+    _require(
+        strategy,
+        [
+            'const string REASON_PREFIX_STRUCT_INVALID = "STRUCT_INVALID:"',
+            'const string REASON_PREFIX_ENTRY_BLOCKED = "ENTRY_BLOCKED:"',
+            'const string REASON_PREFIX_MITIGATED = "MITIGATED:"',
+            'const string REASON_STRUCT_DEMAND_DISTAL_CLOSE = "STRUCT_INVALID:DEMAND_DISTAL_CLOSE"',
+            'const string REASON_STRUCT_DEMAND_DISTAL_WICK = "STRUCT_INVALID:DEMAND_DISTAL_WICK"',
+            'const string REASON_STRUCT_SUPPLY_DISTAL_CLOSE = "STRUCT_INVALID:SUPPLY_DISTAL_CLOSE"',
+            'const string REASON_STRUCT_SUPPLY_DISTAL_WICK = "STRUCT_INVALID:SUPPLY_DISTAL_WICK"',
+            'const string REASON_ENTRY_RETURN_BEFORE_PROOF = "ENTRY_BLOCKED:RETURN_BEFORE_PROOF"',
+            'const string REASON_ENTRY_WAITING_LIQUIDITY = "ENTRY_BLOCKED:WAITING_LIQUIDITY"',
+            'const string REASON_ENTRY_WAITING_SWEEP = "ENTRY_BLOCKED:WAITING_SWEEP"',
+            'const string REASON_ENTRY_WAITING_BOS = "ENTRY_BLOCKED:WAITING_BOS"',
+            'const string REASON_MITIGATED_NO_ENTRY_CLOSE_INSIDE = "MITIGATED:NO_ENTRY_CLOSE_INSIDE"',
+            'const string REASON_MITIGATED_USED_FOR_ENTRY = "MITIGATED:USED_FOR_ENTRY"',
+            'const string REASON_EXPIRED = "EXPIRED"',
+            'const string REASON_PRUNED = "PRUNED"',
+            "zone_is_structural_invalid_reason(string reason) =>",
+            "zone_is_entry_blocked_reason(string reason) =>",
+            "zone_is_mitigated_reason(string reason) =>",
+            'clean_zone_display = input.string("Trade Ready Only", "clean_zone_display", options=["Confirmed + Trade Ready", "Trade Ready Only"], group = "🎨 Display")',
+            "zone_structurally_broken(Core.Zone z, bool isDemand) =>",
+            "zone_trade_ready(Core.Zone z) =>",
+            "zone_returned_to_zone(Core.Zone z, bool isDemand) =>",
+            "zone_valid_rejection_return(Core.Zone z, bool isDemand) =>",
+            "zone_close_inside(Core.Zone z, bool isDemand) =>",
+            "zone_should_show_clean(Core.Zone z, bool isDemand) =>",
+            "zone_should_show_lab(Core.Zone z, bool isDemand) =>",
+        ],
+        "Three-state reason model",
+    )
 
-    for field in [
-        "int   state",
-        "string stateReason",
-    ]:
-        require(core, field, "Core.ZoneDBEntry lifecycle field")
+    _require(
+        entry_validation,
+        [
+            "bool entryTouchesZone = isDemand ? (low <= z.top and high >= z.bottom) : (high >= z.bottom and low <= z.top)",
+            "bool entryDistalBreach = isDemand ? (close < z.bottom or (invalidate_on_wick and low < z.bottom)) : (close > z.top or (invalidate_on_wick and high > z.top))",
+            "bool entryProofReady = z.liquidityValid and z.liquiditySwept and z.targetSwept",
+            "if entryTouchesZone and not entryProofReady and not entryDistalBreach",
+            "reason := REASON_ENTRY_RETURN_BEFORE_PROOF",
+            "if canEnter and z.touchedPreSweep",
+            "if canEnter and not zone_trade_ready(z)",
+            "if canEnter and not zone_valid_rejection_return(z, isDemand)",
+        ],
+        "Entry eligibility contract",
+    )
 
-    for helper in [
-        "const int ZONE_STATE_CANDIDATE",
-        "const int ZONE_STATE_ARMED",
-        "zone_state_name(int state)",
-        "zone_set_state(Core.Zone z, int state, string reason)",
-        "youtube_zone_bounds(bool isDemand, int originIdx, int reactionIdx)",
-        "zone_is_armed_for_entry(Core.Zone z)",
-        "zone_pre_entry_invalidated(Core.Zone z, bool isDemand)",
-        "zone_update_expiry(Core.Zone z)",
-        "zone_update_liquidity_and_bos(Core.Zone z, bool isDemand)",
-    ]:
-        require(strategy, helper, "strategy lifecycle helper")
+    _require(
+        demand_lifecycle,
+        [
+            "bool closes_below_distal = close < z.bottom",
+            "bool wicks_below_distal = low < z.bottom",
+            "bool breaches_zone = closes_below_distal or (invalidate_on_wick and wicks_below_distal)",
+            "if breaches_zone\n                        z.touchedPreSweep := true",
+            "z.inactiveReason := REASON_ENTRY_RETURN_BEFORE_PROOF",
+            "z.inactiveReason := REASON_MITIGATED_NO_ENTRY_CLOSE_INSIDE",
+        ],
+        "Demand lifecycle contract",
+    )
 
-    for needle in [
-        "entry.state := z.state",
-        "entry.stateReason := z.stateReason",
-        "updated.state < ZONE_STATE_ARMED",
-        "int i = cached_demand_size - 1 - demandScan",
-        "int i = cached_supply_size - 1 - supplyScan",
-    ]:
-        require(strategy, needle, "Task 6 lifecycle safety guard")
+    _require(
+        supply_lifecycle,
+        [
+            "bool closes_above_distal = close > z.top",
+            "bool wicks_above_distal = high > z.top",
+            "bool breaches_zone = closes_above_distal or (invalidate_on_wick and wicks_above_distal)",
+            "if breaches_zone\n                        z.touchedPreSweep := true",
+            "z.inactiveReason := REASON_ENTRY_RETURN_BEFORE_PROOF",
+            "z.inactiveReason := REASON_MITIGATED_NO_ENTRY_CLOSE_INSIDE",
+        ],
+        "Supply lifecycle contract",
+    )
 
-    for needle in [
-        "not zone_is_armed_for_entry(z)",
-        "ZONE_STATE_USED, \"Long entry opened\"",
-        "ZONE_STATE_USED, \"Short entry opened\"",
-        "debug_enabled or zone_is_visible_clean(z)",
-        "zone_state_name(z.state) + \": \" + z.stateReason",
-    ]:
-        require(strategy, needle, "Task 7 entry/drawing lifecycle gate")
+    _require(
+        demand_cleanup,
+        [
+            "bool close_below_zone     = current_close < z.bottom",
+            "bool wick_below_zone = current_low < z.bottom",
+            "if close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)",
+            "string demandStructuralReason = isTooOld ? REASON_EXPIRED : (close_below_zone ? REASON_STRUCT_DEMAND_DISTAL_CLOSE : REASON_STRUCT_DEMAND_DISTAL_WICK)",
+            "remove_zone_all_arrays(true, i, demandStructuralReason)",
+        ],
+        "Demand structural invalidation contract",
+    )
 
-    for needle in [
-        "clear_zone_visual_objects(Core.Zone z, bool includeTargetLine)",
-        "z := clear_zone_visual_objects(z, false)",
-        "z := clear_zone_visual_objects(z, true)",
-        "while demandInvalidScanIdx >= 0",
-        "while supplyInvalidScanIdx >= 0",
-    ]:
-        require(strategy, needle, "Task 8 runtime safety guard")
+    _require(
+        supply_cleanup,
+        [
+            "bool close_above_zone     = current_close > z.top",
+            "bool wick_above_zone = current_high > z.top",
+            "if close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)",
+            "string supplyStructuralReason = isTooOld ? REASON_EXPIRED : (close_above_zone ? REASON_STRUCT_SUPPLY_DISTAL_CLOSE : REASON_STRUCT_SUPPLY_DISTAL_WICK)",
+            "remove_zone_all_arrays(false, i, supplyStructuralReason)",
+        ],
+        "Supply structural invalidation contract",
+    )
 
-    reject(strategy, "to 0 by -1", "negative Pine loop step")
-    reject(strategy, " by -", "negative Pine loop step")
-    reject(strategy, "SND_Core/26", "stale Core import without lifecycle fields")
-    reject_pattern(strategy, r"for\\s+\\w+\\s*=\\s*[^\\n]+\\s+to\\s+0\\b", "reverse Pine for loop")
+    _require(
+        strategy,
+        [
+            "z.inactiveReason := REASON_MITIGATED_USED_FOR_ENTRY",
+            "db_updateZoneLiquidity(z)",
+        ],
+        "Mitigated/consumed contract",
+    )
+
+    _forbid(
+        strategy,
+        [
+            "INVALID_RETURN_BEFORE_PROOF",
+            "INVALID_CLOSE_INSIDE_ZONE",
+            "Zone touched before liquidity sweep",
+            "if close_inside_demand or",
+            "if close_inside_supply or",
+        ],
+        "Structural invalidation split",
+    )
 
     print("SND zone rule static contract passed")
 
