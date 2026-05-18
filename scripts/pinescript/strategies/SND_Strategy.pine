@@ -3044,8 +3044,9 @@ if cached_demand_size > 0 and barstate.isconfirmed
                         array.set(demandZones, i, z)
                         db_updateZoneLiquidity(z)
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
+                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone) and not current_bar_sweeping
                     z.mitigated := true
+                    z.inactiveReason := "ENTRY_BLOCKED:RETURN_BEFORE_PROOF"
                     array.set(demandZones, i, z)
                     db_updateZoneLiquidity(z)
 
@@ -3132,8 +3133,9 @@ if cached_supply_size > 0 and barstate.isconfirmed
                         array.set(supplyZones, i, z)
                         db_updateZoneLiquidity(z)
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
+                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone) and not current_bar_sweeping
                     z.mitigated := true
+                    z.inactiveReason := "ENTRY_BLOCKED:RETURN_BEFORE_PROOF"
                     array.set(supplyZones, i, z)
                     db_updateZoneLiquidity(z)
 

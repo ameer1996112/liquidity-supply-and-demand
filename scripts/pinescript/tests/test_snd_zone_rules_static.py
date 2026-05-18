@@ -74,6 +74,17 @@ def main() -> None:
     _require(
         strategy,
         [
+            "not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone) and not current_bar_sweeping",
+            'z.inactiveReason := "ENTRY_BLOCKED:RETURN_BEFORE_PROOF"',
+            "array.set(demandZones, i, z)",
+            "array.set(supplyZones, i, z)",
+        ],
+        "Pre-proof return lifecycle",
+    )
+
+    _require(
+        strategy,
+        [
             "is_base_time_used(baseTime, baseArray) =>",
             "bool alreadyUsed = isDemand ? is_base_time_used(baseTime, used_demand_base_times) : is_base_time_used(baseTime, used_supply_base_times)",
             "array.push(used_demand_base_times, baseTime)",
