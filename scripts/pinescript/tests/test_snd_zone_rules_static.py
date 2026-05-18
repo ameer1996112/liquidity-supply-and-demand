@@ -64,6 +64,16 @@ def main() -> None:
     _require(
         strategy,
         [
+            "const int MAX_BAR_INDEX_FUTURE_DRAW = 500",
+            "const int MAX_BAR_INDEX_PAST_DRAW = 9999",
+            "math.max(bar_index - MAX_BAR_INDEX_PAST_DRAW, math.min(rawRightBar, bar_index + MAX_BAR_INDEX_FUTURE_DRAW))",
+        ],
+        "Safe bar-index drawing bounds",
+    )
+
+    _require(
+        strategy,
+        [
             "is_base_time_used(baseTime, baseArray) =>",
             "bool alreadyUsed = isDemand ? is_base_time_used(baseTime, used_demand_base_times) : is_base_time_used(baseTime, used_supply_base_times)",
             "array.push(used_demand_base_times, baseTime)",

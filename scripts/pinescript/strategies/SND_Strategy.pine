@@ -88,6 +88,8 @@ const float SWEEP_TOLERANCE_PIPS = 0.5
 const float SWEEP_TOLERANCE_TICKS = 0.1
 
 const int HOURS_24_MS = 86400000
+const int MAX_BAR_INDEX_FUTURE_DRAW = 500
+const int MAX_BAR_INDEX_PAST_DRAW = 9999
 
 const float FOREX_LOT_SIZE = 100000.0
 const float GOLD_LOT_SIZE = 100.0
@@ -1610,7 +1612,8 @@ delete_zone_visual_objects(Core.Zone z, bool isDemand) =>
 
 zone_right_bar(Core.Zone z) =>
     int rightBar = na(z.lastTouchBar) ? bar_index : z.lastTouchBar
-    z.active and not z.mitigated ? bar_index + extend_bars : math.max(z.createdBarIndex, rightBar)
+    int rawRightBar = z.active and not z.mitigated ? bar_index + extend_bars : math.max(z.createdBarIndex, rightBar)
+    math.max(bar_index - MAX_BAR_INDEX_PAST_DRAW, math.min(rawRightBar, bar_index + MAX_BAR_INDEX_FUTURE_DRAW))
 
 should_skip_duplicate_zone(float zTop, float zBottom, bool isDemand) =>
     bool skip = false
