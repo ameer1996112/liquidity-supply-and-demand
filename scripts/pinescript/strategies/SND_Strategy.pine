@@ -2497,9 +2497,11 @@ is_continuation_zone(int baseIdx, bool isDemand) =>
     if enable_continuation_zones and baseIdx >= 1 and baseIdx + 1 <= bar_index
         float baseRange = high[baseIdx] - low[baseIdx]
         float baseBody = math.abs(close[baseIdx] - open[baseIdx])
+        float baseBodyHigh = math.max(open[baseIdx], close[baseIdx])
+        float baseBodyLow = math.min(open[baseIdx], close[baseIdx])
         float baseMid = (high[baseIdx] + low[baseIdx]) / 2.0
-        float continuation_range_atr = (is_gold or is_index or is_futures or is_xpt) ? 1.8 : 1.2
-        float continuation_max_body_pct = (is_gold or is_index or is_futures or is_xpt) ? 0.85 : 0.70
+        float continuation_range_atr = 1.8
+        float continuation_max_body_pct = 0.85
         bool compactBase = baseRange > syminfo.mintick and baseRange <= atr14 * continuation_range_atr and baseBody <= baseRange * continuation_max_body_pct
         bool bearishDominantBase = close[baseIdx] < open[baseIdx] or (baseBody <= baseRange * 0.50 and close[baseIdx] <= baseMid)
         bool bullishDominantBase = close[baseIdx] > open[baseIdx] or (baseBody <= baseRange * 0.50 and close[baseIdx] >= baseMid)
@@ -2514,7 +2516,7 @@ is_continuation_zone(int baseIdx, bool isDemand) =>
             if closesAgainst
                 contaminatedContinuation := true
                 break
-            bool confirmCandle = isDemand ? close[confirmIdx] > open[confirmIdx] and close[confirmIdx] > high[baseIdx] : close[confirmIdx] < open[confirmIdx] and close[confirmIdx] < low[baseIdx]
+            bool confirmCandle = isDemand ? close[confirmIdx] > open[confirmIdx] and close[confirmIdx] > baseBodyHigh : close[confirmIdx] < open[confirmIdx] and close[confirmIdx] < baseBodyLow
             if confirmCandle
                 confirmsAway := true
                 break
