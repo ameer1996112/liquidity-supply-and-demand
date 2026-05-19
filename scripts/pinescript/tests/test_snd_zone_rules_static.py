@@ -85,6 +85,15 @@ def main() -> None:
     _require(
         strategy,
         [
+            "zoneInspector := table.new(position.bottom_right",
+            "pf_risk_table = table.new(position.bottom_left",
+        ],
+        "Zone inspector table position",
+    )
+
+    _require(
+        strategy,
+        [
             "is_base_time_used(baseTime, baseArray) =>",
             "bool alreadyUsed = isDemand ? is_base_time_used(baseTime, used_demand_base_times) : is_base_time_used(baseTime, used_supply_base_times)",
             "array.push(used_demand_base_times, baseTime)",

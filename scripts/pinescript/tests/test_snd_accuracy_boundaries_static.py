@@ -13,11 +13,11 @@ def main() -> None:
     ]
 
     required = [
-        "bool bearishAccuracySupply = baseClose < baseOpen",
-        "zTop := bearishAccuracySupply ? baseOpen : baseHigh",
-        "zBottom := bearishAccuracySupply ? baseLow : baseOpen",
-        "zTop := baseOpen",
-        "zBottom := baseLow",
+        "bool bearishAccuracySupply = originClose < originOpen",
+        "zTop := bearishAccuracySupply ? originOpen : originHigh",
+        "zBottom := bearishAccuracySupply ? originLow : originOpen",
+        "zTop := originOpen",
+        "zBottom := originLow",
     ]
 
     for needle in required:

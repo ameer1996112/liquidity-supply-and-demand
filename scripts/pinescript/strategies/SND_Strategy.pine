@@ -26,7 +26,7 @@
 
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
-import ameer_1996112/SND_Utils/24 as Utils
+import ameer_1996112/SND_Utils/25    as Utils
 import ameer_1996112/SND_Core/27 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
@@ -88,8 +88,6 @@ const float SWEEP_TOLERANCE_PIPS = 0.5
 const float SWEEP_TOLERANCE_TICKS = 0.1
 
 const int HOURS_24_MS = 86400000
-const int MAX_BAR_INDEX_FUTURE_DRAW = 500
-const int MAX_BAR_INDEX_PAST_DRAW = 9999
 
 const float FOREX_LOT_SIZE = 100000.0
 const float GOLD_LOT_SIZE = 100.0
@@ -178,8 +176,7 @@ min_body_perc        = input.float(52.0, "min_body_perc", minval = 0, maxval = 1
 structure_mode      = input.string("Relaxed (Wicks)", "structure_mode", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
 formation_leg_wick_inclusion = input.bool(true, "Formation-Leg Wick Inclusion", group = "📐 Zone Detection")
 formation_leg_scan_bars = input.int(4, "Formation Leg Scan Bars", minval = 1, maxval = 6, group = "📐 Zone Detection")
-max_displacement_leg_bars = input.int(4, "max_displacement_leg_bars", minval = 1, maxval = 8, group = "📐 Zone Detection")
-enable_continuation_zones = true
+gold_continuation_zones = input.bool(true, "gold_continuation_zones", group = "📐 Zone Detection")
 prevent_duplicate_zones = input.bool(true, "prevent_duplicate_zones", group = "📐 Zone Detection")
 duplicate_zone_overlap_pct = input.float(40.0, "duplicate_zone_overlap_pct", minval = 0.0, maxval = 100.0, step = 5.0, group = "📐 Zone Detection")
 
@@ -193,20 +190,15 @@ liq_max_distance_pips_gold  = input.float(150.0, "liq_max_distance_pips_gold", m
 liq_max_distance_pips_index = input.float(500.0, "liq_max_distance_pips_index", minval = 100.0, group = "💧 Liquidity")
 
 fractalsPeriod = 2  // Williams Fractals period
-plotLiq    = input.bool(true, "plotLiq", group = "🎨 Display")
-show_fractals = input.bool(true, "show_fractals", group = "🎨 Display")
+plotLiq    = input.bool(false, "plotLiq", group = "🎨 Display")
+show_fractals = input.bool(false, "show_fractals", group = "🎨 Display")
 pvtTopColor = color.new(#dc2626, 78)  // Muted raw liquidity markers
 pvtBtmColor = color.new(#059669, 78)
 pvtStyle    = line.style_solid
-show_liquidity_connectors = input.bool(true, "show_liquidity_connectors", group = "🎨 Display")
-const int LIQ_MARK_EXTENSION_BARS = 8
-color liq_inducement_pending = color.new(#78716c, 72)
-color liq_inducement_swept = color.new(#ea580c, 28)
-color liq_target_pending = color.new(#475569, 76)
-color liq_target_swept = color.new(#16a34a, 38)
-color liq_connector_pending = color.new(#94a3b8, 88)
-color liq_connector_swept = color.new(#64748b, 70)
-liq_line_color = liq_connector_pending
+showChartFractals = show_fractals
+showRawLiquidityLevels = plotLiq
+const int LIQ_LEVEL_EXTENSION_BARS = 1
+color liq_inducement_level_color = color.new(#7A6A4D, 20)
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
 liq_link_lookback_bars = 400
@@ -220,7 +212,12 @@ show_zones           = true
 show_demand_zones    = true
 show_supply_zones    = true
 show_entry_labels    = true
+zone_lab_mode = input.bool(false, "zone_lab_mode", group = "🎨 Display")
 show_active_zones_only = input.bool(true, "show_active_zones_only", group = "🎨 Display")
+show_invalid_zones = input.bool(false, "show_invalid_zones", group = "🎨 Display")
+show_mitigated_zones = input.bool(false, "show_mitigated_zones", group = "🎨 Display")
+show_candidate_zones = input.bool(false, "show_candidate_zones", group = "🎨 Display")
+show_rejection_reason_labels = input.bool(false, "show_rejection_reason_labels", group = "🎨 Display")
 show_relevant_zones_only = input.bool(true, "show_relevant_zones_only", group = "🎨 Display")
 relevant_zone_atr_distance = input.float(25.0, "relevant_zone_atr_distance", minval = 0.0, maxval = 100.0, step = 0.5, group = "🎨 Display")
 zone_label_style = input.string("Compact", "zone_label_style", options = ["Compact", "Detailed"], group = "🎨 Display")
@@ -228,7 +225,7 @@ zone_label_show_metrics = input.bool(false, "zone_label_show_metrics", group = "
 show_blocked_trade_labels = input.bool(false, "show_blocked_trade_labels", group = "🎨 Display")
 long_label_offset_atr = 0.60
 long_label_offset_ticks = 0
-extend_bars          = 50
+extend_bars          = 6
 
 
 trade_direction       = input.string("Both", "trade_direction", options = ["Both", "Long Only", "Short Only"], group = "🎯 Quick Setup")
@@ -438,16 +435,26 @@ if news_blackout_enabled
         if time >= _pf_ts - 2 * 60 * 1000 and time <= _pf_ts + 2 * 60 * 1000
             pf_is_news_blackout := true
 
-col_demand_bg     = color.new(#2dd4bf, 94)  // Premium teal wash
-col_demand_border = color.new(#14b8a6, 35)  // Crisp teal border
+col_demand_bg     = color.new(#8FA6A0, 93)
+col_demand_border = color.new(#54756E, 42)
 
-col_supply_bg     = color.new(#fb7185, 94)  // Premium rose wash
-col_supply_border = color.new(#f43f5e, 35)  // Crisp rose border
+col_supply_bg     = color.new(#A88F95, 93)
+col_supply_border = color.new(#7A5860, 42)
 
-col_acc_demand_bg     = color.new(#38bdf8, 90)  // Muted blue refinement
-col_acc_demand_border = color.new(#0ea5e9, 20)
-col_acc_supply_bg     = color.new(#c084fc, 90)  // Muted purple refinement
-col_acc_supply_border = color.new(#a855f7, 20)
+col_acc_demand_bg     = color.new(#8FA6A0, 91)
+col_acc_demand_border = color.new(#3F6860, 24)
+col_acc_supply_bg     = color.new(#A88F95, 91)
+col_acc_supply_border = color.new(#6E4852, 24)
+col_label_demand      = color.new(#23292C, 8)
+col_label_supply      = color.new(#23292C, 8)
+col_label_acc_demand  = color.new(#303332, 6)
+col_label_acc_supply  = color.new(#303332, 6)
+col_label_text        = color.new(#E6EAEC, 0)
+col_status_good       = color.new(#6F9388, 0)
+col_status_warn       = color.new(#7A6A4D, 0)
+col_status_bad        = color.new(#8C5C64, 0)
+col_status_info       = color.new(#5F789D, 0)
+col_status_muted      = color.rgb(150, 150, 150)
 col_hidden_visual     = color.new(color.black, 100)
 col_used_zone_bg      = color.new(#9ca3af, 92)
 col_used_zone_border  = color.new(#9ca3af, 62)
@@ -903,13 +910,13 @@ validate_position_size(entry_price, stop_loss_price, balance, risk_pct, is_short
         
     [is_valid, qty_units, qty_lots, error_msg, sl_fixed]
 
-is_base_time_used(baseTime, baseArray) =>
+is_base_bar_used(barIdx, baseArray) =>
     if array.size(baseArray) == 0
         false
     else
         found = false
         for j = 0 to array.size(baseArray) - 1
-            if array.get(baseArray, j) == baseTime
+            if array.get(baseArray, j) == barIdx
                 found := true
                 break
         found
@@ -934,16 +941,15 @@ bool isFractalHigh_result = f_isFractalHigh(fractalsPeriod)
 bool isFractalLow_result  = f_isFractalLow(fractalsPeriod)
 
 fractalBarIdx  = bar_index - fractalsPeriod
-fractalBaseTime = time[fractalsPeriod]
-isZoneBaseBar  = (isFractalHigh_result or isFractalLow_result) ?
-                 (is_base_time_used(fractalBaseTime, used_demand_base_times) or
-                  is_base_time_used(fractalBaseTime, used_supply_base_times)) : false
+isZoneBaseBar  = (isFractalHigh_result or isFractalLow_result) ? 
+                 (is_base_bar_used(fractalBarIdx, used_demand_base_times) or 
+                  is_base_bar_used(fractalBarIdx, used_supply_base_times)) : false
 
 fractalHigh = (not isZoneBaseBar and isFractalHigh_result) ? high[fractalsPeriod] : na
 fractalLow  = (not isZoneBaseBar and isFractalLow_result) ? low[fractalsPeriod] : na
 
-plotshape(show_fractals and not na(fractalHigh), style = shape.triangleup,   location = location.abovebar, color = pvtBtmColor, size = size.tiny, offset = -fractalsPeriod)
-plotshape(show_fractals and not na(fractalLow),  style = shape.triangledown, location = location.belowbar, color = pvtTopColor, size = size.tiny, offset = -fractalsPeriod)
+plotshape(showChartFractals and not na(fractalHigh), style = shape.triangleup,   location = location.abovebar, color = pvtBtmColor, size = size.tiny, offset = -fractalsPeriod)
+plotshape(showChartFractals and not na(fractalLow),  style = shape.triangledown, location = location.belowbar, color = pvtTopColor, size = size.tiny, offset = -fractalsPeriod)
 
 var array<float> liqPvtHighPrices = array.new_float()
 var array<int>   liqPvtHighBars   = array.new_int()
@@ -1514,11 +1520,12 @@ zone_is_used_or_mitigated(Core.Zone z) =>
     z.mitigated or (not z.active and not na(z.lastEntryBar))
 
 zone_has_pending_reason(string reason) =>
-    str.contains(reason, "WAITING_") or str.contains(reason, "PRIMED") or str.contains(reason, "Model:")
+    string r = na(reason) ? "" : reason
+    str.contains(r, "WAITING_") or str.contains(r, "Waiting for") or str.contains(r, "PRIMED") or str.contains(r, "Model:")
 
 zone_is_invalid_or_rejected(Core.Zone z) =>
     string reason = zone_inactive_reason(z)
-    str.length(reason) > 0 and not zone_has_pending_reason(reason) and not str.contains(reason, "MITIGATED:")
+    str.length(reason) > 0 and not zone_has_pending_reason(reason)
 
 zone_display_distance(Core.Zone z, bool isDemand) =>
     if close <= z.top and close >= z.bottom
@@ -1532,11 +1539,17 @@ zone_is_relevant_visual(Core.Zone z, bool isDemand) =>
     not show_relevant_zones_only or relevant_zone_atr_distance <= 0.0 or atr14 <= 0.0 or zone_display_distance(z, isDemand) <= atr14 * relevant_zone_atr_distance
 
 zone_should_show_visual(Core.Zone z, bool isDemand) =>
+    bool activeTradable = zone_is_active_tradable(z)
+    bool usedOrMitigated = zone_is_used_or_mitigated(z)
     bool invalidOrRejected = zone_is_invalid_or_rejected(z)
-    bool entryUsedArchive = not na(z.lastEntryBar) and not invalidOrRejected
     bool activeDisplayZone = z.active and not z.mitigated and not invalidOrRejected and zone_is_relevant_visual(z, isDemand)
-    bool visible = activeDisplayZone or entryUsedArchive
-    visible
+    bool candidate = not activeDisplayZone and not usedOrMitigated and not invalidOrRejected
+    bool allowedByState = activeDisplayZone
+    if zone_lab_mode
+        allowedByState := activeDisplayZone or (show_mitigated_zones and usedOrMitigated) or (show_invalid_zones and invalidOrRejected) or (show_candidate_zones and candidate)
+    else
+        allowedByState := activeDisplayZone
+    allowedByState
 
 apply_zone_visual(Core.Zone z, bool isDemand) =>
     bool visible = show_zones and zone_should_show_visual(z, isDemand)
@@ -1568,9 +1581,9 @@ apply_zone_visual(Core.Zone z, bool isDemand) =>
             box.set_border_width(z.boxId, 1)
     if not na(z.idLabel)
         if visible
-            color labelColor = usedOrMitigated or invalidOrRejected ? col_used_zone_border : (z.isAccuracy ? (isDemand ? color.new(#2196F3, 0) : color.new(#AB47BC, 0)) : (isDemand ? color.new(#26a69a, 0) : color.new(#ef5350, 0)))
+            color labelColor = usedOrMitigated or invalidOrRejected ? col_used_zone_border : (z.isAccuracy ? (isDemand ? col_label_acc_demand : col_label_acc_supply) : (isDemand ? col_label_demand : col_label_supply))
             label.set_color(z.idLabel, labelColor)
-            label.set_textcolor(z.idLabel, color.white)
+            label.set_textcolor(z.idLabel, col_label_text)
         else
             label.set_text(z.idLabel, "")
             label.set_color(z.idLabel, col_hidden_visual)
@@ -1586,7 +1599,7 @@ zone_overlap_pct(float topA, float bottomA, float topB, float bottomB) =>
 
 zone_duplicate_candidate(Core.Zone z) =>
     string reason = zone_inactive_reason(z)
-    bool duplicateEligibleReason = reason == "" or str.contains(reason, "WAITING_")
+    bool duplicateEligibleReason = reason == "" or zone_has_pending_reason(reason)
     z.active and not z.mitigated and na(z.lastEntryBar) and duplicateEligibleReason
 
 delete_zone_visual_objects(Core.Zone z, bool isDemand) =>
@@ -1612,8 +1625,7 @@ delete_zone_visual_objects(Core.Zone z, bool isDemand) =>
 
 zone_right_bar(Core.Zone z) =>
     int rightBar = na(z.lastTouchBar) ? bar_index : z.lastTouchBar
-    int rawRightBar = z.active and not z.mitigated ? bar_index + extend_bars : math.max(z.createdBarIndex, rightBar)
-    math.max(bar_index - MAX_BAR_INDEX_PAST_DRAW, math.min(rawRightBar, bar_index + MAX_BAR_INDEX_FUTURE_DRAW))
+    z.active and not z.mitigated ? bar_index + extend_bars : math.max(z.createdBarIndex, rightBar)
 
 should_skip_duplicate_zone(float zTop, float zBottom, bool isDemand) =>
     bool skip = false
@@ -1670,8 +1682,19 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
     baseBarIdx = bar_index - baseIdx
 
     int baseTime = time[baseIdx]
-    bool alreadyUsed = isDemand ? is_base_time_used(baseTime, used_demand_base_times) : is_base_time_used(baseTime, used_supply_base_times)
-    bool created = false
+    bool alreadyUsed = false
+    if isDemand
+        if array.includes(used_demand_base_times, baseTime)
+            alreadyUsed := true
+        else
+            array.push(used_demand_base_times, baseTime)
+            trimBaseTimeArrays()
+    else
+        if array.includes(used_supply_base_times, baseTime)
+            alreadyUsed := true
+        else
+            array.push(used_supply_base_times, baseTime)
+            trimBaseTimeArrays()
 
     if not alreadyUsed
         float baseHigh = high[baseIdx]
@@ -1777,13 +1800,20 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                     if low[baseIdx] < low[reactionIdx]
                         isAccuracy := true
 
+        // Volatile symbols should use normal full-wick zones only.
+        // ACC/body-refined zones are not used for XAU/XAG/indices/futures/XPT.
+        bool forceFullWickSymbol = is_gold or is_silver or is_index or is_futures or is_xpt
+        if forceFullWickSymbol
+            isAccuracy := false
+
         float zTop = na
         float zBottom = na
 
         if proceed_creation
-            // Zone boundary logic (matches good-marking reference):
-            //   Accuracy zones: proximal = baseOpen, distal = wick extreme
-            //   Normal zones: full base candle range (baseHigh to baseLow)
+            // Boundary logic:
+            //   ACC zones: body/wick refinement for forex only.
+            //   Volatile symbols: full relevant base/cluster wick range.
+            //   Normal forex: original base candle range.
             if isAccuracy
                 if isDemand
                     // Demand Accuracy: Top = OPEN (body top), Bottom = LOW (extreme)
@@ -1794,9 +1824,15 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                     zTop := baseHigh
                     zBottom := baseOpen
             else
-                // Normal zones: full candle range
-                zTop := baseHigh
-                zBottom := baseLow
+                if forceFullWickSymbol
+                    // XAUUSD/indices/futures: keep the whole relevant base cluster.
+                    // This prevents the zone from being drawn as a single-candle / ACC-like grey slice.
+                    zTop := clusterHigh
+                    zBottom := clusterLow
+                else
+                    // Normal forex zones: original base candle range.
+                    zTop := baseHigh
+                    zBottom := baseLow
 
             int maxDepartureWickScan = 4
             for wickScan = 1 to maxDepartureWickScan
@@ -1862,11 +1898,6 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                         if legBearish and legHigh > zTop and legClose < zTop and (legClose < zBottom or legConfirmsSupply)
                             zTop := legHigh
 
-            // Cap zone size
-            float max_zone_size = 50.0 * pip_size
-            if (zTop - zBottom) > max_zone_size
-                true  // No-op, keep current range
-
         int zoneBorderWidth = 1
         color zoneBgColor = na
         color zoneBorderColorFinal = na
@@ -1902,11 +1933,11 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 float mid = (zTop + zBottom) / 2.0
                 color lbl_bg_color = na
                 if isAccuracy
-                    lbl_bg_color := isDemand ? color.new(#2196F3, 0) : color.new(#AB47BC, 0)  // Blue for demand ACC, Purple for supply ACC
+                    lbl_bg_color := isDemand ? col_label_acc_demand : col_label_acc_supply
                 else
-                    lbl_bg_color := isDemand ? color.new(#26a69a, 0) : color.new(#ef5350, 0)  // Teal for demand, Coral for supply
+                    lbl_bg_color := isDemand ? col_label_demand : col_label_supply
                 label idLbl = label.new(x = baseBarIdx, y = mid, text = id_text,
-                     style = label.style_label_left, textcolor = color.white, color = lbl_bg_color,
+                     style = label.style_label_left, textcolor = col_label_text, color = lbl_bg_color,
                      size = size.tiny,  // Forced tiny size for clean chart
                      textalign = text.align_center, xloc = xloc.bar_index)
 
@@ -1949,17 +1980,11 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 if isDemand
                     array.unshift(demandZones, z)
                     db_upsertZone(z, "DEMAND")
-                    array.push(used_demand_base_times, baseTime)
-                    trimBaseTimeArrays()
                     trimZoneArrays(true)
                 else
                     array.unshift(supplyZones, z)
                     db_upsertZone(z, "SUPPLY")
-                    array.push(used_supply_base_times, baseTime)
-                    trimBaseTimeArrays()
                     trimZoneArrays(false)
-                created := true
-    created
 
 remove_zone_all_arrays(bool isDemand, int idx) =>
     if isDemand
@@ -2026,6 +2051,13 @@ is_time_dead_zone() =>
         int currentMinute = minute(time)
         currentMinute >= 50
 
+waiting_liquidity_reason(Core.Zone z, bool isDemand) =>
+    bool missingInducement = isDemand ? na(z.liqLowPrice) : na(z.liqHighPrice)
+    if missingInducement
+        isDemand ? "Waiting for Inducement Low (Demand)" : "Waiting for Inducement High (Supply)"
+    else
+        isDemand ? "Waiting for Strong Liquidity Leg (Demand)" : "Waiting for Strong Liquidity Leg (Supply)"
+
 validate_entry_conditions(bool isDemand, int idx) =>
     bool canEnter = true
     string reason = ""
@@ -2054,9 +2086,6 @@ validate_entry_conditions(bool isDemand, int idx) =>
         reason := "Dead Zone: Blocked at " + str.tostring(minute(time)) + "m (avoid xx:50-xx:00)"
 
     if canEnter
-        if canEnter and not z.causedSweep
-            canEnter := false
-            reason := isDemand ? "Waiting for Inducement Sweep (Demand)" : "Waiting for Inducement Sweep (Supply)"
         if canEnter and z.touchedPreSweep
             canEnter := false
             reason := isDemand ? "Zone touched before liquidity sweep (Demand)" : "Zone touched before liquidity sweep (Supply)"
@@ -2067,7 +2096,7 @@ validate_entry_conditions(bool isDemand, int idx) =>
         if canEnter and require_liquidity_sweep
             if not z.liquidityValid
                 canEnter := false
-                reason := isDemand ? "Demand liquidity invalid (candle-count rule failed)" : "Supply liquidity invalid (candle-count rule failed)"
+                reason := waiting_liquidity_reason(z, isDemand)
             else if not z.liquiditySwept
                 canEnter := false
                 reason := isDemand ? "Waiting for Inducement Sweep (Demand)" : "Waiting for Inducement Sweep (Supply)"
@@ -2271,7 +2300,7 @@ draw_performance_table(tbl) =>
             float win_rate = total_closed > 0 ? (float(win_trades) / float(total_closed)) * 100 : 0.0
             float profit_factor = gross_loss > 0 ? gross_profit / gross_loss : (gross_profit > 0 ? 999.99 : 0.0)
 
-            color profit_color = net_profit >= 0 ? color.rgb(0, 200, 100) : color.rgb(255, 80, 80)
+            color profit_color = net_profit >= 0 ? col_status_good : col_status_bad
 
 
             int first_trade_time = strategy.closedtrades > 0 ? strategy.closedtrades.entry_time(0) : na
@@ -2289,12 +2318,12 @@ draw_performance_table(tbl) =>
 
             table.cell(result, 0, 3, "Win Rate", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = tbl_sz)
             string wr_str = str.tostring(win_rate, "#.00") + "% (" + str.tostring(win_trades) + "/" + str.tostring(total_closed) + ")"
-            color wr_color = win_rate >= 50 ? color.rgb(0, 200, 100) : color.rgb(255, 180, 80)
+            color wr_color = win_rate >= 50 ? col_status_good : col_status_warn
             table.cell(result, 1, 3, wr_str, text_color = wr_color, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = tbl_sz)
 
             table.cell(result, 0, 4, "Profit Factor", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = tbl_sz)
             string pf_str = gross_loss > 0 ? str.tostring(profit_factor, "#.00") : (gross_profit > 0 ? "∞" : "N/A")
-            color pf_color = profit_factor >= 1.5 ? color.rgb(0, 200, 100) : (profit_factor >= 1.0 ? color.rgb(255, 180, 80) : color.rgb(255, 80, 80))
+            color pf_color = profit_factor >= 1.5 ? col_status_good : (profit_factor >= 1.0 ? col_status_warn : col_status_bad)
             table.cell(result, 1, 4, pf_str, text_color = pf_color, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = tbl_sz)
 
             table.cell(result, 0, 5, "Max Drawdown", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = tbl_sz)
@@ -2492,133 +2521,139 @@ deactivateOverlappingDemandZones(refLow, refHigh) =>
             if overlaps
                 deactivateDemandZone(k)
 
-is_continuation_zone(int baseIdx, bool isDemand) =>
+is_gold_continuation_zone(int baseIdx, bool isDemand) =>
     bool result = false
-    if enable_continuation_zones and baseIdx >= 1 and baseIdx + 1 <= bar_index
+    bool enabled = gold_continuation_zones and (is_gold or is_xpt)
+    if enabled and baseIdx >= 1 and baseIdx + 1 <= bar_index
         float baseRange = high[baseIdx] - low[baseIdx]
         float baseBody = math.abs(close[baseIdx] - open[baseIdx])
-        float baseBodyHigh = math.max(open[baseIdx], close[baseIdx])
-        float baseBodyLow = math.min(open[baseIdx], close[baseIdx])
-        float baseMid = (high[baseIdx] + low[baseIdx]) / 2.0
-        float continuation_range_atr = 1.8
-        float continuation_max_body_pct = 0.85
-        bool compactBase = baseRange > syminfo.mintick and baseRange <= atr14 * continuation_range_atr and baseBody <= baseRange * continuation_max_body_pct
-        bool bearishDominantBase = close[baseIdx] < open[baseIdx] or (baseBody <= baseRange * 0.50 and close[baseIdx] <= baseMid)
-        bool bullishDominantBase = close[baseIdx] > open[baseIdx] or (baseBody <= baseRange * 0.50 and close[baseIdx] >= baseMid)
-        bool validBaseSide = isDemand ? bearishDominantBase : bullishDominantBase
+        bool compactBase = baseRange > syminfo.mintick and baseRange <= atr14 * 1.8 and baseBody <= baseRange * 0.65
+        bool validBaseSide = isDemand ? close[baseIdx] < open[baseIdx] : close[baseIdx] > open[baseIdx]
+        bool continuationApproach = isDemand ? close[baseIdx + 1] > open[baseIdx + 1] : close[baseIdx + 1] < open[baseIdx + 1]
+        bool reversalApproach = isDemand ? close[baseIdx + 1] < open[baseIdx + 1] : close[baseIdx + 1] > open[baseIdx + 1]
         bool confirmsAway = false
-        bool contaminatedContinuation = false
         for confirmScan = 1 to formation_leg_scan_bars
             int confirmIdx = baseIdx - confirmScan
             if confirmIdx < 0
                 break
-            bool closesAgainst = isDemand ? close[confirmIdx] < low[baseIdx] : close[confirmIdx] > high[baseIdx]
-            if closesAgainst
-                contaminatedContinuation := true
-                break
-            bool confirmCandle = isDemand ? close[confirmIdx] > open[confirmIdx] and close[confirmIdx] > baseBodyHigh : close[confirmIdx] < open[confirmIdx] and close[confirmIdx] < baseBodyLow
+            bool confirmCandle = isDemand ? close[confirmIdx] > open[confirmIdx] and close[confirmIdx] > high[baseIdx] : close[confirmIdx] < open[confirmIdx] and close[confirmIdx] < low[baseIdx]
             if confirmCandle
                 confirmsAway := true
                 break
-        result := compactBase and validBaseSide and not contaminatedContinuation and confirmsAway
+        float priorBodyEdge = isDemand ? math.min(open[baseIdx + 1], close[baseIdx + 1]) : math.max(open[baseIdx + 1], close[baseIdx + 1])
+        bool shallowPullback = isDemand ? low[baseIdx] >= priorBodyEdge - atr14 * 0.25 : high[baseIdx] <= priorBodyEdge + atr14 * 0.25
+        bool reversalExtreme = isDemand ? low[baseIdx] <= low[baseIdx + 1] + atr14 * 0.25 : high[baseIdx] >= high[baseIdx + 1] - atr14 * 0.25
+        bool validApproach = (continuationApproach and shallowPullback) or (reversalApproach and reversalExtreme)
+        result := compactBase and validBaseSide and validApproach and confirmsAway
     result
 
-has_better_continuation_base(int baseIdx, bool isDemand) =>
+has_better_gold_continuation_base(int baseIdx, bool isDemand) =>
     bool better = false
     for scan = 1 to formation_leg_scan_bars
         int olderIdx = baseIdx + scan
-        if olderIdx + 1 <= bar_index and is_continuation_zone(olderIdx, isDemand)
+        if olderIdx + 1 <= bar_index and is_gold_continuation_zone(olderIdx, isDemand)
             bool overlapsOlder = not (high[olderIdx] < low[baseIdx] or low[olderIdx] > high[baseIdx])
             bool olderMoreDistal = isDemand ? low[olderIdx] < low[baseIdx] : high[olderIdx] > high[baseIdx]
             if overlapsOlder and olderMoreDistal
                 better := true
                 break
+        int newerIdx = baseIdx - scan
+        if newerIdx >= 1 and is_gold_continuation_zone(newerIdx, isDemand)
+            bool overlapsNewer = not (high[newerIdx] < low[baseIdx] or low[newerIdx] > high[baseIdx])
+            bool newerMoreDistal = isDemand ? low[newerIdx] < low[baseIdx] : high[newerIdx] > high[baseIdx]
+            if overlapsNewer and newerMoreDistal
+                better := true
+                break
     better
 
-is_preferred_continuation_zone(int baseIdx, bool isDemand) =>
-    is_continuation_zone(baseIdx, isDemand) and not has_better_continuation_base(baseIdx, isDemand)
-
-findDisplacementBase(bool isDemand, int startOffset, int maxLegBars) =>
-    int baseIdx = na
-    int legCount = 0
-    for leg = 1 to maxLegBars
-        int displacementIdx = startOffset + leg - 1
-        int candidateBaseIdx = startOffset + leg
-        if candidateBaseIdx > bar_index
-            break
-        bool displacementOk = isDemand ? Utils.is_bullish(close[displacementIdx], open[displacementIdx]) : Utils.is_bearish(close[displacementIdx], open[displacementIdx])
-        if not displacementOk
-            break
-        legCount += 1
-        bool baseOk = isDemand ? Utils.is_bearish(close[candidateBaseIdx], open[candidateBaseIdx]) : Utils.is_bullish(close[candidateBaseIdx], open[candidateBaseIdx])
-        if baseOk
-            baseIdx := candidateBaseIdx
-            break
-    [baseIdx, legCount]
+is_preferred_gold_continuation_zone(int baseIdx, bool isDemand) =>
+    is_gold_continuation_zone(baseIdx, isDemand) and not has_better_gold_continuation_base(baseIdx, isDemand)
 
 
 if barstate.isconfirmed and bar_index > 10
+    if Utils.is_bullish(close, open) and Utils.is_bullish(close[1], open[1]) and Utils.is_bullish(close[2], open[2]) and Utils.is_bearish(close[3], open[3])
+        baseBarIdx = bar_index - 3
+        if not is_base_bar_used(baseBarIdx, used_demand_base_times)
+            global_zone_id_counter := global_zone_id_counter + 1
+            createZone(3, true, false, 1, 3, global_zone_id_counter)
+    else if Utils.is_bullish(close, open) and Utils.is_bullish(close[1], open[1]) and Utils.is_bearish(close[2], open[2])
+        baseBarIdx = bar_index - 2
+        if not is_base_bar_used(baseBarIdx, used_demand_base_times)
+            global_zone_id_counter := global_zone_id_counter + 1
+            createZone(2, true, false, 1, 2, global_zone_id_counter)
+    else if Utils.is_bullish(close, open) and Utils.is_bearish(close[1], open[1])
+        baseBarIdx = bar_index - 1
+        if not is_base_bar_used(baseBarIdx, used_demand_base_times)
+            global_zone_id_counter := global_zone_id_counter + 1
+            createZone(1, true, false, 1, 1, global_zone_id_counter)
     for contBaseIdx = 1 to formation_leg_scan_bars
-        if is_preferred_continuation_zone(contBaseIdx, true)
-            baseTime = time[contBaseIdx]
-            if not is_base_time_used(baseTime, used_demand_base_times)
-                int nextZoneId = global_zone_id_counter + 1
-                if createZone(contBaseIdx, true, false, 1, 1, nextZoneId)
-                    global_zone_id_counter := nextZoneId
-    [demandBaseIdx, demandLegCandles] = findDisplacementBase(true, 0, max_displacement_leg_bars)
-    if not na(demandBaseIdx)
-        baseTime = time[demandBaseIdx]
-        if not is_base_time_used(baseTime, used_demand_base_times)
-            int nextZoneId = global_zone_id_counter + 1
-            if createZone(demandBaseIdx, true, false, 1, demandLegCandles, nextZoneId)
-                global_zone_id_counter := nextZoneId
+        if is_preferred_gold_continuation_zone(contBaseIdx, true)
+            baseBarIdx = bar_index - contBaseIdx
+            if not is_base_bar_used(baseBarIdx, used_demand_base_times)
+                global_zone_id_counter := global_zone_id_counter + 1
+                createZone(contBaseIdx, true, false, 1, 1, global_zone_id_counter)
 
 if barstate.isconfirmed and bar_index > 10
+    if Utils.is_bearish(close, open) and Utils.is_bearish(close[1], open[1]) and Utils.is_bearish(close[2], open[2]) and Utils.is_bullish(close[3], open[3])
+        baseBarIdx = bar_index - 3
+        if not is_base_bar_used(baseBarIdx, used_supply_base_times)
+            global_zone_id_counter := global_zone_id_counter + 1
+            createZone(3, false, false, 1, 3, global_zone_id_counter)
+    else if Utils.is_bearish(close, open) and Utils.is_bearish(close[1], open[1]) and Utils.is_bullish(close[2], open[2])
+        baseBarIdx = bar_index - 2
+        if not is_base_bar_used(baseBarIdx, used_supply_base_times)
+            global_zone_id_counter := global_zone_id_counter + 1
+            createZone(2, false, false, 1, 2, global_zone_id_counter)
+    else if Utils.is_bearish(close, open) and Utils.is_bullish(close[1], open[1])
+        baseBarIdx = bar_index - 1
+        if not is_base_bar_used(baseBarIdx, used_supply_base_times)
+            global_zone_id_counter := global_zone_id_counter + 1
+            createZone(1, false, false, 1, 1, global_zone_id_counter)
     for contBaseIdx = 1 to formation_leg_scan_bars
-        if is_preferred_continuation_zone(contBaseIdx, false)
-            baseTime = time[contBaseIdx]
-            if not is_base_time_used(baseTime, used_supply_base_times)
-                int nextZoneId = global_zone_id_counter + 1
-                if createZone(contBaseIdx, false, false, 1, 1, nextZoneId)
-                    global_zone_id_counter := nextZoneId
-    [supplyBaseIdx, supplyLegCandles] = findDisplacementBase(false, 0, max_displacement_leg_bars)
-    if not na(supplyBaseIdx)
-        baseTime = time[supplyBaseIdx]
-        if not is_base_time_used(baseTime, used_supply_base_times)
-            int nextZoneId = global_zone_id_counter + 1
-            if createZone(supplyBaseIdx, false, false, 1, supplyLegCandles, nextZoneId)
-                global_zone_id_counter := nextZoneId
+        if is_preferred_gold_continuation_zone(contBaseIdx, false)
+            baseBarIdx = bar_index - contBaseIdx
+            if not is_base_bar_used(baseBarIdx, used_supply_base_times)
+                global_zone_id_counter := global_zone_id_counter + 1
+                createZone(contBaseIdx, false, false, 1, 1, global_zone_id_counter)
 
 if barstate.isconfirmed and not initial_scan_done and bar_index > 50
     initial_scan_done := true
     max_scan = math.min(100, bar_index)
-    for displacementOffset = 0 to max_scan
-        if is_preferred_continuation_zone(displacementOffset, true)
-            baseTimeDemand = time[displacementOffset]
-            if not is_base_time_used(baseTimeDemand, used_demand_base_times)
-                int nextZoneId = global_zone_id_counter + 1
-                if createZone(displacementOffset, true, true, 1, 1, nextZoneId)
-                    global_zone_id_counter := nextZoneId
-        [histDemandBaseIdx, histDemandLegCandles] = findDisplacementBase(true, displacementOffset, max_displacement_leg_bars)
-        if not na(histDemandBaseIdx)
-            baseTimeDemand = time[histDemandBaseIdx]
-            if not is_base_time_used(baseTimeDemand, used_demand_base_times)
-                int nextZoneId = global_zone_id_counter + 1
-                if createZone(histDemandBaseIdx, true, true, 1, histDemandLegCandles, nextZoneId)
-                    global_zone_id_counter := nextZoneId
-        if is_preferred_continuation_zone(displacementOffset, false)
-            baseTimeSupply = time[displacementOffset]
-            if not is_base_time_used(baseTimeSupply, used_supply_base_times)
-                int nextZoneId = global_zone_id_counter + 1
-                if createZone(displacementOffset, false, true, 1, 1, nextZoneId)
-                    global_zone_id_counter := nextZoneId
-        [histSupplyBaseIdx, histSupplyLegCandles] = findDisplacementBase(false, displacementOffset, max_displacement_leg_bars)
-        if not na(histSupplyBaseIdx)
-            baseTimeSupply = time[histSupplyBaseIdx]
-            if not is_base_time_used(baseTimeSupply, used_supply_base_times)
-                int nextZoneId = global_zone_id_counter + 1
-                if createZone(histSupplyBaseIdx, false, true, 1, histSupplyLegCandles, nextZoneId)
-                    global_zone_id_counter := nextZoneId
+    for i = 2 to max_scan
+        baseBarIdxDemand = bar_index - i
+        if i >= 3 and Utils.is_bearish(close[i], open[i]) and Utils.is_bullish(close[i - 1], open[i - 1]) and Utils.is_bullish(close[i - 2], open[i - 2]) and Utils.is_bullish(close[i - 3], open[i - 3])
+            if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
+                global_zone_id_counter := global_zone_id_counter + 1
+                createZone(i, true, true, 1, 3, global_zone_id_counter)
+        else if Utils.is_bearish(close[i], open[i]) and Utils.is_bullish(close[i - 1], open[i - 1]) and Utils.is_bullish(close[i - 2], open[i - 2])
+            if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
+                global_zone_id_counter := global_zone_id_counter + 1
+                createZone(i, true, true, 1, 2, global_zone_id_counter)
+        else if Utils.is_bearish(close[i], open[i]) and Utils.is_bullish(close[i - 1], open[i - 1])
+            if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
+                global_zone_id_counter := global_zone_id_counter + 1
+                createZone(i, true, true, 1, 1, global_zone_id_counter)
+        if is_preferred_gold_continuation_zone(i, true)
+            if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
+                global_zone_id_counter := global_zone_id_counter + 1
+                createZone(i, true, true, 1, 1, global_zone_id_counter)
+        baseBarIdxSupply = bar_index - i
+        if i >= 3 and Utils.is_bullish(close[i], open[i]) and Utils.is_bearish(close[i - 1], open[i - 1]) and Utils.is_bearish(close[i - 2], open[i - 2]) and Utils.is_bearish(close[i - 3], open[i - 3])
+            if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
+                global_zone_id_counter := global_zone_id_counter + 1
+                createZone(i, false, true, 1, 3, global_zone_id_counter)
+        else if Utils.is_bullish(close[i], open[i]) and Utils.is_bearish(close[i - 1], open[i - 1]) and Utils.is_bearish(close[i - 2], open[i - 2])
+            if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
+                global_zone_id_counter := global_zone_id_counter + 1
+                createZone(i, false, true, 1, 2, global_zone_id_counter)
+        else if Utils.is_bullish(close[i], open[i]) and Utils.is_bearish(close[i - 1], open[i - 1])
+            if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
+                global_zone_id_counter := global_zone_id_counter + 1
+                createZone(i, false, true, 1, 1, global_zone_id_counter)
+        if is_preferred_gold_continuation_zone(i, false)
+            if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
+                global_zone_id_counter := global_zone_id_counter + 1
+                createZone(i, false, true, 1, 1, global_zone_id_counter)
 
 isValidSwingForLiquidity(barOffset, isHigh) =>
 
@@ -2672,6 +2707,9 @@ validate_liquidity_formation(liqBarIdx, zoneCreatedBarIdx, liqPrice, isHigh) =>
             else
                 true  // If no previous swing found, assume valid (first liquidity)
 
+liquidity_level_end_bar(Core.Zone z) =>
+    math.max(bar_index + LIQ_LEVEL_EXTENSION_BARS, zone_right_bar(z))
+
 clearDemandLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(demandZones)
         Core.Zone z = array.get(demandZones, idx)
@@ -2688,55 +2726,24 @@ clearDemandLiquidityVisual(idx) =>
 updateDemandLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(demandZones)
         Core.Zone z = array.get(demandZones, idx)
-        bool showLiquidityVisuals = show_liquidity_connectors
+        if not na(z.connectorLine)
+            line.delete(z.connectorLine)
+            z.connectorLine := na
+        if not na(z.inducementHLine)
+            line.delete(z.inducementHLine)
+            z.inducementHLine := na
+        if not na(z.targetHLine)
+            line.delete(z.targetHLine)
+            z.targetHLine := na
 
-        if showLiquidityVisuals
-            if not na(z.inducementHLine)
-                line.delete(z.inducementHLine)
-
+        if not na(z.createdBarIndex)
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                color indColor = z.liquiditySwept ? liq_inducement_swept : liq_inducement_pending
-                int indWidth = 1
-                int indLineEnd = z.liquiditySwept and not na(z.liquiditySweptBarIndex) ? math.max(z.liqLowBar, z.liquiditySweptBarIndex) : bar_index + LIQ_MARK_EXTENSION_BARS
+                int indEndBar = liquidity_level_end_bar(z)
                 z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
-                                               x2 = indLineEnd, y2 = z.liqLowPrice,
+                                               x2 = indEndBar, y2 = z.liqLowPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
-                                               color = indColor, style = line.style_dotted, width = indWidth)
+                                               color = liq_inducement_level_color, style = line.style_solid, width = 1)
 
-            if not na(z.targetHLine)
-                line.delete(z.targetHLine)
-
-            if not na(z.liqHighPrice) and not na(z.liqHighBar)
-                color tgtColor = z.targetSwept ? liq_target_swept : liq_target_pending
-                int tgtWidth = 1
-                int tgtLineEnd = z.targetSwept and not na(z.targetSweptBarIndex) ? math.max(z.liqHighBar, z.targetSweptBarIndex) : bar_index + LIQ_MARK_EXTENSION_BARS
-                z.targetHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
-                                           x2 = tgtLineEnd, y2 = z.liqHighPrice,
-                                           xloc = xloc.bar_index, extend = extend.none,
-                                           color = tgtColor, style = line.style_solid, width = tgtWidth)
-        else
-            if not na(z.inducementHLine)
-                line.delete(z.inducementHLine)
-                z.inducementHLine := na
-            if not na(z.targetHLine)
-                line.delete(z.targetHLine)
-                z.targetHLine := na
-
-        if na(z.liquidityPrice) or na(z.liquidityBarIndex) or na(z.createdBarIndex) or not showLiquidityVisuals
-            if not na(z.connectorLine)
-                line.delete(z.connectorLine)
-                z.connectorLine := na
-        else
-            float mid = (z.top + z.bottom) / 2.0
-            if not na(z.connectorLine)
-                line.delete(z.connectorLine)
-
-            lineStyle = z.liquiditySwept ? line.style_solid : line.style_dotted
-            lineWidth = 1
-            color connectorColor = z.liquiditySwept ? liq_connector_swept : liq_connector_pending
-            z.connectorLine := line.new(x1 = z.createdBarIndex, y1 = mid, x2 = z.liquidityBarIndex, y2 = z.liquidityPrice,
-                                  xloc = xloc.bar_index, extend = extend.none,
-                                  color = connectorColor, style = lineStyle, width = lineWidth)
         true
 
 clearSupplyLiquidityVisual(idx) =>
@@ -2758,71 +2765,54 @@ clearSupplyLiquidityVisual(idx) =>
 updateSupplyLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(supplyZones)
         Core.Zone z = array.get(supplyZones, idx)
-        bool showLiquidityVisuals = show_liquidity_connectors
+        if not na(z.connectorLine)
+            line.delete(z.connectorLine)
+            z.connectorLine := na
+        if not na(z.targetLine)
+            line.delete(z.targetLine)
+            z.targetLine := na
+        if not na(z.inducementHLine)
+            line.delete(z.inducementHLine)
+            z.inducementHLine := na
+        if not na(z.targetHLine)
+            line.delete(z.targetHLine)
+            z.targetHLine := na
 
-        if showLiquidityVisuals
-            if not na(z.inducementHLine)
-                line.delete(z.inducementHLine)
-
+        if not na(z.createdBarIndex)
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
-                color indColor = z.liquiditySwept ? liq_inducement_swept : liq_inducement_pending
-                int indWidth = 1
-                int indLineEnd = z.liquiditySwept and not na(z.liquiditySweptBarIndex) ? math.max(z.liqHighBar, z.liquiditySweptBarIndex) : bar_index + LIQ_MARK_EXTENSION_BARS
+                int indEndBar = liquidity_level_end_bar(z)
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
-                                               x2 = indLineEnd, y2 = z.liqHighPrice,
+                                               x2 = indEndBar, y2 = z.liqHighPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
-                                               color = indColor, style = line.style_dotted, width = indWidth)
+                                               color = liq_inducement_level_color, style = line.style_solid, width = 1)
 
-            if not na(z.targetHLine)
-                line.delete(z.targetHLine)
-
-            if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                color tgtColor = z.targetSwept ? liq_target_swept : liq_target_pending
-                int tgtWidth = 1
-                int tgtLineEnd = z.targetSwept and not na(z.targetSweptBarIndex) ? math.max(z.liqLowBar, z.targetSweptBarIndex) : bar_index + LIQ_MARK_EXTENSION_BARS
-                z.targetHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
-                                           x2 = tgtLineEnd, y2 = z.liqLowPrice,
-                                           xloc = xloc.bar_index, extend = extend.none,
-                                           color = tgtColor, style = line.style_solid, width = tgtWidth)
-        else
-            if not na(z.inducementHLine)
-                line.delete(z.inducementHLine)
-                z.inducementHLine := na
-            if not na(z.targetHLine)
-                line.delete(z.targetHLine)
-                z.targetHLine := na
-
-        if na(z.liqHighPrice) or na(z.liqHighBar) or na(z.createdBarIndex) or not showLiquidityVisuals
-            if not na(z.connectorLine)
-                line.delete(z.connectorLine)
-                z.connectorLine := na
-            if not na(z.targetLine)
-                line.delete(z.targetLine)
-                z.targetLine := na
-        else
-            float zBottom = z.bottom
-
-            if not na(z.connectorLine)
-                line.delete(z.connectorLine)
-
-            indStyle = z.liquiditySwept ? line.style_dashed : line.style_dotted
-            indWidth = 1
-            color connectorColor = z.liquiditySwept ? liq_connector_swept : liq_connector_pending
-            z.connectorLine := line.new(x1 = z.createdBarIndex, y1 = zBottom, x2 = z.liqHighBar, y2 = z.liqHighPrice,
-                                  xloc = xloc.bar_index, extend = extend.none,
-                                  color = connectorColor, style = indStyle, width = indWidth)
-
-            if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                if not na(z.targetLine)
-                    line.delete(z.targetLine)
-
-                targetColor = z.targetSwept ? liq_target_swept : liq_target_pending
-                targetStyle = line.style_solid
-                targetWidth = 1
-                z.targetLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice, x2 = z.liqLowBar, y2 = z.liqLowPrice,
-                                      xloc = xloc.bar_index, extend = extend.none,
-                                      color = targetColor, style = targetStyle, width = targetWidth)
         true
+
+invalidateDemandZone(int idx, string reason) =>
+    if idx >= 0 and idx < array.size(demandZones)
+        clearDemandLiquidityVisual(idx)
+        Core.Zone z = array.get(demandZones, idx)
+        z.active := false
+        z.mitigated := true
+        z.primed := false
+        z.inactiveReason := reason
+        apply_zone_visual(z, true)
+        array.set(demandZones, idx, z)
+        db_markInactive(z.id, reason)
+    true
+
+invalidateSupplyZone(int idx, string reason) =>
+    if idx >= 0 and idx < array.size(supplyZones)
+        clearSupplyLiquidityVisual(idx)
+        Core.Zone z = array.get(supplyZones, idx)
+        z.active := false
+        z.mitigated := true
+        z.primed := false
+        z.inactiveReason := reason
+        apply_zone_visual(z, false)
+        array.set(supplyZones, idx, z)
+        db_markInactive(z.id, reason)
+    true
 
 isLiquidityValidForEntry(isDemand, idx) =>
     if idx < 0
@@ -2947,9 +2937,6 @@ if cached_demand_size > 0 and barstate.isconfirmed
             break
         Core.Zone z = array.get(demandZones, i)
         if z.active
-            if z.isHistorical
-                continue  // Skip all liquidity validation for historical zones
-
             if not na(z.liquidityPrice)
                 float sideTol = syminfo.mintick * liq_side_tol_ticks
                 bool isInvalid = false
@@ -3042,11 +3029,8 @@ if cached_demand_size > 0 and barstate.isconfirmed
                         array.set(demandZones, i, z)
                         db_updateZoneLiquidity(z)
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone) and not current_bar_sweeping
-                    z.mitigated := true
-                    z.inactiveReason := "ENTRY_BLOCKED:RETURN_BEFORE_PROOF"
-                    array.set(demandZones, i, z)
-                    db_updateZoneLiquidity(z)
+                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
+                    invalidateDemandZone(i, "ENTRY_BLOCKED:RETURN_BEFORE_PROOF")
 
 if cached_supply_size > 0 and barstate.isconfirmed
     current_close = close
@@ -3058,9 +3042,6 @@ if cached_supply_size > 0 and barstate.isconfirmed
             break
         Core.Zone z = array.get(supplyZones, i)
         if z.active
-            if z.isHistorical
-                continue  // Skip all liquidity validation for historical zones
-
             if not na(z.liquidityPrice)
                 float sideTol = syminfo.mintick * liq_side_tol_ticks
                 bool isInvalid = false
@@ -3131,11 +3112,8 @@ if cached_supply_size > 0 and barstate.isconfirmed
                         array.set(supplyZones, i, z)
                         db_updateZoneLiquidity(z)
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone) and not current_bar_sweeping
-                    z.mitigated := true
-                    z.inactiveReason := "ENTRY_BLOCKED:RETURN_BEFORE_PROOF"
-                    array.set(supplyZones, i, z)
-                    db_updateZoneLiquidity(z)
+                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
+                    invalidateSupplyZone(i, "ENTRY_BLOCKED:RETURN_BEFORE_PROOF")
 
 int demandSize = array.size(demandZones)
 if demandSize > 0
@@ -3190,7 +3168,7 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
         if i >= array.size(demandZones)
             break
         Core.Zone z = array.get(demandZones, i)
-        if z.active or not na(z.lastEntryBar)
+        if z.active or zone_lab_mode
             bool zoneVisible = apply_zone_visual(z, true)
             if zoneVisible and not na(z.createdBarIndex)
                 int right_bar_index = zone_right_bar(z)
@@ -3204,7 +3182,7 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
                         string demandAccTag = z.isAccuracy ? "ACC " : ""
                         string demandCompact = demandAccTag + "D-" + str.tostring(z.id)
                         string demandDetailed = "Demand " + demandCompact
-                        string demandMetrics = debug_enabled and zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
+                        string demandMetrics = zone_lab_mode and zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
                         string demandText = zone_label_style == "Detailed" ? (demandDetailed + demandMetrics) : demandCompact
                         label.set_text(z.idLabel, " " + demandText + " ")
                         label.set_style(z.idLabel, label.style_label_left)
@@ -3216,7 +3194,7 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
         if i >= array.size(supplyZones)
             break
         Core.Zone z = array.get(supplyZones, i)
-        if z.active or not na(z.lastEntryBar)
+        if z.active or zone_lab_mode
             bool zoneVisible = apply_zone_visual(z, false)
             if zoneVisible and not na(z.createdBarIndex)
                 int right_bar_index = zone_right_bar(z)
@@ -3230,7 +3208,7 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
                         string supplyAccTag = z.isAccuracy ? "ACC " : ""
                         string supplyCompact = supplyAccTag + "S-" + str.tostring(z.id)
                         string supplyDetailed = "Supply " + supplyCompact
-                        string supplyMetrics = debug_enabled and zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
+                        string supplyMetrics = zone_lab_mode and zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
                         string supplyText = zone_label_style == "Detailed" ? (supplyDetailed + supplyMetrics) : supplyCompact
                         label.set_text(z.idLabel, " " + supplyText + " ")
                         label.set_style(z.idLabel, label.style_label_left)
@@ -3281,7 +3259,7 @@ process_long_entries() =>
 
                 if not can_enter and show_blocked_trade_labels and debug_level != "None" and isRecentBarForDebug()
                     bool isAiBlock = str.contains(entryReason, "AI Quality") or str.contains(entryReason, "[SHADOW]")
-                    color blockCol = isAiBlock ? color.orange : color.new(color.red, 20)
+                    color blockCol = isAiBlock ? col_status_warn : color.new(col_status_bad, 20)
                     string blockTag = isAiBlock ? "🤖 " : "🚫 "
                     label.new(bar_index, high + atr14 * 0.3,
                         text = blockTag + "Blocked: " + entryReason,
@@ -3414,7 +3392,7 @@ process_long_entries() =>
                     if not usdjpy_success_check
                         if show_entry_labels
                             label.new(x = bar_index, y = high, text = "⚠️ USDJPY Rate Fetch Failed\nTrade Skipped",
-                                      style = label.style_label_down, color = color.new(color.orange, 0),
+                                      style = label.style_label_down, color = col_status_warn,
                                       textcolor = color.white, size = size.normal)
                         continue
 
@@ -3676,10 +3654,6 @@ process_long_entries() =>
                     z.lastEntryBar := bar_index
                     z.active := false
                     z.primed := false  // Reset just in case
-                    z.mitigated := true
-                    z.inactiveReason := "MITIGATED:USED_FOR_ENTRY"
-                    array.set(demandZones, i, z)
-                    db_markInactive(z.id, "MITIGATED:USED_FOR_ENTRY")
                     apply_zone_visual(z, true)
                     array.set(_last_global_long_entry_bar, 0, bar_index)
 
@@ -3748,7 +3722,7 @@ process_short_entries() =>
 
                 if not can_enter and show_blocked_trade_labels and debug_level != "None" and isRecentBarForDebug()
                     bool isAiBlock = str.contains(entryReason, "AI Quality") or str.contains(entryReason, "[SHADOW]")
-                    color blockCol = isAiBlock ? color.orange : color.new(color.red, 20)
+                    color blockCol = isAiBlock ? col_status_warn : color.new(col_status_bad, 20)
                     string blockTag = isAiBlock ? "🤖 " : "🚫 "
                     label.new(bar_index, low - atr14 * 0.3,
                         text = blockTag + "Blocked: " + entryReason,
@@ -3881,7 +3855,7 @@ process_short_entries() =>
                     if not usdjpy_success_check
                         if show_entry_labels
                             label.new(x = bar_index, y = low, text = "⚠️ USDJPY Rate Fetch Failed\nTrade Skipped",
-                                      style = label.style_label_up, color = color.new(color.orange, 0),
+                                      style = label.style_label_up, color = col_status_warn,
                                       textcolor = color.white, size = size.normal)
                         continue
 
@@ -4143,10 +4117,6 @@ process_short_entries() =>
                     z.lastEntryBar := bar_index
                     z.active := false
                     z.primed := false  // Reset just in case
-                    z.mitigated := true
-                    z.inactiveReason := "MITIGATED:USED_FOR_ENTRY"
-                    array.set(supplyZones, i, z)
-                    db_markInactive(z.id, "MITIGATED:USED_FOR_ENTRY")
                     apply_zone_visual(z, false)
                     array.set(_last_global_short_entry_bar, 0, bar_index)
 
@@ -4582,7 +4552,7 @@ _controlLine(_lines, _activeFlags, __high, __low) =>
             float tolerance = pip_size * 0.1
             bool isCrossed = (__high >= lvlLow - tolerance and __low <= lvlLow + tolerance) or (__high >= lvlHigh - tolerance and __low <= lvlHigh + tolerance)
             if isActive and isCrossed
-                line.set_color(lineRef, color.new(color.purple, 0))
+                line.set_color(lineRef, col_status_warn)
                 if i < array.size(_activeFlags)
                     array.set(_activeFlags, i, false)
             else if isActive and (not isCrossed) and bar_index >= line.get_x1(lineRef)
@@ -4590,7 +4560,7 @@ _controlLine(_lines, _activeFlags, __high, __low) =>
         true  // Return value
 
 
-if isPvtLow and plotLiq
+if isPvtLow and showRawLiquidityLevels
     int  pBar  = bar_index - 1  // Middle candle of the 3-candle pattern
     float pLow = low[1]
     lowLine = line.new(x1 = pBar, y1 = pLow, x2 = bar_index, y2 = pLow,
@@ -4602,7 +4572,7 @@ if isPvtLow and plotLiq
     array.push(_lowLiqLines, lowLine)
     array.push(_lowLiqActive, true)
 
-if isPvtHigh and plotLiq
+if isPvtHigh and showRawLiquidityLevels
     int  pBar  = bar_index - 1  // Middle candle of the 3-candle pattern
     float pHigh = high[1]
     highLine = line.new(x1 = pBar, y1 = pHigh, x2 = bar_index, y2 = pHigh,extend = extend.none, color = pvtTopColor, style = pvtStyle, xloc = xloc.bar_index)
@@ -4613,7 +4583,7 @@ if isPvtHigh and plotLiq
     array.push(_highLiqLines, highLine)
     array.push(_highLiqActive, true)
 
-if plotLiq and barstate.isconfirmed
+if showRawLiquidityLevels and barstate.isconfirmed
     _controlLine(_lowLiqLines, _lowLiqActive, high, low)
     _controlLine(_highLiqLines, _highLiqActive, high, low)
 
@@ -4776,8 +4746,9 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             int oppCntInspector = inspectorZone.liquidityCandleCount
             int minCandles = useOneCandleLiquidity ? 1 : 2
             bool liqExistsBool = oppCntInspector >= minCandles
+            bool missingInducementInspector = isInspectorDemand ? na(inspectorZone.liqLowPrice) : na(inspectorZone.liqHighPrice)
 
-            liqExistsInspector := liqExistsBool ? "✓ Valid" : "✗ Invalid"
+            liqExistsInspector := liqExistsBool ? "✓ Valid" : (missingInducementInspector ? (isInspectorDemand ? "Waiting Inducement Low" : "Waiting Inducement High") : "Waiting Strong Leg")
 
             float sweepTol = syminfo.mintick * 20
             bool currentBarIndSweep = isInspectorDemand ? (low <= inspectorZone.liqLowPrice + sweepTol) : (high >= inspectorZone.liqHighPrice - sweepTol)
@@ -4855,7 +4826,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
 
         string gradeStr = (not na(inspectorZone) and not na(inspectorZone.grade)) ? inspectorZone.grade : "N/A"
         float scoreVal = (not na(inspectorZone) and not na(inspectorZone.score)) ? inspectorZone.score : 0.0
-        color gradeColor = scoreVal >= 80 ? color.lime : (scoreVal >= 60 ? color.yellow : color.red)
+        color gradeColor = scoreVal >= 80 ? col_status_good : (scoreVal >= 60 ? col_status_warn : col_status_bad)
 
         table.cell(zoneInspector, 0, 1, "Grade", text_color = color.rgb(200, 200, 200), bgcolor=color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = tbl_sz)
         table.cell(zoneInspector, 1, 1, gradeStr + " (" + str.tostring(scoreVal, "#") + ")", text_color=gradeColor, bgcolor=color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = tbl_sz)
@@ -4881,7 +4852,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         table.cell(zoneInspector, 1, 6, barsStrInspector, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = tbl_sz)
 
         table.cell(zoneInspector, 0, 7, "Liq Required", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = tbl_sz)
-        liqReqColor = liqRequired == "Yes" ? color.yellow : (liqRequired == "No" ? color.gray : color.rgb(200, 200, 200))
+        liqReqColor = liqRequired == "Yes" ? col_status_warn : (liqRequired == "No" ? col_status_muted : color.rgb(200, 200, 200))
         table.cell(zoneInspector, 1, 7, liqRequired, text_color = liqReqColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = tbl_sz)
 
         table.cell(zoneInspector, 0, 8, "Liquidity", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = tbl_sz)
@@ -4943,7 +4914,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
                 inspectorTooltip := str.replace(rawBreakdown, "]", "")
 
         table.cell(zoneInspector, 0, 19, "Reason", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = tbl_sz)
-        reasonColor = rejectionReasonInspector == "None" ? color.new(color.green, 0) : (rejectionReasonInspector != "N/A" ? color.new(color.orange, 0) : color.rgb(200, 200, 200))
+        reasonColor = rejectionReasonInspector == "None" ? col_status_good : (rejectionReasonInspector != "N/A" ? col_status_warn : color.rgb(200, 200, 200))
         table.cell(zoneInspector, 1, 19, inspectorReasonText, tooltip = inspectorTooltip, text_color = reasonColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = tbl_sz)
 
         bool showDebugLookupRows = foundInPool == "NOT_FOUND" or notFoundReason != "N/A"
@@ -4955,17 +4926,17 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
 
         if showDebugLookupRows
             table.cell(zoneInspector, 0, nextRow, "Manual Parsed ID", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-            parsedIdColor = manualParsedIdStr != "N/A" ? color.yellow : color.rgb(150, 150, 150)
+            parsedIdColor = manualParsedIdStr != "N/A" ? col_status_warn : col_status_muted
             table.cell(zoneInspector, 1, nextRow, manualParsedIdStr, text_color = parsedIdColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
             nextRow += 1
 
             table.cell(zoneInspector, 0, nextRow, "Found In", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-            foundInColor = foundInPool == "DEMAND_LIVE" ? color.green : (foundInPool == "SUPPLY_LIVE" ? color.red : (foundInPool == "ZONEDB_ONLY" ? color.yellow : color.rgb(150, 150, 150)))
+            foundInColor = foundInPool == "DEMAND_LIVE" ? col_label_demand : (foundInPool == "SUPPLY_LIVE" ? col_label_supply : (foundInPool == "ZONEDB_ONLY" ? col_status_warn : col_status_muted))
             table.cell(zoneInspector, 1, nextRow, foundInPool, text_color = foundInColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
             nextRow += 1
 
             table.cell(zoneInspector, 0, nextRow, "Not Found Reason", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-            notFoundColor = notFoundReason == "N/A" or notFoundReason == "empty_input" ? color.rgb(150, 150, 150) : color.orange
+            notFoundColor = notFoundReason == "N/A" or notFoundReason == "empty_input" ? col_status_muted : col_status_warn
             table.cell(zoneInspector, 1, nextRow, notFoundReason, text_color = notFoundColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
             nextRow += 1
 
@@ -4996,7 +4967,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         if not na(inducementPrice)
             inducementStr := str.tostring(inducementPrice, format.mintick) + " @ " + str.tostring(inducementBar)
         table.cell(zoneInspector, 0, nextRow, inducementLabel, text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-        inducementColor = inducementStr != "N/A" ? color.rgb(100, 200, 255) : color.rgb(150, 150, 150)
+        inducementColor = inducementStr != "N/A" ? liq_inducement_level_color : col_status_muted
         table.cell(zoneInspector, 1, nextRow, inducementStr, text_color = inducementColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
         nextRow += 1
 
@@ -5007,7 +4978,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         if not na(targetPrice)
             targetStr := str.tostring(targetPrice, format.mintick) + " @ " + str.tostring(targetBar)
         table.cell(zoneInspector, 0, nextRow, targetLabel, text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-        targetColor = targetStr != "N/A" ? color.new(color.purple, 0) : color.rgb(150, 150, 150)
+        targetColor = targetStr != "N/A" ? color.new(#9CA3AF, 0) : color.rgb(150, 150, 150)
         table.cell(zoneInspector, 1, nextRow, targetStr, text_color = targetColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
         nextRow += 1
 
@@ -5024,7 +4995,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             string seqStr = "Push:" + pushStr + " → Ind:" + indStr + seqStatus
 
             table.cell(zoneInspector, 0, nextRow, "Push→Ind", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-            seqColor = seqOK ? color.green : (na(pushBar) or na(indBar) ? color.rgb(150, 150, 150) : color.orange)
+            seqColor = seqOK ? col_status_good : (na(pushBar) or na(indBar) ? col_status_muted : col_status_warn)
             table.cell(zoneInspector, 1, nextRow, seqStr, text_color = seqColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
             nextRow += 1
 
@@ -5048,7 +5019,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             liqSweptStr := liqSwept ? "YES (DB)" : "NO (DB)"
 
         table.cell(zoneInspector, 0, nextRow, "Liq Swept", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-        liqSweptColor := liqSweptStr == "YES" ? color.green : (liqSweptStr == "NO" ? color.orange : color.rgb(150, 150, 150))
+        liqSweptColor := liqSweptStr == "YES" ? col_status_good : (liqSweptStr == "NO" ? col_status_warn : col_status_muted)
         table.cell(zoneInspector, 1, nextRow, liqSweptStr, text_color = liqSweptColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
         nextRow += 1
 
@@ -5062,20 +5033,20 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
 
         int sweep_to_touch_bars = (not na(inspectorZone) and not na(inspectorZone.liquiditySweptBarIndex) and not na(inspectorZone.lastTouchBar) and inspectorZone.lastTouchBar >= inspectorZone.liquiditySweptBarIndex) ? (inspectorZone.lastTouchBar - inspectorZone.liquiditySweptBarIndex) : na
         string sweepTouchStr = na(sweep_to_touch_bars) ? "N/A" : (str.tostring(sweep_to_touch_bars) + " bars")
-        color sweepTouchColor = na(sweep_to_touch_bars) ? color.gray : (sweep_to_touch_bars <= max_sweep_to_touch_bars ? color.rgb(0, 200, 100) : (sweep_to_touch_bars <= max_sweep_to_touch_bars * 2 ? color.rgb(255, 180, 0) : color.rgb(255, 80, 80)))
+        color sweepTouchColor = na(sweep_to_touch_bars) ? col_status_muted : (sweep_to_touch_bars <= max_sweep_to_touch_bars ? col_status_good : (sweep_to_touch_bars <= max_sweep_to_touch_bars * 2 ? col_status_warn : col_status_bad))
         table.cell(zoneInspector, 0, nextRow, "Sweep->Touch", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.black, 100), text_size = tbl_sz)
         table.cell(zoneInspector, 1, nextRow, sweepTouchStr, text_color = sweepTouchColor, bgcolor = color.new(color.black, 100), text_size = tbl_sz)
         nextRow += 1
 
         int peak_to_touch_bars = (not na(inspectorZone) and not na(inspectorZone.peakBarIndex) and not na(inspectorZone.lastTouchBar) and inspectorZone.lastTouchBar >= inspectorZone.peakBarIndex) ? (inspectorZone.lastTouchBar - inspectorZone.peakBarIndex) : na
         string peakTouchStr = na(peak_to_touch_bars) ? "N/A" : (str.tostring(peak_to_touch_bars) + " bars")
-        color peakTouchColor = na(peak_to_touch_bars) ? color.gray : (peak_to_touch_bars <= max_peak_to_touch_bars ? color.rgb(0, 200, 100) : (peak_to_touch_bars <= max_peak_to_touch_bars * 2 ? color.rgb(255, 180, 0) : color.rgb(255, 80, 80)))
+        color peakTouchColor = na(peak_to_touch_bars) ? col_status_muted : (peak_to_touch_bars <= max_peak_to_touch_bars ? col_status_good : (peak_to_touch_bars <= max_peak_to_touch_bars * 2 ? col_status_warn : col_status_bad))
         table.cell(zoneInspector, 0, nextRow, "Peak->Touch", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.black, 100), text_size = tbl_sz)
         table.cell(zoneInspector, 1, nextRow, peakTouchStr, text_color = peakTouchColor, bgcolor = color.new(color.black, 100), text_size = tbl_sz)
         nextRow += 1
 
         table.cell(zoneInspector, 0, nextRow, "Leg Candles", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-        legCandleColor = displayLegCount > 3 ? color.green : (displayLegCount > 0 ? color.orange : color.rgb(150, 150, 150))
+        legCandleColor = displayLegCount > 3 ? col_status_good : (displayLegCount > 0 ? col_status_warn : col_status_muted)
         table.cell(zoneInspector, 1, nextRow, legCandleStr, text_color = legCandleColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
         nextRow += 1
 
@@ -5085,22 +5056,22 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
 
         table.cell(zoneInspector, 0, nextRow, "Primed", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
         string primedStr = isPrimed ? "YES" : "NO"
-        color primedColor = isPrimed ? color.green : color.rgb(150, 150, 150)
+        color primedColor = isPrimed ? col_status_good : col_status_muted
         table.cell(zoneInspector, 1, nextRow, primedStr, text_color = primedColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
         nextRow += 1
 
         table.cell(zoneInspector, 0, nextRow, "Liq Source", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-        liqSourceColor = displayLiqSource == "ABSOLUTE_SCAN" ? color.green : color.rgb(150, 150, 150)
+        liqSourceColor = displayLiqSource == "ABSOLUTE_SCAN" ? col_status_good : col_status_muted
         table.cell(zoneInspector, 1, nextRow, displayLiqSource, text_color = liqSourceColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
         nextRow += 1
 
         table.cell(zoneInspector, 0, nextRow, "Zone Status", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-        statusColor = zoneStatus == "LIVE" ? color.green : (zoneStatus == "INACTIVE" ? color.orange : color.rgb(150, 150, 150))
+        statusColor = zoneStatus == "LIVE" ? col_status_good : (zoneStatus == "INACTIVE" ? col_status_warn : col_status_muted)
         table.cell(zoneInspector, 1, nextRow, zoneStatus, text_color = statusColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
         nextRow += 1
 
         table.cell(zoneInspector, 0, nextRow, "Inactive Reason", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
-        inactiveColor = zoneInactiveReason != "N/A" ? color.orange : color.rgb(150, 150, 150)
+        inactiveColor = zoneInactiveReason != "N/A" ? col_status_warn : col_status_muted
         table.cell(zoneInspector, 1, nextRow, zoneInactiveReason, text_color = inactiveColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
 
         if barstate.islastconfirmedhistory and not na(inspectorZone)
@@ -5110,7 +5081,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             if not na(indTime) and not na(inducementPrice)
                 string indFormat = (isInspectorDemand ? "📍 IND (L): " : "📍 IND (H): ") + str.tostring(inducementPrice, format.mintick) + " @ " + str.tostring(inducementBar)
                 if na(inspectorIndLabel)
-                    inspectorIndLabel := label.new(indTime, inducementPrice, indFormat, xloc=xloc.bar_time, style=label.style_label_up, color=color.new(color.orange, 20), textcolor=color.white, size=size.small)
+                    inspectorIndLabel := label.new(indTime, inducementPrice, indFormat, xloc=xloc.bar_time, style=label.style_label_up, color=color.new(#7A6A4D, 18), textcolor=col_label_text, size=size.small)
                 else
                     label.set_xy(inspectorIndLabel, indTime, inducementPrice)
                     label.set_text(inspectorIndLabel, indFormat)
@@ -5121,7 +5092,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             if not na(targetTime) and not na(targetPrice)
                 string tgtFormat = (isInspectorDemand ? "🎯 TARGET (H): " : "🎯 TARGET (L): ") + str.tostring(targetPrice, format.mintick) + " @ " + str.tostring(targetBar)
                 if na(inspectorTgtLabel)
-                    inspectorTgtLabel := label.new(targetTime, targetPrice, tgtFormat, xloc=xloc.bar_time, style=label.style_label_down, color=color.new(color.purple, 20), textcolor=color.white, size=size.small)
+                    inspectorTgtLabel := label.new(targetTime, targetPrice, tgtFormat, xloc=xloc.bar_time, style=label.style_label_down, color=color.new(#6B7280, 22), textcolor=col_label_text, size=size.small)
                 else
                     label.set_xy(inspectorTgtLabel, targetTime, targetPrice)
                     label.set_text(inspectorTgtLabel, tgtFormat)
@@ -5140,10 +5111,10 @@ else
 
 performanceTable := draw_performance_table(performanceTable)
 
-plot(strategy.position_size != 0 ? trade_tp1_price : na, "Trade TP Level", color = color.new(color.lime, 50), style = plot.style_linebr, linewidth = 2)
-plot(strategy.position_size != 0 ? trade_current_sl : na, "Trade SL Level", color = color.new(color.red, 50), style = plot.style_linebr, linewidth = 2)
-plot(strategy.position_size != 0 ? trade_entry_price : na, "Trade Entry", color = color.new(color.blue, 50), style = plot.style_linebr, linewidth = 1)
-plot(show_ema_context_line ? feature_ema_context : na, "EMA Context", color = color.new(color.blue, 0), linewidth = 2)
+plot(strategy.position_size != 0 ? trade_tp1_price : na, "Trade TP Level", color = color.new(col_status_good, 50), style = plot.style_linebr, linewidth = 2)
+plot(strategy.position_size != 0 ? trade_current_sl : na, "Trade SL Level", color = color.new(col_status_bad, 50), style = plot.style_linebr, linewidth = 2)
+plot(strategy.position_size != 0 ? trade_entry_price : na, "Trade Entry", color = color.new(col_status_info, 50), style = plot.style_linebr, linewidth = 1)
+plot(show_ema_context_line ? feature_ema_context : na, "EMA Context", color = color.new(#5F789D, 12), linewidth = 2)
 
 plot(plot_id, "W0: Zone ID", display = display.none)
 plot(plot_type, "W1: Zone Type", display = display.none)
@@ -5168,23 +5139,23 @@ plot(plot_liquidity_spread, "W17: Liquidity Spread", display = display.none)
 // PROP FIRM STATUS TABLE
 // ============================================================================
 if barstate.islast
-    var table pf_risk_table = table.new(position.bottom_right, 2, 5, bgcolor=color.new(color.black, 80), border_width=1)
+    var table pf_risk_table = table.new(position.bottom_left, 2, 5, bgcolor=color.new(color.black, 80), border_width=1)
 
     table.cell(pf_risk_table, 0, 0, "Daily DD",      text_color=color.white, text_size=size.small)
     table.cell(pf_risk_table, 1, 0, str.tostring(pf_current_day_dd_pct, "#.##") + "%",
-         text_color = pf_current_day_dd_pct >= daily_kill_pct * 0.75 ? color.red : color.lime, text_size=size.small)
+         text_color = pf_current_day_dd_pct >= daily_kill_pct * 0.75 ? col_status_bad : col_status_good, text_size=size.small)
 
     table.cell(pf_risk_table, 0, 1, "Total DD",      text_color=color.white, text_size=size.small)
     table.cell(pf_risk_table, 1, 1, str.tostring(pf_current_total_dd_pct, "#.##") + "%",
-         text_color = pf_current_total_dd_pct >= total_kill_pct * 0.75 ? color.red : color.lime, text_size=size.small)
+         text_color = pf_current_total_dd_pct >= total_kill_pct * 0.75 ? col_status_bad : col_status_good, text_size=size.small)
 
     table.cell(pf_risk_table, 0, 2, "Consec Losses", text_color=color.white, text_size=size.small)
     table.cell(pf_risk_table, 1, 2, str.tostring(pf_consecutive_losses),
-         text_color = pf_consecutive_losses >= consec_loss_kill - 1 ? color.red : color.lime, text_size=size.small)
+         text_color = pf_consecutive_losses >= consec_loss_kill - 1 ? col_status_bad : col_status_good, text_size=size.small)
 
     table.cell(pf_risk_table, 0, 3, "Trading",       text_color=color.white, text_size=size.small)
     table.cell(pf_risk_table, 1, 3, pf_trading_disabled ? "DISABLED" : "ENABLED",
-         text_color = pf_trading_disabled ? color.red : color.lime, text_size=size.small)
+         text_color = pf_trading_disabled ? col_status_bad : col_status_good, text_size=size.small)
 
     table.cell(pf_risk_table, 0, 4, "Risk/Trade",    text_color=color.white, text_size=size.small)
     table.cell(pf_risk_table, 1, 4, str.tostring(risk_pct, "#.#") + "%", text_color=color.white, text_size=size.small)
