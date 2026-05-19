@@ -46,10 +46,7 @@ strategy("Institutional Liquidity Protocol [Pro]",
      commission_type                 = strategy.commission.cash_per_order,
      commission_value                = 3.5,
      backtest_fill_limits_assumption = 1,
-     close_entries_rule              = "ANY",
-     max_labels_count                = 500,
-     max_boxes_count                 = 500,
-     max_lines_count                 = 500)
+     close_entries_rule              = "ANY")
 
 // ============================================================================
 // PROP FIRM RISK MANAGEMENT
@@ -2620,7 +2617,7 @@ is_preferred_continuation_zone(int baseIdx, bool isDemand) =>
 if barstate.isconfirmed and bar_index > 10
     bool demandContinuationCreated = false
     for contBaseIdx = 1 to formation_leg_scan_bars
-        if is_preferred_continuation_zone(contBaseIdx, true)
+        if is_preferred_continuation_zone(contBaseIdx, true) and not demandContinuationCreated
             int nextZoneId = global_zone_id_counter + 1
             if createZone(contBaseIdx, true, false, 1, 1, nextZoneId)
                 global_zone_id_counter := nextZoneId
@@ -3005,7 +3002,6 @@ if cached_demand_size > 0 and barstate.isconfirmed
                 z.leftZone := true
                 z.leftWithBearish := current_close < current_open
                 z.departureEndBarIndex := bar_index
-                array.set(demandZones, i, z)
 
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
@@ -3114,7 +3110,6 @@ if cached_supply_size > 0 and barstate.isconfirmed
             if supplyDisplacementContinues
                 z.leftZone := true
                 z.departureEndBarIndex := bar_index
-                array.set(supplyZones, i, z)
 
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
@@ -3192,9 +3187,9 @@ if supplySize > 0
 
             bool close_inside_supply = current_close >= z.bottom and current_close <= z.top
             bool close_above_zone     = current_close > z.top
-            bool wick_into_supply = z.leftZone and not na(z.departureEndBarIndex) and bar_index > z.departureEndBarIndex and current_high >= z.bottom
+            bool wick_above_zone = current_high > z.top
 
-            if close_inside_supply or close_above_zone or isTooOld or (invalidate_on_wick and wick_into_supply)
+            if close_inside_supply or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
                 remove_zone_all_arrays(false, i)
 
 if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isconfirmed
