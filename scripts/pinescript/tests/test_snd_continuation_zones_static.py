@@ -82,6 +82,14 @@ def main() -> None:
         raise AssertionError("Demand continuation zones must be attempted before simple displacement zones")
     if live_scan.index("if is_preferred_continuation_zone(contBaseIdx, false)") > live_scan.index("[supplyBaseIdx, supplyLegCandles]"):
         raise AssertionError("Supply continuation zones must be attempted before simple displacement zones")
+    demand_live_block = live_scan[
+        live_scan.index("bool demandContinuationCreated") :
+        live_scan.index("if barstate.isconfirmed and bar_index > 10", live_scan.index("bool demandContinuationCreated") + 1)
+    ]
+    if "if is_preferred_continuation_zone(contBaseIdx, true) and not demandContinuationCreated" in demand_live_block:
+        raise AssertionError("Demand continuation scan must allow multiple non-overlapping candidates in the same push")
+    if "if not demandContinuationCreated" not in demand_live_block:
+        raise AssertionError("Demand displacement fallback must still run only when no continuation zone was created")
     if historical_scan.index("if is_preferred_continuation_zone(displacementOffset, true)") > historical_scan.index("[histDemandBaseIdx, histDemandLegCandles]"):
         raise AssertionError("Historical demand continuation zones must be attempted before simple displacement zones")
     if historical_scan.index("if is_preferred_continuation_zone(displacementOffset, false)") > historical_scan.index("[histSupplyBaseIdx, histSupplyLegCandles]"):

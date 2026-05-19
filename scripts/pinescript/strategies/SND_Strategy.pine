@@ -46,7 +46,10 @@ strategy("Institutional Liquidity Protocol [Pro]",
      commission_type                 = strategy.commission.cash_per_order,
      commission_value                = 3.5,
      backtest_fill_limits_assumption = 1,
-     close_entries_rule              = "ANY")
+     close_entries_rule              = "ANY",
+     max_labels_count                = 500,
+     max_boxes_count                 = 500,
+     max_lines_count                 = 500)
 
 // ============================================================================
 // PROP FIRM RISK MANAGEMENT
@@ -178,7 +181,7 @@ structure_mode      = input.string("Relaxed (Wicks)", "structure_mode", options 
 formation_leg_wick_inclusion = input.bool(true, "Formation-Leg Wick Inclusion", group = "📐 Zone Detection")
 formation_leg_scan_bars = input.int(4, "Formation Leg Scan Bars", minval = 1, maxval = 6, group = "📐 Zone Detection")
 max_displacement_leg_bars = input.int(4, "max_displacement_leg_bars", minval = 1, maxval = 8, group = "📐 Zone Detection")
-gold_continuation_zones = input.bool(true, "gold_continuation_zones", group = "📐 Zone Detection")
+enable_continuation_zones = true
 prevent_duplicate_zones = input.bool(true, "prevent_duplicate_zones", group = "📐 Zone Detection")
 duplicate_zone_overlap_pct = input.float(40.0, "duplicate_zone_overlap_pct", minval = 0.0, maxval = 100.0, step = 5.0, group = "📐 Zone Detection")
 
@@ -2567,103 +2570,111 @@ deactivateOverlappingDemandZones(refLow, refHigh) =>
             if overlaps
                 deactivateDemandZone(k)
 
-is_gold_continuation_zone(int baseIdx, bool isDemand) =>
+is_continuation_zone(int baseIdx, bool isDemand) =>
     bool result = false
-    bool enabled = gold_continuation_zones and (is_gold or is_xpt)
+    bool enabled = enable_continuation_zones
     if enabled and baseIdx >= 1 and baseIdx + 1 <= bar_index
         float baseRange = high[baseIdx] - low[baseIdx]
         float baseBody = math.abs(close[baseIdx] - open[baseIdx])
-        bool compactBase = baseRange > syminfo.mintick and baseRange <= atr14 * 1.8 and baseBody <= baseRange * 0.65
-        bool validBaseSide = isDemand ? close[baseIdx] < open[baseIdx] : close[baseIdx] > open[baseIdx]
-        bool continuationApproach = isDemand ? close[baseIdx + 1] > open[baseIdx + 1] : close[baseIdx + 1] < open[baseIdx + 1]
-        bool reversalApproach = isDemand ? close[baseIdx + 1] < open[baseIdx + 1] : close[baseIdx + 1] > open[baseIdx + 1]
+        float baseBodyHigh = math.max(open[baseIdx], close[baseIdx])
+        float baseBodyLow = math.min(open[baseIdx], close[baseIdx])
+        float continuation_range_atr = 1.8
+        float continuation_max_body_pct = 0.85
+        bool compactBase = baseRange > syminfo.mintick and baseRange <= atr14 * continuation_range_atr and baseBody <= baseRange * continuation_max_body_pct
+        bool bearishBase = close[baseIdx] < open[baseIdx]
+        bool bullishBase = close[baseIdx] > open[baseIdx]
+        bool validBaseSide = isDemand ? bearishBase : bullishBase
+        bool contaminatedContinuation = false
         bool confirmsAway = false
         for confirmScan = 1 to formation_leg_scan_bars
             int confirmIdx = baseIdx - confirmScan
             if confirmIdx < 0
                 break
-            bool confirmCandle = isDemand ? close[confirmIdx] > open[confirmIdx] and close[confirmIdx] > high[baseIdx] : close[confirmIdx] < open[confirmIdx] and close[confirmIdx] < low[baseIdx]
+            bool closesAgainst = isDemand ? close[confirmIdx] < low[baseIdx] : close[confirmIdx] > high[baseIdx]
+            if closesAgainst
+                contaminatedContinuation := true
+                break
+            bool confirmCandle = isDemand ? close[confirmIdx] > open[confirmIdx] and close[confirmIdx] > baseBodyHigh : close[confirmIdx] < open[confirmIdx] and close[confirmIdx] < baseBodyLow
             if confirmCandle
                 confirmsAway := true
                 break
-        float priorBodyEdge = isDemand ? math.min(open[baseIdx + 1], close[baseIdx + 1]) : math.max(open[baseIdx + 1], close[baseIdx + 1])
-        bool shallowPullback = isDemand ? low[baseIdx] >= priorBodyEdge - atr14 * 0.25 : high[baseIdx] <= priorBodyEdge + atr14 * 0.25
-        bool reversalExtreme = isDemand ? low[baseIdx] <= low[baseIdx + 1] + atr14 * 0.25 : high[baseIdx] >= high[baseIdx + 1] - atr14 * 0.25
-        bool validApproach = (continuationApproach and shallowPullback) or (reversalApproach and reversalExtreme)
-        result := compactBase and validBaseSide and validApproach and confirmsAway
+        result := compactBase and validBaseSide and not contaminatedContinuation and confirmsAway
     result
 
-has_better_gold_continuation_base(int baseIdx, bool isDemand) =>
+has_better_continuation_base(int baseIdx, bool isDemand) =>
     bool better = false
     for scan = 1 to formation_leg_scan_bars
         int olderIdx = baseIdx + scan
-        if olderIdx + 1 <= bar_index and is_gold_continuation_zone(olderIdx, isDemand)
+        if olderIdx + 1 <= bar_index and is_continuation_zone(olderIdx, isDemand)
             bool overlapsOlder = not (high[olderIdx] < low[baseIdx] or low[olderIdx] > high[baseIdx])
             bool olderMoreDistal = isDemand ? low[olderIdx] < low[baseIdx] : high[olderIdx] > high[baseIdx]
             if overlapsOlder and olderMoreDistal
                 better := true
                 break
-        int newerIdx = baseIdx - scan
-        if newerIdx >= 1 and is_gold_continuation_zone(newerIdx, isDemand)
-            bool overlapsNewer = not (high[newerIdx] < low[baseIdx] or low[newerIdx] > high[baseIdx])
-            bool newerMoreDistal = isDemand ? low[newerIdx] < low[baseIdx] : high[newerIdx] > high[baseIdx]
-            if overlapsNewer and newerMoreDistal
-                better := true
-                break
     better
 
-is_preferred_gold_continuation_zone(int baseIdx, bool isDemand) =>
-    is_gold_continuation_zone(baseIdx, isDemand) and not has_better_gold_continuation_base(baseIdx, isDemand)
+is_preferred_continuation_zone(int baseIdx, bool isDemand) =>
+    is_continuation_zone(baseIdx, isDemand) and not has_better_continuation_base(baseIdx, isDemand)
 
 
 if barstate.isconfirmed and bar_index > 10
-    [demandBaseIdx, demandLegCandles] = findDisplacementBase(true, 0, max_displacement_leg_bars)
-    if not na(demandBaseIdx)
-        int nextZoneId = global_zone_id_counter + 1
-        if createZone(demandBaseIdx, true, false, 1, demandLegCandles, nextZoneId)
-            global_zone_id_counter := nextZoneId
-    if na(demandBaseIdx)
-        for contBaseIdx = 1 to formation_leg_scan_bars
-            if is_preferred_gold_continuation_zone(contBaseIdx, true)
-                int nextZoneId = global_zone_id_counter + 1
-                if createZone(contBaseIdx, true, false, 1, 1, nextZoneId)
-                    global_zone_id_counter := nextZoneId
+    bool demandContinuationCreated = false
+    for contBaseIdx = 1 to formation_leg_scan_bars
+        if is_preferred_continuation_zone(contBaseIdx, true)
+            int nextZoneId = global_zone_id_counter + 1
+            if createZone(contBaseIdx, true, false, 1, 1, nextZoneId)
+                global_zone_id_counter := nextZoneId
+                demandContinuationCreated := true
+    if not demandContinuationCreated
+        [demandBaseIdx, demandLegCandles] = findDisplacementBase(true, 0, max_displacement_leg_bars)
+        if not na(demandBaseIdx)
+            int nextZoneId = global_zone_id_counter + 1
+            if createZone(demandBaseIdx, true, false, 1, demandLegCandles, nextZoneId)
+                global_zone_id_counter := nextZoneId
 
 if barstate.isconfirmed and bar_index > 10
-    [supplyBaseIdx, supplyLegCandles] = findDisplacementBase(false, 0, max_displacement_leg_bars)
-    if not na(supplyBaseIdx)
-        int nextZoneId = global_zone_id_counter + 1
-        if createZone(supplyBaseIdx, false, false, 1, supplyLegCandles, nextZoneId)
-            global_zone_id_counter := nextZoneId
-    if na(supplyBaseIdx)
-        for contBaseIdx = 1 to formation_leg_scan_bars
-            if is_preferred_gold_continuation_zone(contBaseIdx, false)
-                int nextZoneId = global_zone_id_counter + 1
-                if createZone(contBaseIdx, false, false, 1, 1, nextZoneId)
-                    global_zone_id_counter := nextZoneId
+    bool supplyContinuationCreated = false
+    for contBaseIdx = 1 to formation_leg_scan_bars
+        if is_preferred_continuation_zone(contBaseIdx, false) and not supplyContinuationCreated
+            int nextZoneId = global_zone_id_counter + 1
+            if createZone(contBaseIdx, false, false, 1, 1, nextZoneId)
+                global_zone_id_counter := nextZoneId
+                supplyContinuationCreated := true
+    if not supplyContinuationCreated
+        [supplyBaseIdx, supplyLegCandles] = findDisplacementBase(false, 0, max_displacement_leg_bars)
+        if not na(supplyBaseIdx)
+            int nextZoneId = global_zone_id_counter + 1
+            if createZone(supplyBaseIdx, false, false, 1, supplyLegCandles, nextZoneId)
+                global_zone_id_counter := nextZoneId
 
 if barstate.isconfirmed and not initial_scan_done and bar_index > 50
     initial_scan_done := true
     max_scan = math.min(100, bar_index)
     for displacementOffset = 0 to max_scan
-        [histDemandBaseIdx, histDemandLegCandles] = findDisplacementBase(true, displacementOffset, max_displacement_leg_bars)
-        if not na(histDemandBaseIdx)
-            int nextZoneId = global_zone_id_counter + 1
-            if createZone(histDemandBaseIdx, true, true, 1, histDemandLegCandles, nextZoneId)
-                global_zone_id_counter := nextZoneId
-        if na(histDemandBaseIdx) and is_preferred_gold_continuation_zone(displacementOffset, true)
+        bool histDemandContinuationCreated = false
+        if is_preferred_continuation_zone(displacementOffset, true)
             int nextZoneId = global_zone_id_counter + 1
             if createZone(displacementOffset, true, true, 1, 1, nextZoneId)
                 global_zone_id_counter := nextZoneId
-        [histSupplyBaseIdx, histSupplyLegCandles] = findDisplacementBase(false, displacementOffset, max_displacement_leg_bars)
-        if not na(histSupplyBaseIdx)
-            int nextZoneId = global_zone_id_counter + 1
-            if createZone(histSupplyBaseIdx, false, true, 1, histSupplyLegCandles, nextZoneId)
-                global_zone_id_counter := nextZoneId
-        if na(histSupplyBaseIdx) and is_preferred_gold_continuation_zone(displacementOffset, false)
+                histDemandContinuationCreated := true
+        if not histDemandContinuationCreated
+            [histDemandBaseIdx, histDemandLegCandles] = findDisplacementBase(true, displacementOffset, max_displacement_leg_bars)
+            if not na(histDemandBaseIdx)
+                int nextZoneId = global_zone_id_counter + 1
+                if createZone(histDemandBaseIdx, true, true, 1, histDemandLegCandles, nextZoneId)
+                    global_zone_id_counter := nextZoneId
+        bool histSupplyContinuationCreated = false
+        if is_preferred_continuation_zone(displacementOffset, false)
             int nextZoneId = global_zone_id_counter + 1
             if createZone(displacementOffset, false, true, 1, 1, nextZoneId)
                 global_zone_id_counter := nextZoneId
+                histSupplyContinuationCreated := true
+        if not histSupplyContinuationCreated
+            [histSupplyBaseIdx, histSupplyLegCandles] = findDisplacementBase(false, displacementOffset, max_displacement_leg_bars)
+            if not na(histSupplyBaseIdx)
+                int nextZoneId = global_zone_id_counter + 1
+                if createZone(histSupplyBaseIdx, false, true, 1, histSupplyLegCandles, nextZoneId)
+                    global_zone_id_counter := nextZoneId
 
 isValidSwingForLiquidity(barOffset, isHigh) =>
 
@@ -2989,9 +3000,12 @@ if cached_demand_size > 0 and barstate.isconfirmed
 
             updateDemandLiquidityVisual(i)
 
-            if current_close > z.top and not z.leftZone
+            bool demandDisplacementContinues = current_close > z.top and close > open
+            if demandDisplacementContinues
                 z.leftZone := true
                 z.leftWithBearish := current_close < current_open
+                z.departureEndBarIndex := bar_index
+                array.set(demandZones, i, z)
 
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
@@ -3003,8 +3017,10 @@ if cached_demand_size > 0 and barstate.isconfirmed
                 bool wicks_into_zone = low <= z.top and low >= z.bottom
 
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and high > z.structureSweepLevel
+                bool demandProofPending = not z.targetSwept
+                bool immediateBearishReturn = not na(z.departureEndBarIndex) and bar_index == z.departureEndBarIndex + 1 and close < open and demandProofPending and (closes_inside or wicks_into_zone or breaches_zone) and not current_bar_sweeping
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone)
+                if is_future_bar and z.leftZone and demandProofPending and (closes_inside or wicks_into_zone or breaches_zone)
                     int touchBarNow = bar_index
                     z.lastTouchBar := touchBarNow
                     z.wasTouched := true
@@ -3039,8 +3055,8 @@ if cached_demand_size > 0 and barstate.isconfirmed
                         array.set(demandZones, i, z)
                         db_updateZoneLiquidity(z)
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
-                    invalidateDemandZone(i, "ENTRY_BLOCKED:RETURN_BEFORE_PROOF")
+                if immediateBearishReturn
+                    invalidateDemandZone(i, "SETUP_INVALID_DEMAND_IMMEDIATE_RETURN_BEFORE_TARGET")
 
 if cached_supply_size > 0 and barstate.isconfirmed
     current_close = close
@@ -3094,8 +3110,11 @@ if cached_supply_size > 0 and barstate.isconfirmed
 
             updateSupplyLiquidityVisual(i)
 
-            if current_close < z.bottom and not z.leftZone
+            bool supplyDisplacementContinues = current_close < z.bottom and close < open
+            if supplyDisplacementContinues
                 z.leftZone := true
+                z.departureEndBarIndex := bar_index
+                array.set(supplyZones, i, z)
 
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
@@ -3107,8 +3126,10 @@ if cached_supply_size > 0 and barstate.isconfirmed
                 bool wicks_into_zone = high >= z.bottom and high <= z.top
 
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and low < z.structureSweepLevel
+                bool supplyProofPending = not z.targetSwept
+                bool immediateBullishReturn = not na(z.departureEndBarIndex) and bar_index == z.departureEndBarIndex + 1 and close > open and supplyProofPending and (closes_inside or wicks_into_zone or breaches_zone) and not current_bar_sweeping
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone)
+                if is_future_bar and z.leftZone and supplyProofPending and (closes_inside or wicks_into_zone or breaches_zone)
                     z.lastTouchBar := bar_index
                     z.wasTouched := true
                     z.touchedPreSweep := true
@@ -3122,7 +3143,10 @@ if cached_supply_size > 0 and barstate.isconfirmed
                         array.set(supplyZones, i, z)
                         db_updateZoneLiquidity(z)
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
+                if immediateBullishReturn
+                    invalidateSupplyZone(i, "SETUP_INVALID_SUPPLY_IMMEDIATE_RETURN_BEFORE_TARGET")
+
+                if not immediateBullishReturn and is_future_bar and z.leftZone and supplyProofPending and (closes_inside or wicks_into_zone or breaches_zone) and not current_bar_sweeping
                     invalidateSupplyZone(i, "ENTRY_BLOCKED:RETURN_BEFORE_PROOF")
 
 int demandSize = array.size(demandZones)
@@ -3168,9 +3192,9 @@ if supplySize > 0
 
             bool close_inside_supply = current_close >= z.bottom and current_close <= z.top
             bool close_above_zone     = current_close > z.top
-            bool wick_above_zone = current_high > z.top
+            bool wick_into_supply = z.leftZone and not na(z.departureEndBarIndex) and bar_index > z.departureEndBarIndex and current_high >= z.bottom
 
-            if close_inside_supply or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
+            if close_inside_supply or close_above_zone or isTooOld or (invalidate_on_wick and wick_into_supply)
                 remove_zone_all_arrays(false, i)
 
 if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isconfirmed
