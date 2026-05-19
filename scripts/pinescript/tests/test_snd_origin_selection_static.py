@@ -50,8 +50,6 @@ def main() -> None:
                 "proceed_creation := proceed_creation and not alreadyUsed",
                 "createRejectReason := REJECTED_OLDER_ORIGIN_IN_SAME_DISPLACEMENT",
                 "int legIdx = originIdx - legScan",
-                "if legBullish and legLow < zBottom",
-                "zBottom := legLow",
                 "if legBearish and legHigh > zTop",
                 "zTop := legHigh",
                 "REJECTED_OLDER_ORIGIN_IN_SAME_DISPLACEMENT",
@@ -84,6 +82,8 @@ def main() -> None:
         _forbid(
             create_zone,
             [
+                "if legBullish and legLow < zBottom",
+                "zBottom := legLow",
                 "zTop := clusterHigh",
                 "zBottom := clusterLow",
                 "int maxDepartureWickScan = 4",

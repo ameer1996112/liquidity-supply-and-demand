@@ -158,6 +158,7 @@ min_body_perc        = input.float(52.0, "min_body_perc", minval = 0, maxval = 1
 structure_mode      = input.string("Relaxed (Wicks)", "structure_mode", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
 formation_leg_wick_inclusion = input.bool(true, "Formation-Leg Wick Inclusion", group = "📐 Zone Detection")
 formation_leg_scan_bars = input.int(4, "Formation Leg Scan Bars", minval = 1, maxval = 6, group = "📐 Zone Detection")
+max_displacement_leg_bars = input.int(4, "max_displacement_leg_bars", minval = 1, maxval = 8, group = "📐 Zone Detection")
 enable_continuation_zones = true
 const float MAX_BASE_RANGE_ATR_FOREX = 1.2
 const float MAX_BASE_RANGE_ATR_WIDE_MARKET = 1.8
@@ -1684,7 +1685,26 @@ resolve_canonical_origin(int displacementStartIdx, bool isDemand) =>
                     break
     result
 
+findDisplacementBase(bool isDemand, int startOffset, int maxLegBars) =>
+    int baseIdx = na
+    int legCount = 0
+    for leg = 1 to maxLegBars
+        int displacementIdx = startOffset + leg - 1
+        int candidateBaseIdx = startOffset + leg
+        if candidateBaseIdx >= bar_index or displacementIdx >= bar_index
+            break
+        bool displacementOk = isDemand ? Utils.is_bullish(close[displacementIdx], open[displacementIdx]) : Utils.is_bearish(close[displacementIdx], open[displacementIdx])
+        bool baseOk = isDemand ? Utils.is_bearish(close[candidateBaseIdx], open[candidateBaseIdx]) : Utils.is_bullish(close[candidateBaseIdx], open[candidateBaseIdx])
+        if not displacementOk
+            break
+        if baseOk
+            baseIdx := candidateBaseIdx
+            legCount := leg
+            break
+    [baseIdx, legCount]
+
 createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID) =>
+    bool created = false
     baseBarIdx = bar_index - baseIdx
 
     int baseTime = time[baseIdx]
@@ -1883,8 +1903,6 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                     if isDemand
                         if legBearish and not legNeutral
                             break
-                        if legBullish and legLow < zBottom
-                            zBottom := legLow
                     else
                         if legBullish and not legNeutral
                             break
@@ -1974,10 +1992,13 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                     array.unshift(demandZones, z)
                     db_upsertZone(z, "DEMAND")
                     trimZoneArrays(true)
+                    created := true
                 else
                     array.unshift(supplyZones, z)
                     db_upsertZone(z, "SUPPLY")
                     trimZoneArrays(false)
+                    created := true
+    created
 
 remove_zone_all_arrays(bool isDemand, int idx) =>
     if isDemand
@@ -2562,102 +2583,53 @@ is_preferred_continuation_zone(int baseIdx, bool isDemand) =>
 
 
 if barstate.isconfirmed and bar_index > 10
-    for contBaseIdx = 1 to formation_leg_scan_bars
-        if is_preferred_continuation_zone(contBaseIdx, true)
-            baseBarIdx = bar_index - contBaseIdx
-            if not is_base_bar_used(baseBarIdx, used_demand_base_times)
-                global_zone_id_counter := global_zone_id_counter + 1
-                createZone(contBaseIdx, true, false, 1, 1, global_zone_id_counter)
-    int demandBaseIdx = na
-    int demandLegCandles = na
-    // [demandBaseIdx, demandLegCandles]
-    if Utils.is_bullish(close, open) and Utils.is_bullish(close[1], open[1]) and Utils.is_bullish(close[2], open[2]) and Utils.is_bearish(close[3], open[3])
-        demandBaseIdx := 3
-        demandLegCandles := 3
-    else if Utils.is_bullish(close, open) and Utils.is_bullish(close[1], open[1]) and Utils.is_bearish(close[2], open[2])
-        demandBaseIdx := 2
-        demandLegCandles := 2
-    else if Utils.is_bullish(close, open) and Utils.is_bearish(close[1], open[1])
-        demandBaseIdx := 1
-        demandLegCandles := 1
+    [demandBaseIdx, demandLegCandles] = findDisplacementBase(true, 0, max_displacement_leg_bars)
     if not na(demandBaseIdx)
-        baseBarIdx = bar_index - demandBaseIdx
-        if not is_base_bar_used(baseBarIdx, used_demand_base_times)
-            global_zone_id_counter := global_zone_id_counter + 1
-            createZone(demandBaseIdx, true, false, 1, demandLegCandles, global_zone_id_counter)
+        int nextZoneId = global_zone_id_counter + 1
+        if createZone(demandBaseIdx, true, false, 1, demandLegCandles, nextZoneId)
+            global_zone_id_counter := nextZoneId
+    if na(demandBaseIdx)
+        for contBaseIdx = 1 to formation_leg_scan_bars
+            if is_preferred_continuation_zone(contBaseIdx, true)
+                int nextZoneId = global_zone_id_counter + 1
+                if createZone(contBaseIdx, true, false, 1, 1, nextZoneId)
+                    global_zone_id_counter := nextZoneId
 
 if barstate.isconfirmed and bar_index > 10
-    for contBaseIdx = 1 to formation_leg_scan_bars
-        if is_preferred_continuation_zone(contBaseIdx, false)
-            baseBarIdx = bar_index - contBaseIdx
-            if not is_base_bar_used(baseBarIdx, used_supply_base_times)
-                global_zone_id_counter := global_zone_id_counter + 1
-                createZone(contBaseIdx, false, false, 1, 1, global_zone_id_counter)
-    int supplyBaseIdx = na
-    int supplyLegCandles = na
-    // [supplyBaseIdx, supplyLegCandles]
-    if Utils.is_bearish(close, open) and Utils.is_bearish(close[1], open[1]) and Utils.is_bearish(close[2], open[2]) and Utils.is_bullish(close[3], open[3])
-        supplyBaseIdx := 3
-        supplyLegCandles := 3
-    else if Utils.is_bearish(close, open) and Utils.is_bearish(close[1], open[1]) and Utils.is_bullish(close[2], open[2])
-        supplyBaseIdx := 2
-        supplyLegCandles := 2
-    else if Utils.is_bearish(close, open) and Utils.is_bullish(close[1], open[1])
-        supplyBaseIdx := 1
-        supplyLegCandles := 1
+    [supplyBaseIdx, supplyLegCandles] = findDisplacementBase(false, 0, max_displacement_leg_bars)
     if not na(supplyBaseIdx)
-        baseBarIdx = bar_index - supplyBaseIdx
-        if not is_base_bar_used(baseBarIdx, used_supply_base_times)
-            global_zone_id_counter := global_zone_id_counter + 1
-            createZone(supplyBaseIdx, false, false, 1, supplyLegCandles, global_zone_id_counter)
+        int nextZoneId = global_zone_id_counter + 1
+        if createZone(supplyBaseIdx, false, false, 1, supplyLegCandles, nextZoneId)
+            global_zone_id_counter := nextZoneId
+    if na(supplyBaseIdx)
+        for contBaseIdx = 1 to formation_leg_scan_bars
+            if is_preferred_continuation_zone(contBaseIdx, false)
+                int nextZoneId = global_zone_id_counter + 1
+                if createZone(contBaseIdx, false, false, 1, 1, nextZoneId)
+                    global_zone_id_counter := nextZoneId
 
 if barstate.isconfirmed and not initial_scan_done and bar_index > 50
     initial_scan_done := true
     max_scan = math.min(100, bar_index)
-    for i = 2 to max_scan
-        int displacementOffset = i
-        baseBarIdxDemand = bar_index - i
-        if is_preferred_continuation_zone(displacementOffset, true)
-            if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
-                global_zone_id_counter := global_zone_id_counter + 1
-                createZone(i, true, true, 1, 1, global_zone_id_counter)
-        int histDemandBaseIdx = na
-        int histDemandLegCandles = na
-        // [histDemandBaseIdx, histDemandLegCandles]
-        if i >= 3 and Utils.is_bearish(close[i], open[i]) and Utils.is_bullish(close[i - 1], open[i - 1]) and Utils.is_bullish(close[i - 2], open[i - 2]) and Utils.is_bullish(close[i - 3], open[i - 3])
-            histDemandBaseIdx := i
-            histDemandLegCandles := 3
-        else if Utils.is_bearish(close[i], open[i]) and Utils.is_bullish(close[i - 1], open[i - 1]) and Utils.is_bullish(close[i - 2], open[i - 2])
-            histDemandBaseIdx := i
-            histDemandLegCandles := 2
-        else if Utils.is_bearish(close[i], open[i]) and Utils.is_bullish(close[i - 1], open[i - 1])
-            histDemandBaseIdx := i
-            histDemandLegCandles := 1
+    for displacementOffset = 0 to max_scan
+        [histDemandBaseIdx, histDemandLegCandles] = findDisplacementBase(true, displacementOffset, max_displacement_leg_bars)
         if not na(histDemandBaseIdx)
-            if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
-                global_zone_id_counter := global_zone_id_counter + 1
-                createZone(histDemandBaseIdx, true, true, 1, histDemandLegCandles, global_zone_id_counter)
-        baseBarIdxSupply = bar_index - i
-        if is_preferred_continuation_zone(displacementOffset, false)
-            if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
-                global_zone_id_counter := global_zone_id_counter + 1
-                createZone(i, false, true, 1, 1, global_zone_id_counter)
-        int histSupplyBaseIdx = na
-        int histSupplyLegCandles = na
-        // [histSupplyBaseIdx, histSupplyLegCandles]
-        if i >= 3 and Utils.is_bullish(close[i], open[i]) and Utils.is_bearish(close[i - 1], open[i - 1]) and Utils.is_bearish(close[i - 2], open[i - 2]) and Utils.is_bearish(close[i - 3], open[i - 3])
-            histSupplyBaseIdx := i
-            histSupplyLegCandles := 3
-        else if Utils.is_bullish(close[i], open[i]) and Utils.is_bearish(close[i - 1], open[i - 1]) and Utils.is_bearish(close[i - 2], open[i - 2])
-            histSupplyBaseIdx := i
-            histSupplyLegCandles := 2
-        else if Utils.is_bullish(close[i], open[i]) and Utils.is_bearish(close[i - 1], open[i - 1])
-            histSupplyBaseIdx := i
-            histSupplyLegCandles := 1
+            int nextZoneId = global_zone_id_counter + 1
+            if createZone(histDemandBaseIdx, true, true, 1, histDemandLegCandles, nextZoneId)
+                global_zone_id_counter := nextZoneId
+        if na(histDemandBaseIdx) and is_preferred_continuation_zone(displacementOffset, true)
+            int nextZoneId = global_zone_id_counter + 1
+            if createZone(displacementOffset, true, true, 1, 1, nextZoneId)
+                global_zone_id_counter := nextZoneId
+        [histSupplyBaseIdx, histSupplyLegCandles] = findDisplacementBase(false, displacementOffset, max_displacement_leg_bars)
         if not na(histSupplyBaseIdx)
-            if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
-                global_zone_id_counter := global_zone_id_counter + 1
-                createZone(histSupplyBaseIdx, false, true, 1, histSupplyLegCandles, global_zone_id_counter)
+            int nextZoneId = global_zone_id_counter + 1
+            if createZone(histSupplyBaseIdx, false, true, 1, histSupplyLegCandles, nextZoneId)
+                global_zone_id_counter := nextZoneId
+        if na(histSupplyBaseIdx) and is_preferred_continuation_zone(displacementOffset, false)
+            int nextZoneId = global_zone_id_counter + 1
+            if createZone(displacementOffset, false, true, 1, 1, nextZoneId)
+                global_zone_id_counter := nextZoneId
 
 isValidSwingForLiquidity(barOffset, isHigh) =>
 
