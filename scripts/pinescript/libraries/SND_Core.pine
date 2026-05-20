@@ -27,6 +27,16 @@ export type Zone
     bool  isHistorical
     int   startTime
 
+    // Lifecycle state machine
+    int   state
+    string stateReason
+    int   originBarIndex
+    int   departureEndBarIndex
+    int   firstInvalidBarIndex
+    int   liquiditySwingBarIndex
+    int   structureBreakBarIndex
+    int   entryEligibleBarIndex
+
     // Liquidity
     float liquidityPrice
     int   liquidityBarIndex
@@ -100,6 +110,8 @@ export type ZoneDBEntry
     int   lastUpdateBar
     bool  active
     string inactiveReason    // "max_pruned", "removed", "mitigated", "invalidated"
+    int   state
+    string stateReason
     // Copy of key liquidity fields for inspector display
     float liqLowPrice
     int   liqLowBar
