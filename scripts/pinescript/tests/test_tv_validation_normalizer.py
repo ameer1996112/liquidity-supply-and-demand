@@ -12,7 +12,7 @@ def main() -> None:
             "study": "S&D Pro",
         },
         {
-            "id": "box-2",
+            "id": 2,
             "top": 212.900,
             "bottom": 212.880,
             "left_time": "2026-05-20T12:30:00+03:00",
@@ -22,7 +22,7 @@ def main() -> None:
     ]
     raw_labels = [
         {"text": " S-19396 ", "boxId": "box-1", "study": "S&D Pro"},
-        {"text": "D-13856", "boxId": "box-2", "study": "Zones Liq S/D v23 - Myrtille"},
+        {"text": "D-13856", "boxId": 2, "study": "Zones Liq S/D v23 - Myrtille"},
     ]
 
     zones = normalize_zones(raw_boxes=raw_boxes, raw_labels=raw_labels)
@@ -31,7 +31,34 @@ def main() -> None:
     assert zones[0].side == "supply"
     assert zones[0].label == "S-19396"
     assert zones[1].side == "demand"
+    assert zones[1].label == "D-13856"
     assert zones[1].left_time == "2026-05-20T12:30:00+03:00"
+
+    numeric_time_zones = normalize_zones(
+        raw_boxes=[
+            {
+                "id": "numeric-time",
+                "top": 11,
+                "bottom": 10,
+                "leftTime": 1770000000,
+                "rightTime": 1770000300,
+                "study": "S&D Pro",
+            }
+        ],
+        raw_labels=[{"text": "D-1", "boxId": "numeric-time", "study": "S&D Pro"}],
+    )
+    assert numeric_time_zones[0].left_time == "1770000000"
+    assert numeric_time_zones[0].right_time == "1770000300"
+
+    try:
+        normalize_zones(
+            raw_boxes=[{"id": "missing-top", "bottom": 10, "study": "S&D Pro"}],
+            raw_labels=[],
+        )
+    except ValueError as exc:
+        assert "top" in str(exc)
+    else:
+        raise AssertionError("missing top coordinate should fail loudly")
 
     print("TradingView validation normalizer contract passed")
 
