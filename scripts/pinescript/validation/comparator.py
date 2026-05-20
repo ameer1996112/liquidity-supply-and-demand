@@ -24,16 +24,17 @@ def _candidate_score(
     expected: Zone,
     actual: Zone,
     tolerance: float,
-) -> tuple[int, float] | None:
+) -> tuple[int, int, float] | None:
+    side_rank = 0 if expected.side == actual.side else 1
     if expected.label and actual.label and expected.label == actual.label:
-        return 0, _edge_distance(expected, actual)
+        return side_rank, 0, _edge_distance(expected, actual)
 
     top_near = _price_close(expected.top, actual.top, tolerance * 4)
     bottom_near = _price_close(expected.bottom, actual.bottom, tolerance * 4)
     if top_near and bottom_near:
-        return 1, _edge_distance(expected, actual)
+        return side_rank, 1, _edge_distance(expected, actual)
     if top_near or bottom_near:
-        return 2, _edge_distance(expected, actual)
+        return side_rank, 2, _edge_distance(expected, actual)
     return None
 
 
@@ -43,7 +44,7 @@ def _find_match(
     used_actual: set[int],
     tolerance: float,
 ) -> tuple[int, Zone] | None:
-    best_match: tuple[tuple[int, float], int, Zone] | None = None
+    best_match: tuple[tuple[int, int, float], int, Zone] | None = None
     for idx, actual in enumerate(actual_zones):
         if idx in used_actual:
             continue

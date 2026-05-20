@@ -78,11 +78,31 @@ def test_wrong_side_uses_matching_actual_without_missing_or_extra() -> None:
     assert not result.passed
 
 
+def test_same_side_candidate_wins_over_earlier_wrong_side_candidate() -> None:
+    expected = [
+        Zone("manual", "demand", 212.900, 212.880, None, None, "D-13856"),
+        Zone("manual", "supply", 212.900, 212.880, None, None, "S-overlap"),
+    ]
+    actual = [
+        Zone("S&D Pro", "supply", 212.900, 212.880, None, None, "D-13856"),
+        Zone("S&D Pro", "demand", 212.900, 212.880, None, None, "D-13856"),
+    ]
+
+    result = compare_zones(_scenario(), expected_zones=expected, actual_zones=actual)
+    kinds = [mismatch.kind for mismatch in result.mismatches]
+
+    assert result.passed
+    assert kinds == []
+    assert "wrong_side" not in kinds
+    assert "extra_unexpected_zone" not in kinds
+
+
 def main() -> None:
     test_comparator_reports_wrong_low_and_extra_zone()
     test_comparator_clean_compare_passes()
     test_reversed_actual_order_chooses_best_unlabeled_fallback_match()
     test_wrong_side_uses_matching_actual_without_missing_or_extra()
+    test_same_side_candidate_wins_over_earlier_wrong_side_candidate()
 
     print("TradingView validation comparator contract passed")
 
