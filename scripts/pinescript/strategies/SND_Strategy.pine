@@ -38,7 +38,7 @@ strategy("Institutional Liquidity Protocol [Pro]",
      default_qty_value               = 100,
      pyramiding                      = 0,
      process_orders_on_close         = true,
-     calc_on_every_tick              = false,
+     calc_on_every_tick              = true,
      margin_long                     = 1,
      margin_short                    = 1,
      slippage                        = 2,
@@ -1184,14 +1184,37 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
 
         if maxOff >= 0
             for off = 0 to maxOff
-                if Core.is_makuchaku_pvt_low(low, off)
+                bool isPivotLow = low[off + 1] < low[off] and low[off + 1] < low[off + 2]
+                if isPivotLow
                     float pLow = low[off+1]
                     int pBar = bar_index - (off + 1)
 
                     if pBar > z.createdBarIndex
                         int pivot_offset = off + 1  // The actual pivot is at off+1
                         int validation_lookback = 100
-                        bool isValidLiquidity = Core.validate_demand_liquidity(low, high, pivot_offset, validation_lookback, true)
+                        bool isValidLiquidity = false
+                        if not na(pivot_offset) and pivot_offset >= 0 and validation_lookback > 0
+                            float pivotLowPrice = low[pivot_offset]
+                            int scanStart = pivot_offset + 1
+                            int scanEnd = math.min(pivot_offset + validation_lookback, 500)
+                            for liqScan = scanStart to scanEnd
+                                if liqScan + 2 <= 500
+                                    bool previousPivotHigh = high[liqScan + 1] > high[liqScan] and high[liqScan + 1] > high[liqScan + 2]
+                                    if previousPivotHigh
+                                        float previousHighPrice = high[liqScan + 1]
+                                        if pivotLowPrice < previousHighPrice
+                                            isValidLiquidity := true
+                                            break
+                            if not isValidLiquidity
+                                for liqScan = scanStart to scanEnd
+                                    if liqScan + 1 <= 500
+                                        float candleHigh = high[liqScan]
+                                        float candleLow = low[liqScan]
+                                        float candleRange = candleHigh - candleLow
+                                        if candleRange > 0 and high[liqScan] > high[liqScan + 1] and high[liqScan] > high[liqScan - 1]
+                                            if pivotLowPrice < high[liqScan]
+                                                isValidLiquidity := true
+                                                break
 
                         if isValidLiquidity
                             bool isValidLocation = false
@@ -1301,14 +1324,37 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
 
         if maxOff >= 0
             for off = 0 to maxOff
-                if Core.is_makuchaku_pvt_high(high, off)
+                bool isPivotHigh = high[off + 1] > high[off] and high[off + 1] > high[off + 2]
+                if isPivotHigh
                     float pHigh = high[off+1]
                     int pBar = bar_index - (off + 1)
 
                     if pBar > z.createdBarIndex
                         int pivot_offset = off + 1  // The actual pivot is at off+1
                         int validation_lookback = 100
-                        bool isValidLiquidity = Core.validate_supply_liquidity(high, low, pivot_offset, validation_lookback, true)
+                        bool isValidLiquidity = false
+                        if not na(pivot_offset) and pivot_offset >= 0 and validation_lookback > 0
+                            float pivotHighPrice = high[pivot_offset]
+                            int scanStart = pivot_offset + 1
+                            int scanEnd = math.min(pivot_offset + validation_lookback, 500)
+                            for liqScan = scanStart to scanEnd
+                                if liqScan + 2 <= 500
+                                    bool previousPivotLow = low[liqScan + 1] < low[liqScan] and low[liqScan + 1] < low[liqScan + 2]
+                                    if previousPivotLow
+                                        float previousLowPrice = low[liqScan + 1]
+                                        if pivotHighPrice > previousLowPrice
+                                            isValidLiquidity := true
+                                            break
+                            if not isValidLiquidity
+                                for liqScan = scanStart to scanEnd
+                                    if liqScan + 1 <= 500
+                                        float candleHigh = high[liqScan]
+                                        float candleLow = low[liqScan]
+                                        float candleRange = candleHigh - candleLow
+                                        if candleRange > 0 and low[liqScan] < low[liqScan + 1] and low[liqScan] < low[liqScan - 1]
+                                            if pivotHighPrice > low[liqScan]
+                                                isValidLiquidity := true
+                                                break
 
                         if isValidLiquidity
                             bool isValidLocation = false
@@ -1537,6 +1583,27 @@ zone_display_distance(Core.Zone z, bool isDemand) =>
 zone_is_relevant_visual(Core.Zone z, bool isDemand) =>
     not show_relevant_zones_only or relevant_zone_atr_distance <= 0.0 or atr14 <= 0.0 or zone_display_distance(z, isDemand) <= atr14 * relevant_zone_atr_distance
 
+delete_zone_visual_objects(Core.Zone z, bool isDemand) =>
+    if not na(z.boxId)
+        box.delete(z.boxId)
+        z.boxId := na
+    if not na(z.connectorLine)
+        line.delete(z.connectorLine)
+        z.connectorLine := na
+    if not na(z.targetLine)
+        line.delete(z.targetLine)
+        z.targetLine := na
+    if not na(z.inducementHLine)
+        line.delete(z.inducementHLine)
+        z.inducementHLine := na
+    if not na(z.targetHLine)
+        line.delete(z.targetHLine)
+        z.targetHLine := na
+    if not na(z.idLabel)
+        label.delete(z.idLabel)
+        z.idLabel := na
+    z
+
 zone_should_show_visual(Core.Zone z, bool isDemand) =>
     bool invalidOrRejected = zone_is_invalid_or_rejected(z)
     bool entryUsedArchive = not na(z.lastEntryBar) and not invalidOrRejected
@@ -1549,8 +1616,8 @@ apply_zone_visual(Core.Zone z, bool isDemand) =>
     bool usedOrMitigated = zone_is_used_or_mitigated(z)
     bool invalidOrRejected = zone_is_invalid_or_rejected(z)
     bool entryUsedArchive = not na(z.lastEntryBar) and not invalidOrRejected
-    if not na(z.boxId)
-        if visible
+    if visible
+        if not na(z.boxId)
             color bgColor = isDemand ? col_demand_bg : col_supply_bg
             color borderColor = isDemand ? col_demand_border : col_supply_border
             int borderWidth = z.isAccuracy ? 2 : 1
@@ -1573,19 +1640,22 @@ apply_zone_visual(Core.Zone z, bool isDemand) =>
             box.set_bgcolor(z.boxId, bgColor)
             box.set_border_color(z.boxId, borderColor)
             box.set_border_width(z.boxId, borderWidth)
-        else
-            box.set_bgcolor(z.boxId, col_hidden_visual)
-            box.set_border_color(z.boxId, col_hidden_visual)
-            box.set_border_width(z.boxId, 1)
-    if not na(z.idLabel)
-        if visible
+        if not na(z.idLabel)
             color labelColor = invalidOrRejected or (usedOrMitigated and not entryUsedArchive) ? col_used_zone_border : (z.isAccuracy ? (isDemand ? col_label_acc_demand : col_label_acc_supply) : (isDemand ? col_label_demand : col_label_supply))
             label.set_color(z.idLabel, labelColor)
             label.set_textcolor(z.idLabel, col_label_text)
+    else
+        if invalidOrRejected or usedOrMitigated
+            delete_zone_visual_objects(z, isDemand)
         else
-            label.set_text(z.idLabel, "")
-            label.set_color(z.idLabel, col_hidden_visual)
-            label.set_textcolor(z.idLabel, col_hidden_visual)
+            if not na(z.boxId)
+                box.set_bgcolor(z.boxId, col_hidden_visual)
+                box.set_border_color(z.boxId, col_hidden_visual)
+                box.set_border_width(z.boxId, 1)
+            if not na(z.idLabel)
+                label.set_text(z.idLabel, "")
+                label.set_color(z.idLabel, col_hidden_visual)
+                label.set_textcolor(z.idLabel, col_hidden_visual)
     visible
 
 zone_overlap_pct(float topA, float bottomA, float topB, float bottomB) =>
@@ -1599,27 +1669,6 @@ zone_duplicate_candidate(Core.Zone z) =>
     string reason = zone_inactive_reason(z)
     bool duplicateEligibleReason = reason == "" or zone_has_pending_reason(reason)
     z.active and not z.mitigated and na(z.lastEntryBar) and duplicateEligibleReason
-
-delete_zone_visual_objects(Core.Zone z, bool isDemand) =>
-    if not na(z.boxId)
-        box.delete(z.boxId)
-        z.boxId := na
-    if not na(z.connectorLine)
-        line.delete(z.connectorLine)
-        z.connectorLine := na
-    if not na(z.targetLine)
-        line.delete(z.targetLine)
-        z.targetLine := na
-    if not na(z.inducementHLine)
-        line.delete(z.inducementHLine)
-        z.inducementHLine := na
-    if not na(z.targetHLine)
-        line.delete(z.targetHLine)
-        z.targetHLine := na
-    if not na(z.idLabel)
-        label.delete(z.idLabel)
-        z.idLabel := na
-    z
 
 zone_right_bar(Core.Zone z) =>
     int rightBar = na(z.lastTouchBar) ? bar_index : z.lastTouchBar
@@ -1677,18 +1726,27 @@ suppress_weaker_duplicate_zones(float zTop, float zBottom, bool isDemand) =>
                         array.set(supplyZones, i, z)
     true
 
+zone_invalidated_after_creation(float zTop, float zBottom, int baseIdx, bool isDemand) =>
+    bool invalidated = false
+    if baseIdx > 0
+        int maxScan = math.min(baseIdx - 1, 100)
+        for scan = 0 to maxScan
+            int idx = baseIdx - 1 - scan
+            if idx < 0
+                break
+            bool breaksDemand = isDemand and (low[idx] < zBottom or close[idx] < zBottom)
+            bool breaksSupply = not isDemand and (high[idx] > zTop or close[idx] > zTop)
+            if breaksDemand or breaksSupply
+                invalidated := true
+                break
+    invalidated
+
 createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID, bool allowDepartureWickExtension) =>
     bool created = false
     baseBarIdx = bar_index - baseIdx
 
     int baseTime = time[baseIdx]
     bool alreadyUsed = isDemand ? is_base_time_used(baseTime, used_demand_base_times) : is_base_time_used(baseTime, used_supply_base_times)
-    if not alreadyUsed
-        if isDemand
-            array.push(used_demand_base_times, baseTime)
-        else
-            array.push(used_supply_base_times, baseTime)
-        trimBaseTimeArrays()
 
     if not alreadyUsed
         float baseHigh = high[baseIdx]
@@ -1907,9 +1965,10 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         color zoneBorderColorFinal = na
 
         if not na(zTop) and not na(zBottom)
+            bool historicallyInvalid = isHistorical and zone_invalidated_after_creation(zTop, zBottom, baseIdx, isDemand)
             bool skipDuplicateZone = should_skip_duplicate_zone(zTop, zBottom, isDemand)
 
-            if not skipDuplicateZone
+            if not historicallyInvalid and not skipDuplicateZone
                 suppress_weaker_duplicate_zones(zTop, zBottom, isDemand)
                 zoneBorderWidth := isAccuracy ? 2 : 1  // Slightly thicker border for accuracy zones
 
@@ -1984,11 +2043,15 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 if isDemand
                     array.unshift(demandZones, z)
                     db_upsertZone(z, "DEMAND")
+                    array.push(used_demand_base_times, baseTime)
+                    trimBaseTimeArrays()
                     trimZoneArrays(true)
                     created := true
                 else
                     array.unshift(supplyZones, z)
                     db_upsertZone(z, "SUPPLY")
+                    array.push(used_supply_base_times, baseTime)
+                    trimBaseTimeArrays()
                     trimZoneArrays(false)
                     created := true
     created
@@ -2965,11 +3028,28 @@ int global_swing_low_bar = bar_index - ta.lowestbars(low, global_swing_lookback)
 float global_swing_high = ta.highest(high, global_swing_lookback)
 int global_swing_high_bar = bar_index - ta.highestbars(high, global_swing_lookback)
 
-if cached_demand_size > 0 and barstate.isconfirmed
+// Real-time/Replay boundary invalidation on every tick/bar
+int demandLifecycleSizeAll = array.size(demandZones)
+if demandLifecycleSizeAll > 0
+    for i = 0 to demandLifecycleSizeAll - 1
+        if i >= array.size(demandZones)
+            break
+        Core.Zone z = array.get(demandZones, i)
+        if z.active
+            bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
+            if is_future_bar
+                // If we invalidate on wick, any touch below the demand zone's low invalidates immediately in live/replay
+                if invalidate_on_wick and low < z.bottom
+                    z.inactiveReason := "SETUP_INVALID_WICK_BELOW_ZONE"
+                    array.set(demandZones, i, z)
+                    invalidateDemandZone(i, "SETUP_INVALID_WICK_BELOW_ZONE")
+
+int demandLifecycleSize = array.size(demandZones)
+if demandLifecycleSize > 0 and barstate.isconfirmed
     current_close = close
     current_open = open
 
-    for i = 0 to cached_demand_size - 1
+    for i = 0 to demandLifecycleSize - 1
         if i >= array.size(demandZones)
             break
         Core.Zone z = array.get(demandZones, i)
@@ -3016,9 +3096,11 @@ if cached_demand_size > 0 and barstate.isconfirmed
 
             updateDemandLiquidityVisual(i)
 
+            bool justLeftZoneThisBar = false
             if current_close > z.top and not z.leftZone
                 z.leftZone := true
                 z.leftWithBearish := current_close < current_open
+                justLeftZoneThisBar := true
 
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
@@ -3028,10 +3110,14 @@ if cached_demand_size > 0 and barstate.isconfirmed
                 bool breaches_zone = low < z.bottom
 
                 bool wicks_into_zone = low <= z.top and low >= z.bottom
+                bool touchesDemand = low <= z.top and high >= z.bottom
+                bool closesBelowDemand = close < z.bottom
+                bool wicksBelowDemand = low < z.bottom
+                bool proofReady = z.liquidityValid and z.liquiditySwept and z.targetSwept
 
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and high > z.structureSweepLevel
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone) and not current_bar_sweeping
+                if is_future_bar and z.leftZone and not proofReady and (closes_inside or wicks_into_zone or breaches_zone) and not current_bar_sweeping
                     int touchBarNow = bar_index
                     z.lastTouchBar := touchBarNow
                     z.wasTouched := true
@@ -3066,17 +3152,42 @@ if cached_demand_size > 0 and barstate.isconfirmed
                         array.set(demandZones, i, z)
                         db_updateZoneLiquidity(z)
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
-                    z.inactiveReason := "ENTRY_BLOCKED:RETURN_BEFORE_PROOF"
+                if is_future_bar and closesBelowDemand
+                    z.inactiveReason := "SETUP_INVALID_CLOSE_BELOW_ZONE"
                     array.set(demandZones, i, z)
-                    invalidateDemandZone(i, "ENTRY_BLOCKED:RETURN_BEFORE_PROOF")
+                    invalidateDemandZone(i, "SETUP_INVALID_CLOSE_BELOW_ZONE")
+                else if is_future_bar and wicksBelowDemand and invalidate_on_wick
+                    z.inactiveReason := "SETUP_INVALID_WICK_BELOW_ZONE"
+                    array.set(demandZones, i, z)
+                    invalidateDemandZone(i, "SETUP_INVALID_WICK_BELOW_ZONE")
+                else if is_future_bar and z.leftZone and not justLeftZoneThisBar and touchesDemand and not proofReady and not current_bar_sweeping
+                    z.inactiveReason := "SETUP_INVALID_RETURN_BEFORE_PROOF"
+                    array.set(demandZones, i, z)
+                    invalidateDemandZone(i, "SETUP_INVALID_RETURN_BEFORE_PROOF")
 
-if cached_supply_size > 0 and barstate.isconfirmed
+// Real-time/Replay boundary invalidation on every tick/bar
+int supplyLifecycleSizeAll = array.size(supplyZones)
+if supplyLifecycleSizeAll > 0
+    for i = 0 to supplyLifecycleSizeAll - 1
+        if i >= array.size(supplyZones)
+            break
+        Core.Zone z = array.get(supplyZones, i)
+        if z.active
+            bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
+            if is_future_bar
+                // If we invalidate on wick, any touch above the supply zone's high invalidates immediately in live/replay
+                if invalidate_on_wick and high > z.top
+                    z.inactiveReason := "SETUP_INVALID_WICK_ABOVE_ZONE"
+                    array.set(supplyZones, i, z)
+                    invalidateSupplyZone(i, "SETUP_INVALID_WICK_ABOVE_ZONE")
+
+int supplyLifecycleSize = array.size(supplyZones)
+if supplyLifecycleSize > 0 and barstate.isconfirmed
     current_close = close
     current_open = open
     current_low = low
 
-    for i = 0 to cached_supply_size - 1
+    for i = 0 to supplyLifecycleSize - 1
         if i >= array.size(supplyZones)
             break
         Core.Zone z = array.get(supplyZones, i)
@@ -3123,8 +3234,10 @@ if cached_supply_size > 0 and barstate.isconfirmed
 
             updateSupplyLiquidityVisual(i)
 
+            bool justLeftZoneThisBar = false
             if current_close < z.bottom and not z.leftZone
                 z.leftZone := true
+                justLeftZoneThisBar := true
 
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
@@ -3134,10 +3247,14 @@ if cached_supply_size > 0 and barstate.isconfirmed
                 bool breaches_zone = high > z.top
 
                 bool wicks_into_zone = high >= z.bottom and high <= z.top
+                bool touchesSupply = high >= z.bottom and low <= z.top
+                bool closesAboveSupply = close > z.top
+                bool wicksAboveSupply = high > z.top
+                bool proofReady = z.liquidityValid and z.liquiditySwept and z.targetSwept
 
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and low < z.structureSweepLevel
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone) and not current_bar_sweeping
+                if is_future_bar and z.leftZone and not proofReady and (closes_inside or wicks_into_zone or breaches_zone) and not current_bar_sweeping
                     z.lastTouchBar := bar_index
                     z.wasTouched := true
                     z.touchedPreSweep := true
@@ -3151,10 +3268,18 @@ if cached_supply_size > 0 and barstate.isconfirmed
                         array.set(supplyZones, i, z)
                         db_updateZoneLiquidity(z)
 
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
-                    z.inactiveReason := "ENTRY_BLOCKED:RETURN_BEFORE_PROOF"
+                if is_future_bar and closesAboveSupply
+                    z.inactiveReason := "SETUP_INVALID_CLOSE_ABOVE_ZONE"
                     array.set(supplyZones, i, z)
-                    invalidateSupplyZone(i, "ENTRY_BLOCKED:RETURN_BEFORE_PROOF")
+                    invalidateSupplyZone(i, "SETUP_INVALID_CLOSE_ABOVE_ZONE")
+                else if is_future_bar and wicksAboveSupply and invalidate_on_wick
+                    z.inactiveReason := "SETUP_INVALID_WICK_ABOVE_ZONE"
+                    array.set(supplyZones, i, z)
+                    invalidateSupplyZone(i, "SETUP_INVALID_WICK_ABOVE_ZONE")
+                else if is_future_bar and z.leftZone and not justLeftZoneThisBar and touchesSupply and not proofReady and not current_bar_sweeping
+                    z.inactiveReason := "SETUP_INVALID_RETURN_BEFORE_PROOF"
+                    array.set(supplyZones, i, z)
+                    invalidateSupplyZone(i, "SETUP_INVALID_RETURN_BEFORE_PROOF")
 
 int demandSize = array.size(demandZones)
 if demandSize > 0
@@ -3177,12 +3302,8 @@ if demandSize > 0
 
                 bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
 
-                bool close_inside_demand = current_close <= z.top and current_close >= z.bottom
-                bool close_below_zone     = current_close < z.bottom
-                bool wick_below_zone = current_low < z.bottom
-
-                if close_inside_demand or close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
-                    remove_zone_all_arrays(true, i)
+                if isTooOld
+                    invalidateDemandZone(i, "SETUP_INVALID_ZONE_TOO_OLD")
 
 int supplySize = array.size(supplyZones)
 if supplySize > 0
@@ -3197,20 +3318,17 @@ if supplySize > 0
         if z.active
             bool isTooOld = not na(z.startTime) and (time - z.startTime) > (24 * 60 * 60 * 1000)
 
-            bool close_inside_supply = current_close >= z.bottom and current_close <= z.top
-            bool close_above_zone     = current_close > z.top
-            bool wick_above_zone = current_high > z.top
-
-            if close_inside_supply or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
-                remove_zone_all_arrays(false, i)
+            if isTooOld
+                invalidateSupplyZone(i, "SETUP_INVALID_ZONE_TOO_OLD")
 
 if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isconfirmed
     for i = 0 to cached_demand_size - 1
         if i >= array.size(demandZones)
             break
         Core.Zone z = array.get(demandZones, i)
-        if z.active or not na(z.lastEntryBar)
+        if z.active or not na(z.lastEntryBar) or not na(z.boxId) or not na(z.idLabel)
             bool zoneVisible = apply_zone_visual(z, true)
+            array.set(demandZones, i, z)
             if zoneVisible and not na(z.createdBarIndex)
                 int right_bar_index = zone_right_bar(z)
                 if not na(z.boxId)
@@ -3235,8 +3353,9 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
         if i >= array.size(supplyZones)
             break
         Core.Zone z = array.get(supplyZones, i)
-        if z.active or not na(z.lastEntryBar)
+        if z.active or not na(z.lastEntryBar) or not na(z.boxId) or not na(z.idLabel)
             bool zoneVisible = apply_zone_visual(z, false)
+            array.set(supplyZones, i, z)
             if zoneVisible and not na(z.createdBarIndex)
                 int right_bar_index = zone_right_bar(z)
                 if not na(z.boxId)
