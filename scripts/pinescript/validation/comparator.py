@@ -8,8 +8,6 @@ def _price_close(left: float, right: float, tolerance: float) -> bool:
 
 
 def _zone_candidate(expected: Zone, actual: Zone, tolerance: float) -> bool:
-    if expected.side != actual.side:
-        return False
     if expected.label and actual.label and expected.label == actual.label:
         return True
 
@@ -18,29 +16,47 @@ def _zone_candidate(expected: Zone, actual: Zone, tolerance: float) -> bool:
     return top_near or bottom_near
 
 
+def _edge_distance(expected: Zone, actual: Zone) -> float:
+    return abs(expected.top - actual.top) + abs(expected.bottom - actual.bottom)
+
+
+def _candidate_score(
+    expected: Zone,
+    actual: Zone,
+    tolerance: float,
+) -> tuple[int, float] | None:
+    if expected.label and actual.label and expected.label == actual.label:
+        return 0, _edge_distance(expected, actual)
+
+    top_near = _price_close(expected.top, actual.top, tolerance * 4)
+    bottom_near = _price_close(expected.bottom, actual.bottom, tolerance * 4)
+    if top_near and bottom_near:
+        return 1, _edge_distance(expected, actual)
+    if top_near or bottom_near:
+        return 2, _edge_distance(expected, actual)
+    return None
+
+
 def _find_match(
     expected: Zone,
     actual_zones: list[Zone],
     used_actual: set[int],
     tolerance: float,
 ) -> tuple[int, Zone] | None:
-    if expected.label:
-        for idx, actual in enumerate(actual_zones):
-            if idx in used_actual:
-                continue
-            if (
-                expected.side == actual.side
-                and actual.label
-                and expected.label == actual.label
-            ):
-                return idx, actual
-
+    best_match: tuple[tuple[int, float], int, Zone] | None = None
     for idx, actual in enumerate(actual_zones):
         if idx in used_actual:
             continue
-        if _zone_candidate(expected, actual, tolerance):
-            return idx, actual
-    return None
+        score = _candidate_score(expected, actual, tolerance)
+        if score is None:
+            continue
+        if best_match is None or score < best_match[0]:
+            best_match = (score, idx, actual)
+
+    if best_match is None:
+        return None
+    _, idx, actual = best_match
+    return idx, actual
 
 
 def compare_zones(
@@ -72,6 +88,20 @@ def compare_zones(
 
         idx, actual = match
         used_actual.add(idx)
+        if expected.side != actual.side:
+            mismatches.append(
+                Mismatch(
+                    kind="wrong_side",
+                    message=(
+                        f"{expected.label} side expected {expected.side}, "
+                        f"got {actual.side}"
+                    ),
+                    expected=expected,
+                    actual=actual,
+                )
+            )
+            continue
+
         if not _price_close(expected.top, actual.top, scenario.price_tolerance):
             mismatches.append(
                 Mismatch(
