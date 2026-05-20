@@ -1,6 +1,13 @@
 from __future__ import annotations
 
+from functools import lru_cache
+
 from scripts.pinescript.validation.models import Mismatch, Scenario, ValidationResult, Zone
+
+
+AssignmentScore = tuple[int, int, int, int, int, float]
+CandidateScore = tuple[int, int, float]
+Match = tuple[int, Zone] | None
 
 
 def _price_close(left: float, right: float, tolerance: float) -> bool:
@@ -24,7 +31,7 @@ def _candidate_score(
     expected: Zone,
     actual: Zone,
     tolerance: float,
-) -> tuple[int, int, float] | None:
+) -> CandidateScore | None:
     if not _zone_candidate(expected, actual, tolerance):
         return None
 
@@ -41,6 +48,17 @@ def _candidate_score(
     return None
 
 
+def _add_scores(left: AssignmentScore, right: AssignmentScore) -> AssignmentScore:
+    return (
+        left[0] + right[0],
+        left[1] + right[1],
+        left[2] + right[2],
+        left[3] + right[3],
+        left[4] + right[4],
+        left[5] + right[5],
+    )
+
+
 def _price_mismatch_count(expected: Zone, actual: Zone, tolerance: float) -> int:
     if expected.side != actual.side:
         return 0
@@ -49,42 +67,20 @@ def _price_mismatch_count(expected: Zone, actual: Zone, tolerance: float) -> int
     )
 
 
-def _assignment_score(
-    expected_zones: list[Zone],
-    actual_zones: list[Zone],
-    matches: list[tuple[int, Zone] | None],
+def _match_assignment_score(
+    expected: Zone,
+    actual: Zone,
+    candidate_score: CandidateScore,
     tolerance: float,
-) -> tuple[int, int, int, int, int, float]:
-    used_actual = {match[0] for match in matches if match is not None}
-    missing_count = len(expected_zones) - len(used_actual)
-    extra_count = len(actual_zones) - len(used_actual)
-    wrong_side_count = 0
-    quality_score = 0
-    price_mismatch_count = 0
-    distance_score = 0.0
-
-    for expected, match in zip(expected_zones, matches, strict=True):
-        if match is None:
-            continue
-
-        _, actual = match
-        candidate_score = _candidate_score(expected, actual, tolerance)
-        if candidate_score is None:
-            continue
-
-        side_rank, quality_rank, distance = candidate_score
-        wrong_side_count += side_rank
-        quality_score += quality_rank
-        price_mismatch_count += _price_mismatch_count(expected, actual, tolerance)
-        distance_score += distance
-
+) -> AssignmentScore:
+    side_rank, quality_rank, distance = candidate_score
     return (
-        missing_count,
-        extra_count,
-        wrong_side_count,
-        quality_score,
-        price_mismatch_count,
-        distance_score,
+        0,
+        0,
+        side_rank,
+        quality_rank,
+        _price_mismatch_count(expected, actual, tolerance),
+        distance,
     )
 
 
@@ -92,10 +88,10 @@ def _find_best_assignment(
     expected_zones: list[Zone],
     actual_zones: list[Zone],
     tolerance: float,
-) -> list[tuple[int, Zone] | None]:
-    candidates_by_expected: list[list[tuple[tuple[int, int, float], int, Zone]]] = []
+) -> list[Match]:
+    candidates_by_expected: list[list[tuple[CandidateScore, int, Zone]]] = []
     for expected in expected_zones:
-        candidates: list[tuple[tuple[int, int, float], int, Zone]] = []
+        candidates: list[tuple[CandidateScore, int, Zone]] = []
         for idx, actual in enumerate(actual_zones):
             score = _candidate_score(expected, actual, tolerance)
             if score is not None:
@@ -103,38 +99,46 @@ def _find_best_assignment(
         candidates.sort(key=lambda candidate: (candidate[0], candidate[1]))
         candidates_by_expected.append(candidates)
 
-    current_matches: list[tuple[int, Zone] | None] = [None] * len(expected_zones)
-    best_matches: list[tuple[int, Zone] | None] = current_matches.copy()
-    best_score: tuple[int, int, int, int, int, float] | None = None
-    used_actual: set[int] = set()
-
-    def search(expected_idx: int) -> None:
-        nonlocal best_matches, best_score
+    @lru_cache(maxsize=None)
+    def solve(
+        expected_idx: int,
+        used_actual_mask: int,
+    ) -> tuple[AssignmentScore, tuple[int | None, ...]]:
         if expected_idx == len(expected_zones):
-            score = _assignment_score(
-                expected_zones,
-                actual_zones,
-                current_matches,
-                tolerance,
-            )
-            if best_score is None or score < best_score:
-                best_score = score
-                best_matches = current_matches.copy()
-            return
+            extra_count = len(actual_zones) - used_actual_mask.bit_count()
+            return (0, extra_count, 0, 0, 0, 0.0), ()
 
-        for _, actual_idx, actual in candidates_by_expected[expected_idx]:
-            if actual_idx in used_actual:
+        missing_tail_score, missing_tail_matches = solve(
+            expected_idx + 1,
+            used_actual_mask,
+        )
+        best_score = _add_scores((1, 0, 0, 0, 0, 0.0), missing_tail_score)
+        best_matches: tuple[int | None, ...] = (None, *missing_tail_matches)
+
+        expected = expected_zones[expected_idx]
+        for candidate_score, actual_idx, actual in candidates_by_expected[expected_idx]:
+            actual_mask = 1 << actual_idx
+            if used_actual_mask & actual_mask:
                 continue
-            used_actual.add(actual_idx)
-            current_matches[expected_idx] = (actual_idx, actual)
-            search(expected_idx + 1)
-            current_matches[expected_idx] = None
-            used_actual.remove(actual_idx)
 
-        search(expected_idx + 1)
+            tail_score, tail_matches = solve(
+                expected_idx + 1,
+                used_actual_mask | actual_mask,
+            )
+            total_score = _add_scores(
+                _match_assignment_score(expected, actual, candidate_score, tolerance),
+                tail_score,
+            )
+            if total_score < best_score:
+                best_score = total_score
+                best_matches = (actual_idx, *tail_matches)
 
-    search(0)
-    return best_matches
+        return best_score, best_matches
+
+    _, match_indexes = solve(0, 0)
+    return [
+        (idx, actual_zones[idx]) if idx is not None else None for idx in match_indexes
+    ]
 
 
 def compare_zones(
