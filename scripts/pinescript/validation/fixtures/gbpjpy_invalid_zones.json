@@ -1,0 +1,33 @@
+{
+  "scenario": {
+    "comparison_mode": "manual",
+    "expected_scripts": ["S&D Pro"],
+    "name": "GBPJPY invalid zones after wick and close breaches",
+    "price_tolerance": 0.001,
+    "symbol": "GBPJPY",
+    "time_tolerance_bars": 1,
+    "timeframe": "5"
+  },
+  "zones": [
+    {
+      "bottom": 213.080,
+      "id": "manual-supply",
+      "label": "S-11134",
+      "left_time": "2026-05-20T03:00:00+03:00",
+      "right_time": "2026-05-20T13:00:00+03:00",
+      "side": "supply",
+      "source": "manual",
+      "top": 213.130
+    },
+    {
+      "bottom": 212.880,
+      "id": "manual-demand",
+      "label": "D-13856",
+      "left_time": "2026-05-20T12:30:00+03:00",
+      "right_time": "2026-05-20T13:00:00+03:00",
+      "side": "demand",
+      "source": "manual",
+      "top": 212.900
+    }
+  ]
+}
