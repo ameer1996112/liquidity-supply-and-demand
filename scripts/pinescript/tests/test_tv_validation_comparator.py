@@ -97,12 +97,41 @@ def test_same_side_candidate_wins_over_earlier_wrong_side_candidate() -> None:
     assert "extra_unexpected_zone" not in kinds
 
 
+def test_global_assignment_avoids_greedy_price_mismatch() -> None:
+    scenario = Scenario(
+        name="Overlapping unlabeled zones",
+        symbol="TEST",
+        timeframe="5",
+        comparison_mode="manual",
+        expected_scripts=["S&D Pro"],
+        price_tolerance=0.01,
+        time_tolerance_bars=1,
+    )
+    expected = [
+        Zone("manual", "supply", 100.0000, 90.0000, None, None, ""),
+        Zone("manual", "supply", 100.0075, 90.0075, None, None, ""),
+    ]
+    actual = [
+        Zone("S&D Pro", "supply", 100.0000, 90.0000, None, None, "changed-a"),
+        Zone("S&D Pro", "supply", 99.9925, 89.9925, None, None, "changed-b"),
+    ]
+
+    result = compare_zones(scenario, expected_zones=expected, actual_zones=actual)
+    kinds = [mismatch.kind for mismatch in result.mismatches]
+
+    assert result.passed
+    assert result.mismatches == []
+    assert "wrong_zone_high" not in kinds
+    assert "wrong_zone_low" not in kinds
+
+
 def main() -> None:
     test_comparator_reports_wrong_low_and_extra_zone()
     test_comparator_clean_compare_passes()
     test_reversed_actual_order_chooses_best_unlabeled_fallback_match()
     test_wrong_side_uses_matching_actual_without_missing_or_extra()
     test_same_side_candidate_wins_over_earlier_wrong_side_candidate()
+    test_global_assignment_avoids_greedy_price_mismatch()
 
     print("TradingView validation comparator contract passed")
 
