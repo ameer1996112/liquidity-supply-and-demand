@@ -9,7 +9,14 @@ def _zone_line(zone: Zone) -> str:
     return f"- `{zone.label}` {zone.side} {zone.bottom:g} - {zone.top:g} from `{zone.source}`"
 
 
+def _zone_lines(zones: list[Zone]) -> list[str]:
+    if not zones:
+        return ["- None"]
+    return [_zone_line(zone) for zone in zones]
+
+
 def write_report(output_dir: Path, result: ValidationResult) -> Path:
+    """Write `report.md`; callers should provide one output directory per scenario/run."""
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "report.md"
     lines = [
@@ -23,11 +30,11 @@ def write_report(output_dir: Path, result: ValidationResult) -> Path:
         "",
         "## Expected Zones",
         "",
-        *[_zone_line(zone) for zone in result.expected_zones],
+        *_zone_lines(result.expected_zones),
         "",
         "## Actual Zones",
         "",
-        *[_zone_line(zone) for zone in result.actual_zones],
+        *_zone_lines(result.actual_zones),
         "",
         "## Mismatches",
         "",
