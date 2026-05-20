@@ -7,6 +7,7 @@ from pathlib import Path
 
 from scripts.pinescript.validation.comparator import compare_zones
 from scripts.pinescript.validation.fixtures import load_fixture
+from scripts.pinescript.validation.mcp_capture import capture_chart_evidence
 from scripts.pinescript.validation.models import Zone
 from scripts.pinescript.validation.report import write_report
 
@@ -46,6 +47,18 @@ def compare_fixtures(args: argparse.Namespace) -> int:
     return 0 if result.passed else 1
 
 
+def capture_live(args: argparse.Namespace) -> int:
+    payload = capture_chart_evidence(Path(args.output_dir))
+    print(
+        json.dumps(
+            {"captured": True, "keys": sorted(payload.keys())},
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="TradingView S&D validation harness")
     subcommands = parser.add_subparsers(dest="command", required=True)
@@ -54,6 +67,9 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--actual", required=True)
     compare.add_argument("--output-dir", required=True)
     compare.set_defaults(func=compare_fixtures)
+    capture = subcommands.add_parser("capture-live")
+    capture.add_argument("--output-dir", required=True)
+    capture.set_defaults(func=capture_live)
     return parser
 
 
