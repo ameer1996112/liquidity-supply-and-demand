@@ -41,6 +41,16 @@ def main() -> None:
         "zone_should_show_visual(Core.Zone z, bool isDemand) =>",
         "apply_zone_visual(Core.Zone z, bool isDemand) =>",
     )
+    apply_zone_visual = _body(
+        strategy,
+        "apply_zone_visual(Core.Zone z, bool isDemand) =>",
+        "zone_overlap_pct(float topA, float bottomA, float topB, float bottomB) =>",
+    )
+    boundary_logic = _body(
+        strategy,
+        "if proceed_creation\n            float originHigh = baseHigh",
+        "\n        int zoneBorderWidth = 1",
+    )
 
     _require(
         strategy,
@@ -50,15 +60,32 @@ def main() -> None:
             "int displacementIdx = startOffset + leg - 1",
             "int candidateBaseIdx = startOffset + leg",
             "bool displacementOk = isDemand ? Utils.is_bullish(close[displacementIdx], open[displacementIdx]) : Utils.is_bearish(close[displacementIdx], open[displacementIdx])",
-            "bool baseOk = isDemand ? Utils.is_bearish(close[candidateBaseIdx], open[candidateBaseIdx]) : Utils.is_bullish(close[candidateBaseIdx], open[candidateBaseIdx])",
+            "bool baseOk = is_valid_zone_base_candle(candidateBaseIdx, isDemand, false)",
             "[baseIdx, legCount]",
-            "if createZone(demandBaseIdx, true, false, 1, demandLegCandles, nextZoneId)",
-            "if createZone(supplyBaseIdx, false, false, 1, supplyLegCandles, nextZoneId)",
+            "if createZone(demandBaseIdx, true, false, 1, demandLegCandles, nextZoneId, true)",
+            "if createZone(supplyBaseIdx, false, false, 1, supplyLegCandles, nextZoneId, true)",
             "for displacementOffset = 0 to max_scan",
-            "if createZone(histDemandBaseIdx, true, true, 1, histDemandLegCandles, nextZoneId)",
-            "if createZone(histSupplyBaseIdx, false, true, 1, histSupplyLegCandles, nextZoneId)",
+            "if createZone(histDemandBaseIdx, true, true, 1, histDemandLegCandles, nextZoneId, true)",
+            "if createZone(histSupplyBaseIdx, false, true, 1, histSupplyLegCandles, nextZoneId, true)",
         ],
         "Displacement left-scan detector",
+    )
+
+    _require(
+        strategy,
+        [
+            "is_wide_market_neutral_base(int baseIdx, bool isDemand) =>",
+            "bool wideMarket = is_gold or is_xpt or is_index or is_futures",
+            "if not wideMarket or baseIdx < 0 or baseIdx > bar_index",
+            "bool neutralBody = baseRange > 0 and baseBody <= baseRange * 0.55",
+            "bool neutralSideOk = isDemand ? close[baseIdx] <= open[baseIdx] : close[baseIdx] >= open[baseIdx]",
+            "is_valid_zone_base_candle(int baseIdx, bool isDemand, bool allowWideMarketNeutral) =>",
+            "bool oppositeBase = isDemand ? Utils.is_bearish(close[baseIdx], open[baseIdx]) : Utils.is_bullish(close[baseIdx], open[baseIdx])",
+            "oppositeBase or (allowWideMarketNeutral and is_wide_market_neutral_base(baseIdx, isDemand))",
+            "bool validBaseSide = is_valid_zone_base_candle(baseIdx, isDemand, true)",
+            "bool baseOk = is_valid_zone_base_candle(candidateBaseIdx, isDemand, false)",
+        ],
+        "Wide-market neutral-base zone detection",
     )
 
     _require(
@@ -102,6 +129,42 @@ def main() -> None:
             "global_zone_id_counter := nextZoneId",
         ],
         "Deterministic base-time and ID allocation",
+    )
+
+    _require(
+        boundary_logic,
+        [
+            "if forceFullWickSymbol\n                    // XAUUSD/indices/futures/XPT: mark the actual normal zone candle.",
+            "zTop := baseHigh",
+            "zBottom := baseLow",
+            "int maxDepartureWickScan = 4",
+            "if formation_leg_wick_inclusion and allowDepartureWickExtension",
+            "bool demandWickOnlyExtension = legLow < zBottom and math.min(legOpen, legClose) >= zBottom",
+            "bool supplyWickOnlyExtension = legHigh > zTop and math.max(legOpen, legClose) <= zTop",
+            "if forceFullWickSymbol ? supplyWickOnlyExtension : supplyStandardExtension",
+        ],
+        "Volatile normal-zone high/low boundaries",
+    )
+    _require(
+        strategy,
+        [
+            "createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID, bool allowDepartureWickExtension) =>",
+            "bool forceFullWickSymbol = is_gold or is_silver or is_index or is_futures or is_xpt",
+        ],
+        "Volatile symbol detection",
+    )
+
+    _forbid(
+        boundary_logic,
+        [
+            "zTop := clusterHigh",
+            "zBottom := clusterLow",
+            "XAUUSD/indices/futures: keep the whole relevant base cluster.",
+            "if not forceFullWickSymbol\n                int maxDepartureWickScan = 4",
+            "if formation_leg_wick_inclusion and not forceFullWickSymbol",
+            "if formation_leg_wick_inclusion\n",
+        ],
+        "Volatile normal-zone cluster widening",
     )
 
     _forbid(
@@ -165,6 +228,18 @@ def main() -> None:
 
     if _normalize_block(zone_should_show_visual) != _normalize_block(expected_zone_should_show_visual):
         raise AssertionError("Entry-used zone archive display shape changed")
+
+    _require(
+        apply_zone_visual,
+        [
+            "bool entryUsedArchive = not na(z.lastEntryBar) and not invalidOrRejected",
+            "if entryUsedArchive",
+            "bgColor := isDemand ? col_demand_bg : col_supply_bg",
+            "borderColor := isDemand ? col_demand_border : col_supply_border",
+            "color labelColor = invalidOrRejected or (usedOrMitigated and not entryUsedArchive) ? col_used_zone_border",
+        ],
+        "Entry-used zones keep side color",
+    )
 
     _forbid(
         zone_should_show_visual,

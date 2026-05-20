@@ -20,10 +20,10 @@ def _forbid(source: str, needles: list[str], label: str) -> None:
 def main() -> None:
     strategy = STRATEGY.read_text(encoding="utf-8")
     continuation_body = strategy[
-        strategy.index("is_continuation_zone(int baseIdx, bool isDemand) =>") :
+        strategy.index("is_continuation_zone_for_leg(int baseIdx, int displacementStartIdx, bool isDemand) =>") :
         strategy.index(
-            "\nhas_better_continuation_base(",
-            strategy.index("is_continuation_zone(int baseIdx, bool isDemand) =>"),
+            "\nis_continuation_zone(int baseIdx, bool isDemand) =>",
+            strategy.index("is_continuation_zone_for_leg(int baseIdx, int displacementStartIdx, bool isDemand) =>"),
         )
     ]
     live_scan = strategy[
@@ -38,20 +38,31 @@ def main() -> None:
     _require(
         strategy,
         [
-            "enable_continuation_zones = true",
+            'gold_continuation_zones = input.bool(true, "detect_continuation_zones"',
+            "is_continuation_zone_for_leg(int baseIdx, int displacementStartIdx, bool isDemand) =>",
+            "bool enabled = gold_continuation_zones",
             "is_continuation_zone(int baseIdx, bool isDemand) =>",
+            "is_continuation_zone_for_leg(baseIdx, 0, isDemand)",
             "float baseBodyHigh = math.max(open[baseIdx], close[baseIdx])",
             "float baseBodyLow = math.min(open[baseIdx], close[baseIdx])",
-            "float continuation_range_atr = 1.8",
-            "float continuation_max_body_pct = 0.85",
-            "bool bearishBase = close[baseIdx] < open[baseIdx]",
-            "bool bullishBase = close[baseIdx] > open[baseIdx]",
-            "bool validBaseSide = isDemand ? bearishBase : bullishBase",
+            "bool wideMarket = is_gold or is_xpt or is_index or is_futures",
+            "float contAtrCap = wideMarket ? 1.8 : 1.2",
+            "float contBodyPct = wideMarket ? 0.65 : 0.55",
+            "bool compactBase = baseRange > syminfo.mintick and baseRange <= atr14 * contAtrCap and baseBody <= baseRange * contBodyPct",
+            "bool validBaseSide = is_valid_zone_base_candle(baseIdx, isDemand, true)",
             "bool contaminatedContinuation = false",
+            "if confirmIdx < displacementStartIdx",
             "bool closesAgainst = isDemand ? close[confirmIdx] < low[baseIdx] : close[confirmIdx] > high[baseIdx]",
             "bool confirmCandle = isDemand ? close[confirmIdx] > open[confirmIdx] and close[confirmIdx] > baseBodyHigh : close[confirmIdx] < open[confirmIdx] and close[confirmIdx] < baseBodyLow",
             "result := compactBase and validBaseSide and not contaminatedContinuation and confirmsAway",
-            "is_preferred_continuation_zone(int baseIdx, bool isDemand) =>",
+            "has_better_continuation_base(int baseIdx, int displacementStartIdx, bool isDemand) =>",
+            "for scanIdx = displacementStartIdx + 1 to baseIdx - 1",
+            "bool overlapsRightOrigin = not (high[scanIdx] < low[baseIdx] or low[scanIdx] > high[baseIdx])",
+            "is_preferred_continuation_zone(int baseIdx, int displacementStartIdx, bool isDemand) =>",
+            "find_preferred_continuation_base(int displacementStartIdx, bool isDemand) =>",
+            "int candidateIdx = displacementStartIdx + scan",
+            "result := candidateIdx",
+            "break",
         ],
         "General continuation detector",
     )
@@ -59,7 +70,6 @@ def main() -> None:
     _forbid(
         strategy,
         [
-            "gold_continuation_zones",
             "is_gold_continuation_zone(",
             "has_better_gold_continuation_base(",
             "is_preferred_gold_continuation_zone(",
@@ -71,6 +81,10 @@ def main() -> None:
             "newerMoreDistal",
             "bearishDominantBase",
             "bullishDominantBase",
+            "if na(demandBaseIdx)\n        for contBaseIdx",
+            "if na(supplyBaseIdx)\n        for contBaseIdx",
+            "if na(histDemandBaseIdx) and is_preferred",
+            "if na(histSupplyBaseIdx) and is_preferred",
         ],
         "Gold-only continuation behavior",
     )
@@ -78,22 +92,28 @@ def main() -> None:
     if "(is_gold or is_xpt)" in continuation_body:
         raise AssertionError("Continuation detector must not restrict candidates to gold/XPT only")
 
-    if live_scan.index("if is_preferred_continuation_zone(contBaseIdx, true)") > live_scan.index("[demandBaseIdx, demandLegCandles]"):
-        raise AssertionError("Demand continuation zones must be attempted before simple displacement zones")
-    if live_scan.index("if is_preferred_continuation_zone(contBaseIdx, false)") > live_scan.index("[supplyBaseIdx, supplyLegCandles]"):
-        raise AssertionError("Supply continuation zones must be attempted before simple displacement zones")
-    demand_live_block = live_scan[
-        live_scan.index("bool demandContinuationCreated") :
-        live_scan.index("if barstate.isconfirmed and bar_index > 10", live_scan.index("bool demandContinuationCreated") + 1)
-    ]
-    if "if is_preferred_continuation_zone(contBaseIdx, true) and not demandContinuationCreated" in demand_live_block:
-        raise AssertionError("Demand continuation scan must allow multiple non-overlapping candidates in the same push")
-    if "if not demandContinuationCreated" not in demand_live_block:
-        raise AssertionError("Demand displacement fallback must still run only when no continuation zone was created")
-    if historical_scan.index("if is_preferred_continuation_zone(displacementOffset, true)") > historical_scan.index("[histDemandBaseIdx, histDemandLegCandles]"):
-        raise AssertionError("Historical demand continuation zones must be attempted before simple displacement zones")
-    if historical_scan.index("if is_preferred_continuation_zone(displacementOffset, false)") > historical_scan.index("[histSupplyBaseIdx, histSupplyLegCandles]"):
-        raise AssertionError("Historical supply continuation zones must be attempted before simple displacement zones")
+    if live_scan.index("int demandContinuationBaseIdx = find_preferred_continuation_base(0, true)") < live_scan.index("[demandBaseIdx, demandLegCandles]"):
+        raise AssertionError("Demand continuation zones must be scanned after simple displacement detection")
+    if live_scan.index("int supplyContinuationBaseIdx = find_preferred_continuation_base(0, false)") < live_scan.index("[supplyBaseIdx, supplyLegCandles]"):
+        raise AssertionError("Supply continuation zones must be scanned after simple displacement detection")
+    if "if not na(demandContinuationBaseIdx)" not in live_scan:
+        raise AssertionError("Demand continuation scan should create at most one preferred live zone")
+    if "if not na(supplyContinuationBaseIdx)" not in live_scan:
+        raise AssertionError("Supply continuation scan should create at most one preferred live zone")
+    if historical_scan.index("int histDemandContinuationBaseIdx = find_preferred_continuation_base(displacementOffset, true)") < historical_scan.index("[histDemandBaseIdx, histDemandLegCandles]"):
+        raise AssertionError("Historical demand continuation zones must be scanned after simple displacement detection")
+    if historical_scan.index("int histSupplyContinuationBaseIdx = find_preferred_continuation_base(displacementOffset, false)") < historical_scan.index("[histSupplyBaseIdx, histSupplyLegCandles]"):
+        raise AssertionError("Historical supply continuation zones must be scanned after simple displacement detection")
+    if "createZone(histDemandContinuationBaseIdx, true, true, 1, 1, nextZoneId, false)" not in historical_scan:
+        raise AssertionError("Historical demand continuation should create only the selected canonical base")
+    if "createZone(histSupplyContinuationBaseIdx, false, true, 1, 1, nextZoneId, false)" not in historical_scan:
+        raise AssertionError("Historical supply continuation should create only the selected canonical base")
+    if "createZone(demandContinuationBaseIdx, true, false, 1, 1, nextZoneId, false)" not in live_scan:
+        raise AssertionError("Live demand continuation must keep base-candle boundaries")
+    if "createZone(supplyContinuationBaseIdx, false, false, 1, 1, nextZoneId, false)" not in live_scan:
+        raise AssertionError("Live supply continuation must keep base-candle boundaries")
+    if "createZone(supplyBaseIdx, false, false, 1, supplyLegCandles, nextZoneId, true)" not in live_scan:
+        raise AssertionError("Standard supply displacement zones must still allow departure wick extension")
 
     print("SND continuation zone static contract passed")
 
