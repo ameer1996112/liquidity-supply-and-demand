@@ -60,6 +60,16 @@ def main() -> None:
     else:
         raise AssertionError("missing top coordinate should fail loudly")
 
+    try:
+        normalize_zones(
+            raw_boxes=[{"id": "missing-bottom", "top": 11, "study": "S&D Pro"}],
+            raw_labels=[],
+        )
+    except ValueError as exc:
+        assert "bottom" in str(exc)
+    else:
+        raise AssertionError("missing bottom coordinate should fail loudly")
+
     print("TradingView validation normalizer contract passed")
 
 
