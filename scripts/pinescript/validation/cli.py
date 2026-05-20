@@ -11,14 +11,26 @@ from scripts.pinescript.validation.models import Zone
 from scripts.pinescript.validation.report import write_report
 
 
+INPUT_ERROR_EXIT_CODE = 2
+
+
 def _load_actual(path: Path) -> list[Zone]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    return [Zone.from_dict(item) for item in payload.get("zones", [])]
+    if "zones" not in payload:
+        raise ValueError("actual payload must include a 'zones' list")
+    zones = payload["zones"]
+    if not isinstance(zones, list):
+        raise ValueError("actual payload field 'zones' must be a list")
+    return [Zone.from_dict(item) for item in zones]
 
 
 def compare_fixtures(args: argparse.Namespace) -> int:
     expected = load_fixture(Path(args.expected))
-    actual_zones = _load_actual(Path(args.actual))
+    try:
+        actual_zones = _load_actual(Path(args.actual))
+    except ValueError as exc:
+        print(f"Input error: {exc}", file=sys.stderr)
+        return INPUT_ERROR_EXIT_CODE
     result = compare_zones(
         expected.scenario,
         expected_zones=expected.zones,
