@@ -176,6 +176,7 @@ float structure_low_20 = ta.lowest(low, 20)
 
 invalidate_on_wick   = input.bool(true, "invalidate_on_wick", group = "📐 Zone Detection")
 max_zones            = input.int(50, "max_zones_storage", minval = 10, maxval = 200, group = "📐 Zone Detection")
+max_zone_age_hours   = input.float(24.0, "max_zone_age_hours", minval = 1.0, maxval = 168.0, step = 1.0, group = "📐 Zone Detection")
 min_body_perc        = input.float(52.0, "min_body_perc", minval = 0, maxval = 100, group = "📐 Zone Detection")
 structure_mode      = input.string("Relaxed (Wicks)", "structure_mode", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
 formation_leg_wick_inclusion = input.bool(true, "Formation-Leg Wick Inclusion", group = "📐 Zone Detection")
@@ -2173,10 +2174,10 @@ validate_entry_conditions(bool isDemand, int idx) =>
             canEnter := false
             reason := isDemand ? "Demand zone mitigated before liquidity sweep" : "Supply zone mitigated before liquidity sweep"
 
-        bool zoneIsFresh = na(z.startTime) or (time - z.startTime) <= (24 * 60 * 60 * 1000)
+        bool zoneIsFresh = na(z.startTime) or (time - z.startTime) <= (max_zone_age_hours * 60 * 60 * 1000)
         if canEnter and not zoneIsFresh
             canEnter := false
-            reason := isDemand ? "Demand zone older than 24h" : "Supply zone older than 24h"
+            reason := isDemand ? "Demand zone older than " + str.tostring(max_zone_age_hours, "#") + "h" : "Supply zone older than " + str.tostring(max_zone_age_hours, "#") + "h"
 
         bool zone_created_after_min_bar = na(z.createdBarIndex) or z.createdBarIndex >= min_bar_index_for_entries
         if canEnter and not zone_created_after_min_bar
