@@ -2747,7 +2747,7 @@ validate_liquidity_formation(liqBarIdx, zoneCreatedBarIdx, liqPrice, isHigh) =>
                 true  // If no previous swing found, assume valid (first liquidity)
 
 liquidity_level_end_bar(Core.Zone z) =>
-    math.max(bar_index + LIQ_LEVEL_EXTENSION_BARS, zone_right_bar(z))
+    not na(z.liquiditySweptBarIndex) ? z.liquiditySweptBarIndex : math.max(bar_index + LIQ_LEVEL_EXTENSION_BARS, zone_right_bar(z))
 
 clearDemandLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(demandZones)
@@ -2778,6 +2778,7 @@ updateDemandLiquidityVisual(idx) =>
         if show_liquidity_guides and not na(z.createdBarIndex)
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
                 int indEndBar = liquidity_level_end_bar(z)
+                indEndBar := math.max(z.liqLowBar, indEndBar)
                 z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                                x2 = indEndBar, y2 = z.liqLowPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
@@ -2820,6 +2821,7 @@ updateSupplyLiquidityVisual(idx) =>
         if show_liquidity_guides and not na(z.createdBarIndex)
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
                 int indEndBar = liquidity_level_end_bar(z)
+                indEndBar := math.max(z.liqHighBar, indEndBar)
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = indEndBar, y2 = z.liqHighPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
@@ -4571,6 +4573,8 @@ _controlLine(_lines, _activeFlags, __high, __low) =>
             float tolerance = pip_size * 0.1
             bool isCrossed = (__high >= lvlLow - tolerance and __low <= lvlLow + tolerance) or (__high >= lvlHigh - tolerance and __low <= lvlHigh + tolerance)
             if isActive and isCrossed
+                if bar_index >= line.get_x1(lineRef)
+                    line.set_x2(lineRef, bar_index)
                 line.set_color(lineRef, col_status_warn)
                 if i < array.size(_activeFlags)
                     array.set(_activeFlags, i, false)
