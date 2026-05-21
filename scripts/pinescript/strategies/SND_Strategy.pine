@@ -199,6 +199,7 @@ liq_max_distance_pips_index = input.float(500.0, "liq_max_distance_pips_index", 
 fractalsPeriod = 2  // Williams Fractals period
 plotLiq    = input.bool(false, "plotLiq", group = "🎨 Display")
 show_fractals = input.bool(false, "show_fractals", group = "🎨 Display")
+show_trade_levels = input.bool(false, "show_trade_levels", group = "🎨 Display")
 visual_only_mode = input.bool(false, "visual_only_mode", group = "🎨 Display")
 show_liquidity_guides = plotLiq
 pvtTopColor = color.new(#6F7F92, 62)  // Raw liquidity highs
@@ -5134,9 +5135,9 @@ else
 
 performanceTable := draw_performance_table(performanceTable)
 
-plot(strategy.position_size != 0 ? trade_tp1_price : na, "Trade TP Level", color = color.new(col_status_good, 50), style = plot.style_linebr, linewidth = 2)
-plot(strategy.position_size != 0 ? trade_current_sl : na, "Trade SL Level", color = color.new(col_status_bad, 50), style = plot.style_linebr, linewidth = 2)
-plot(strategy.position_size != 0 ? trade_entry_price : na, "Trade Entry", color = color.new(col_status_info, 50), style = plot.style_linebr, linewidth = 1)
+plot(show_trade_levels and strategy.position_size != 0 ? trade_tp1_price : na, "Trade TP Level", color = color.new(col_status_good, 50), style = plot.style_linebr, linewidth = 2)
+plot(show_trade_levels and strategy.position_size != 0 ? trade_current_sl : na, "Trade SL Level", color = color.new(col_status_bad, 50), style = plot.style_linebr, linewidth = 2)
+plot(show_trade_levels and strategy.position_size != 0 ? trade_entry_price : na, "Trade Entry", color = color.new(col_status_info, 50), style = plot.style_linebr, linewidth = 1)
 plot(show_ema_context_line ? feature_ema_context : na, "EMA Context", color = color.new(#5F789D, 12), linewidth = 2)
 
 plot(plot_id, "W0: Zone ID", display = display.none)
