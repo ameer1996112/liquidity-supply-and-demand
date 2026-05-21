@@ -199,6 +199,7 @@ fractalsPeriod = 2  // Williams Fractals period
 plotLiq    = input.bool(false, "plotLiq", group = "🎨 Display")
 show_fractals = input.bool(false, "show_fractals", group = "🎨 Display")
 visual_mode = input.string("Clean", "visual_mode", options = ["Clean", "Diagnostic", "Forensic"], group = "🎨 Display")
+visual_only_mode = input.bool(false, "visual_only_mode", group = "🎨 Display")
 visual_clean = visual_mode == "Clean"
 visual_diagnostic = visual_mode == "Diagnostic"
 visual_forensic = visual_mode == "Forensic"
@@ -257,7 +258,7 @@ max_position_size_lots = input.float(100.0, "max_position_size_lots", minval = 0
 max_lots_per_10k       = input.float(10.0, "max_lots_per_10k", minval = 0.1, step = 1.0, group = "🛡️ Prop Firm / Risk Safety")
 max_usd_risk_cap      = input.float(0.0, "max_usd_risk_cap", minval = 0.0, step = 50.0, group = "🛡️ Prop Firm / Risk Safety")
 use_half_risk_second_trade = input.bool(true, "use_half_risk_second_trade", group = "🛡️ Prop Firm / Risk Safety")
-dry_run_mode          = false  // Dry run disabled by default
+dry_run_mode          = visual_only_mode  // Visual-only mode suppresses strategy orders and TradingView quantity markers.
 
 debug_mode            = false
 zone_label_size       = "Tiny"
@@ -3642,10 +3643,11 @@ process_long_entries() =>
                         else
                             strategy.entry("Long", strategy.long, qty = pos_qty_units, comment = entryComment)
 
-                    if not na(take_profit_price) and take_profit_price > 0
-                        strategy.exit("Long Exit", "Long", stop = stop_loss_price, limit = take_profit_price, comment_loss = "SL", comment_profit = "TP")
-                    else
-                        strategy.exit("Long Exit", "Long", stop = stop_loss_price, comment_loss = "SL")
+                    if not dry_run_mode
+                        if not na(take_profit_price) and take_profit_price > 0
+                            strategy.exit("Long Exit", "Long", stop = stop_loss_price, limit = take_profit_price, comment_loss = "SL", comment_profit = "TP")
+                        else
+                            strategy.exit("Long Exit", "Long", stop = stop_loss_price, comment_loss = "SL")
 
                     if not dry_run_mode
                         array.set(_active_entry_id, 0, "Long")
@@ -4106,10 +4108,11 @@ process_short_entries() =>
                         else
                             strategy.entry("Short", strategy.short, qty = pos_qty_units, comment = entryComment)
 
-                    if not na(take_profit_price) and take_profit_price > 0
-                        strategy.exit("Short Exit", "Short", stop = stop_loss_price, limit = take_profit_price, comment_loss = "SL", comment_profit = "TP")
-                    else
-                        strategy.exit("Short Exit", "Short", stop = stop_loss_price, comment_loss = "SL")
+                    if not dry_run_mode
+                        if not na(take_profit_price) and take_profit_price > 0
+                            strategy.exit("Short Exit", "Short", stop = stop_loss_price, limit = take_profit_price, comment_loss = "SL", comment_profit = "TP")
+                        else
+                            strategy.exit("Short Exit", "Short", stop = stop_loss_price, comment_loss = "SL")
 
                     if not dry_run_mode
                         array.set(_active_entry_id, 0, "Short")
