@@ -199,19 +199,13 @@ liq_max_distance_pips_index = input.float(500.0, "liq_max_distance_pips_index", 
 fractalsPeriod = 2  // Williams Fractals period
 plotLiq    = input.bool(false, "plotLiq", group = "🎨 Display")
 show_fractals = input.bool(false, "show_fractals", group = "🎨 Display")
-visual_mode = input.string("Clean", "visual_mode", options = ["Clean", "Diagnostic", "Forensic"], group = "🎨 Display")
 visual_only_mode = input.bool(false, "visual_only_mode", group = "🎨 Display")
-visual_clean = visual_mode == "Clean"
-visual_diagnostic = visual_mode == "Diagnostic"
-visual_forensic = visual_mode == "Forensic"
-show_liquidity_guides = visual_diagnostic or visual_forensic
-show_invalid_zone_history = visual_diagnostic or visual_forensic
-show_raw_debug_objects = visual_forensic
+show_liquidity_guides = plotLiq
 pvtTopColor = color.new(#6F7F92, 62)  // Raw liquidity highs
 pvtBtmColor = color.new(#B59A62, 52)  // Raw liquidity lows
 pvtStyle    = line.style_solid
-showChartFractals = show_fractals and show_raw_debug_objects
-showRawLiquidityLevels = plotLiq and show_raw_debug_objects
+showChartFractals = show_fractals
+showRawLiquidityLevels = plotLiq
 const int LIQ_LEVEL_EXTENSION_BARS = 1
 color liq_inducement_level_color = color.new(#B59A62, 26)
 liq_fallback_lookback = 300
@@ -1549,8 +1543,7 @@ zone_should_show_visual(Core.Zone z, bool isDemand) =>
     bool invalidOrRejected = zone_is_invalid_or_rejected(z)
     bool entryUsedArchive = not na(z.lastEntryBar) and not invalidOrRejected
     bool activeDisplayZone = z.active and not z.mitigated and not invalidOrRejected and zone_is_relevant_visual(z, isDemand)
-    bool diagnosticHistoryZone = show_invalid_zone_history and (invalidOrRejected or (zone_is_used_or_mitigated(z) and not entryUsedArchive))
-    bool visible = activeDisplayZone or entryUsedArchive or diagnosticHistoryZone
+    bool visible = activeDisplayZone or entryUsedArchive
     visible
 
 apply_zone_visual(Core.Zone z, bool isDemand) =>
@@ -1568,12 +1561,12 @@ apply_zone_visual(Core.Zone z, bool isDemand) =>
                 borderColor := isDemand ? col_demand_border : col_supply_border
                 borderWidth := 1
             else if usedOrMitigated
-                bgColor := visual_forensic ? color.new(#9ca3af, 92) : col_used_zone_bg
-                borderColor := visual_forensic ? color.new(#9ca3af, 62) : col_used_zone_border
+                bgColor := col_used_zone_bg
+                borderColor := col_used_zone_border
                 borderWidth := 1
             else if invalidOrRejected
-                bgColor := visual_forensic ? color.new(#6b7280, 94) : col_invalid_zone_bg
-                borderColor := visual_forensic ? color.new(#6b7280, 74) : col_invalid_zone_border
+                bgColor := col_invalid_zone_bg
+                borderColor := col_invalid_zone_border
                 borderWidth := 1
             else if z.isAccuracy
                 bgColor := isDemand ? col_acc_demand_bg : col_acc_supply_bg
@@ -3200,7 +3193,7 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
         if i >= array.size(demandZones)
             break
         Core.Zone z = array.get(demandZones, i)
-        if z.active or not na(z.lastEntryBar) or (show_invalid_zone_history and (not na(z.boxId) or not na(z.idLabel)))
+        if z.active or not na(z.lastEntryBar)
             bool zoneVisible = apply_zone_visual(z, true)
             if zoneVisible and not na(z.createdBarIndex)
                 int right_bar_index = zone_right_bar(z)
@@ -3214,8 +3207,8 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
                         string demandAccTag = z.isAccuracy ? "ACC " : ""
                         string demandCompact = demandAccTag + "D-" + str.tostring(z.id)
                         string demandDetailed = "Demand " + demandCompact
-                        string demandMetrics = zone_label_show_metrics or visual_forensic ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
-                        string demandText = visual_clean ? demandCompact : (zone_label_style == "Detailed" or visual_forensic ? (demandDetailed + demandMetrics) : demandCompact)
+                        string demandMetrics = zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
+                        string demandText = zone_label_style == "Detailed" ? (demandDetailed + demandMetrics) : demandCompact
                         label.set_text(z.idLabel, " " + demandText + " ")
                         label.set_style(z.idLabel, label.style_label_left)
                         label.set_size(z.idLabel, size.tiny)
@@ -3226,7 +3219,7 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
         if i >= array.size(supplyZones)
             break
         Core.Zone z = array.get(supplyZones, i)
-        if z.active or not na(z.lastEntryBar) or (show_invalid_zone_history and (not na(z.boxId) or not na(z.idLabel)))
+        if z.active or not na(z.lastEntryBar)
             bool zoneVisible = apply_zone_visual(z, false)
             if zoneVisible and not na(z.createdBarIndex)
                 int right_bar_index = zone_right_bar(z)
@@ -3240,8 +3233,8 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
                         string supplyAccTag = z.isAccuracy ? "ACC " : ""
                         string supplyCompact = supplyAccTag + "S-" + str.tostring(z.id)
                         string supplyDetailed = "Supply " + supplyCompact
-                        string supplyMetrics = zone_label_show_metrics or visual_forensic ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
-                        string supplyText = visual_clean ? supplyCompact : (zone_label_style == "Detailed" or visual_forensic ? (supplyDetailed + supplyMetrics) : supplyCompact)
+                        string supplyMetrics = zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
+                        string supplyText = zone_label_style == "Detailed" ? (supplyDetailed + supplyMetrics) : supplyCompact
                         label.set_text(z.idLabel, " " + supplyText + " ")
                         label.set_style(z.idLabel, label.style_label_left)
                         label.set_size(z.idLabel, size.tiny)
@@ -3289,7 +3282,7 @@ process_long_entries() =>
                     if str.contains(entryReason, "liquidity") or str.contains(entryReason, "Liq ")
                         array.set(_stat_entries_blocked_by_liquidity, 0, array.get(_stat_entries_blocked_by_liquidity, 0) + 1)
 
-                if not can_enter and show_blocked_trade_labels and show_raw_debug_objects and debug_level != "None" and isRecentBarForDebug()
+                if not can_enter and show_blocked_trade_labels and debug_level != "None" and isRecentBarForDebug()
                     bool isAiBlock = str.contains(entryReason, "AI Quality") or str.contains(entryReason, "[SHADOW]")
                     color blockCol = isAiBlock ? col_status_warn : color.new(col_status_bad, 20)
                     string blockTag = isAiBlock ? "🤖 " : "🚫 "
@@ -3582,7 +3575,6 @@ process_long_entries() =>
                     if dry_run_mode
                         int dummy_var = 0  // Dummy statement to prevent empty block error
                     else
-                        string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
                         int f_fresh = bar_index - z.createdBarIndex
                         float zone_range = z.top - z.bottom
                         float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
@@ -3636,7 +3628,7 @@ process_long_entries() =>
                                       + "|Sn:" + dna_session
                                       + "|T:"  + (feature_trend == 1 ? "1" : "0")
                                       + "|H:"  + (feature_htf_trend == 1 ? "1" : "0")
-                        string entryComment = visual_forensic ? ((show_entry_labels ? "" : typeTag) + ai_dna) : " "
+                        string entryComment = " "
 
                         if enable_webhook_alerts
                             strategy.entry("Long", strategy.long, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload)
@@ -3696,21 +3688,15 @@ process_long_entries() =>
                         float raw_sl_dist = math.abs(entry_price - stop_loss_price) / pip_size
                         float sl_dist_disp = is_index ? raw_sl_dist * 100 : raw_sl_dist
                         string clean_tp_text = not na(take_profit_price) ? str.tostring(take_profit_price, format.mintick) : "OPEN"
-                        string label_text = visual_forensic ? "LONG" : "LONG"
-                        label_text := visual_forensic ? label_text + "\nE " + str.tostring(entry_price, format.mintick) : label_text
-                        label_text := visual_clean ? label_text + "\nE " + str.tostring(entry_price, format.mintick) : label_text
-                        label_text := visual_clean ? label_text + "\nSL " + str.tostring(sl_dist_disp, "#.#") + "p  TP " + clean_tp_text : label_text + "\nSL " + str.tostring(stop_loss_price, format.mintick) + " | " + str.tostring(sl_dist_disp, "#.#") + "p"
+                        string label_text = "LONG"
+                        label_text := label_text + "\nE " + str.tostring(entry_price, format.mintick)
+                        label_text := label_text + "\nSL " + str.tostring(sl_dist_disp, "#.#") + "p  TP " + clean_tp_text
 
-                        if not na(take_profit_price)
-                            label_text := visual_clean ? label_text : label_text + "\nTP " + str.tostring(take_profit_price, format.mintick)
-                        else
-                            label_text := visual_clean ? label_text : label_text + "\nTP OPEN"
-
-                        int x_long_label = visual_clean ? bar_index + 5 : bar_index
-                        float y_long = visual_clean ? entry_price : low - (atr14 * long_label_offset_atr) - (syminfo.mintick * long_label_offset_ticks)
+                        int x_long_label = bar_index + 5
+                        float y_long = entry_price
                         label.new(x = x_long_label, y = y_long, text = label_text,
-                                  style = visual_clean ? label.style_label_left : label.style_label_up, color = col_entry_long,
-                                  textcolor = visual_clean ? col_entry_long_text : color.white, size = size.tiny)
+                                  style = label.style_label_left, color = col_entry_long,
+                                  textcolor = col_entry_long_text, size = size.tiny)
 
                 break
 
@@ -3756,7 +3742,7 @@ process_short_entries() =>
                     if str.contains(entryReason, "liquidity") or str.contains(entryReason, "Liq ")
                         array.set(_stat_entries_blocked_by_liquidity, 0, array.get(_stat_entries_blocked_by_liquidity, 0) + 1)
 
-                if not can_enter and show_blocked_trade_labels and show_raw_debug_objects and debug_level != "None" and isRecentBarForDebug()
+                if not can_enter and show_blocked_trade_labels and debug_level != "None" and isRecentBarForDebug()
                     bool isAiBlock = str.contains(entryReason, "AI Quality") or str.contains(entryReason, "[SHADOW]")
                     color blockCol = isAiBlock ? col_status_warn : color.new(col_status_bad, 20)
                     string blockTag = isAiBlock ? "🤖 " : "🚫 "
@@ -4049,7 +4035,6 @@ process_short_entries() =>
                     if dry_run_mode
                         int dummy_var = 0  // Dummy statement to prevent empty block error
                     else
-                        string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
                         int f_fresh = bar_index - z.createdBarIndex
                         float zone_range = z.top - z.bottom
                         float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
@@ -4103,7 +4088,7 @@ process_short_entries() =>
                                       + "|Sn:" + dna_session
                                       + "|T:"  + (feature_trend == 1 ? "1" : "0")
                                       + "|H:"  + (feature_htf_trend == 1 ? "1" : "0")
-                        string entryComment = visual_forensic ? ((show_entry_labels ? "" : typeTag) + ai_dna) : " "
+                        string entryComment = " "
 
                         if enable_webhook_alerts
                             strategy.entry("Short", strategy.short, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload_short)
@@ -4162,23 +4147,16 @@ process_short_entries() =>
                     if show_entry_labels
                         float raw_sl_dist = math.abs(stop_loss_price - entry_price) / pip_size
                         float sl_dist_disp = is_index ? raw_sl_dist * 100 : raw_sl_dist
-                        string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
                         string clean_tp_text = not na(take_profit_price) ? str.tostring(take_profit_price, format.mintick) : "OPEN"
-                        string label_text = visual_forensic ? ("SHORT " + typeTag) : "SHORT"
-                        label_text := visual_forensic ? label_text + "\nE " + str.tostring(entry_price, format.mintick) : label_text
-                        label_text := visual_clean ? label_text + "\nE " + str.tostring(entry_price, format.mintick) : label_text
-                        label_text := visual_clean ? label_text + "\nSL " + str.tostring(sl_dist_disp, "#.#") + "p  TP " + clean_tp_text : label_text + "\nSL " + str.tostring(stop_loss_price, format.mintick) + " | " + str.tostring(sl_dist_disp, "#.#") + "p"
+                        string label_text = "SHORT"
+                        label_text := label_text + "\nE " + str.tostring(entry_price, format.mintick)
+                        label_text := label_text + "\nSL " + str.tostring(sl_dist_disp, "#.#") + "p  TP " + clean_tp_text
 
-                        if not na(take_profit_price)
-                            label_text := visual_clean ? label_text : label_text + "\nTP " + str.tostring(take_profit_price, format.mintick)
-                        else
-                            label_text := visual_clean ? label_text : label_text + "\nTP OPEN"
-
-                        int x_short_label = visual_clean ? bar_index + 5 : bar_index
-                        float y_short_label = visual_clean ? entry_price : high + (pip_size * 5)
+                        int x_short_label = bar_index + 5
+                        float y_short_label = entry_price
                         label.new(x = x_short_label, y = y_short_label, text = label_text,
-                                  style = visual_clean ? label.style_label_left : label.style_label_down, color = col_entry_short,
-                                  textcolor = visual_clean ? col_entry_short_text : color.white, size = size.tiny)
+                                  style = label.style_label_left, color = col_entry_short,
+                                  textcolor = col_entry_short_text, size = size.tiny)
 
                 break
 
