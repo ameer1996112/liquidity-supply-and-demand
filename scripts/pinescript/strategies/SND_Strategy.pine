@@ -435,16 +435,16 @@ if news_blackout_enabled
         if time >= _pf_ts - 2 * 60 * 1000 and time <= _pf_ts + 2 * 60 * 1000
             pf_is_news_blackout := true
 
-col_demand_bg     = color.new(#79BDB6, 78)
-col_demand_border = color.new(#2F7D77, 18)
+col_demand_bg     = color.new(#8FBDB3, 84)
+col_demand_border = color.new(#2D746B, 28)
 
-col_supply_bg     = color.new(#7E91AA, 82)
-col_supply_border = color.new(#465D78, 34)
+col_supply_bg     = color.new(#8D9BB2, 86)
+col_supply_border = color.new(#435875, 38)
 
-col_acc_demand_bg     = color.new(#79BDB6, 72)
-col_acc_demand_border = color.new(#0F766E, 8)
-col_acc_supply_bg     = color.new(#7E91AA, 76)
-col_acc_supply_border = color.new(#334E68, 18)
+col_acc_demand_bg     = color.new(#7DB7AD, 78)
+col_acc_demand_border = color.new(#0F766E, 18)
+col_acc_supply_bg     = color.new(#8292AA, 80)
+col_acc_supply_border = color.new(#334E68, 26)
 col_label_demand      = color.new(#23292C, 8)
 col_label_supply      = color.new(#23292C, 8)
 col_label_acc_demand  = color.new(#303332, 6)
@@ -456,8 +456,10 @@ col_status_bad        = color.new(#8C5C64, 0)
 col_status_info       = color.new(#5F789D, 0)
 col_status_muted      = color.rgb(150, 150, 150)
 col_hidden_visual     = color.new(color.black, 100)
-col_entry_long        = color.new(#1F2A25, 0)
-col_entry_short       = color.new(#2A1F22, 0)
+col_entry_long        = color.new(#E7F0EC, 6)
+col_entry_short       = color.new(#ECEAF0, 6)
+col_entry_long_text   = color.new(#123A34, 0)
+col_entry_short_text  = color.new(#27354A, 0)
 col_used_zone_bg      = color.new(#8A8F98, 96)
 col_used_zone_border  = color.new(#8A8F98, 78)
 col_invalid_zone_bg   = color.new(#8A8F98, 98)
@@ -3690,20 +3692,20 @@ process_long_entries() =>
                     if show_entry_labels
                         float raw_sl_dist = math.abs(entry_price - stop_loss_price) / pip_size
                         float sl_dist_disp = is_index ? raw_sl_dist * 100 : raw_sl_dist
-                        string label_text = visual_forensic ? "LONG" : "E " + str.tostring(entry_price, format.mintick)
+                        string label_text = visual_forensic ? "LONG" : "L " + str.tostring(entry_price, format.mintick)
                         label_text := visual_forensic ? label_text + "\nE " + str.tostring(entry_price, format.mintick) : label_text
-                        label_text := label_text + "\nSL " + str.tostring(stop_loss_price, format.mintick) + " | " + str.tostring(sl_dist_disp, "#.#") + "p"
+                        label_text := visual_clean ? label_text : label_text + "\nSL " + str.tostring(stop_loss_price, format.mintick) + " | " + str.tostring(sl_dist_disp, "#.#") + "p"
 
                         if not na(take_profit_price)
-                            label_text := label_text + "\nTP " + str.tostring(take_profit_price, format.mintick)
+                            label_text := visual_clean ? label_text : label_text + "\nTP " + str.tostring(take_profit_price, format.mintick)
                         else
-                            label_text := label_text + "\nTP OPEN"
+                            label_text := visual_clean ? label_text : label_text + "\nTP OPEN"
 
                         int x_long_label = visual_clean ? bar_index + 4 : bar_index
                         float y_long = visual_clean ? entry_price : low - (atr14 * long_label_offset_atr) - (syminfo.mintick * long_label_offset_ticks)
                         label.new(x = x_long_label, y = y_long, text = label_text,
                                   style = visual_clean ? label.style_label_left : label.style_label_up, color = col_entry_long,
-                                  textcolor = color.white, size = size.tiny)
+                                  textcolor = visual_clean ? col_entry_long_text : color.white, size = visual_clean ? size.small : size.tiny)
 
                 break
 
@@ -4155,20 +4157,20 @@ process_short_entries() =>
                         float raw_sl_dist = math.abs(stop_loss_price - entry_price) / pip_size
                         float sl_dist_disp = is_index ? raw_sl_dist * 100 : raw_sl_dist
                         string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
-                        string label_text = visual_forensic ? ("SHORT " + typeTag) : "E " + str.tostring(entry_price, format.mintick)
+                        string label_text = visual_forensic ? ("SHORT " + typeTag) : "S " + str.tostring(entry_price, format.mintick)
                         label_text := visual_forensic ? label_text + "\nE " + str.tostring(entry_price, format.mintick) : label_text
-                        label_text := label_text + "\nSL " + str.tostring(stop_loss_price, format.mintick) + " | " + str.tostring(sl_dist_disp, "#.#") + "p"
+                        label_text := visual_clean ? label_text : label_text + "\nSL " + str.tostring(stop_loss_price, format.mintick) + " | " + str.tostring(sl_dist_disp, "#.#") + "p"
 
                         if not na(take_profit_price)
-                            label_text := label_text + "\nTP " + str.tostring(take_profit_price, format.mintick)
+                            label_text := visual_clean ? label_text : label_text + "\nTP " + str.tostring(take_profit_price, format.mintick)
                         else
-                            label_text := label_text + "\nTP OPEN"
+                            label_text := visual_clean ? label_text : label_text + "\nTP OPEN"
 
                         int x_short_label = visual_clean ? bar_index + 4 : bar_index
                         float y_short_label = visual_clean ? entry_price : high + (pip_size * 5)
                         label.new(x = x_short_label, y = y_short_label, text = label_text,
                                   style = visual_clean ? label.style_label_left : label.style_label_down, color = col_entry_short,
-                                  textcolor = color.white, size = size.tiny)
+                                  textcolor = visual_clean ? col_entry_short_text : color.white, size = visual_clean ? size.small : size.tiny)
 
                 break
 
