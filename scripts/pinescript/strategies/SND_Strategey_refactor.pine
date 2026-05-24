@@ -2731,7 +2731,7 @@ updateDemandLiquidityVisual(idx) =>
                 z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                                x2 = indEndBar, y2 = z.liqLowPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
-                                               color = liq_inducement_level_color, style = line.style_solid, width = 1)
+                                               color = liq_inducement_level_color, style = line.style_solid, width = 2)
 
         true
 
@@ -2773,7 +2773,7 @@ updateSupplyLiquidityVisual(idx) =>
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = indEndBar, y2 = z.liqHighPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
-                                               color = liq_inducement_level_color, style = line.style_solid, width = 1)
+                                               color = liq_inducement_level_color, style = line.style_solid, width = 2)
 
         true
 

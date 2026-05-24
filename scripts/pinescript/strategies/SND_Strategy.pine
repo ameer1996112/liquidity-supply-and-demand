@@ -2744,7 +2744,7 @@ updateDemandLiquidityVisual(idx) =>
                 z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                                x2 = indLineEnd, y2 = z.liqLowPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
-                                               color = indColor, style = line.style_dotted, width = indWidth)
+                                               color = indColor, style = line.style_solid, width = 2)
 
             if not na(z.targetHLine)
                 line.delete(z.targetHLine)
@@ -2756,7 +2756,7 @@ updateDemandLiquidityVisual(idx) =>
                 z.targetHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                            x2 = tgtLineEnd, y2 = z.liqHighPrice,
                                            xloc = xloc.bar_index, extend = extend.none,
-                                           color = tgtColor, style = line.style_solid, width = tgtWidth)
+                                           color = tgtColor, style = line.style_solid, width = 2)
         else
             if not na(z.inducementHLine)
                 line.delete(z.inducementHLine)
@@ -2814,7 +2814,7 @@ updateSupplyLiquidityVisual(idx) =>
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = indLineEnd, y2 = z.liqHighPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
-                                               color = indColor, style = line.style_dotted, width = indWidth)
+                                               color = indColor, style = line.style_solid, width = 2)
 
             if not na(z.targetHLine)
                 line.delete(z.targetHLine)
@@ -2826,7 +2826,7 @@ updateSupplyLiquidityVisual(idx) =>
                 z.targetHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                            x2 = tgtLineEnd, y2 = z.liqLowPrice,
                                            xloc = xloc.bar_index, extend = extend.none,
-                                           color = tgtColor, style = line.style_solid, width = tgtWidth)
+                                           color = tgtColor, style = line.style_solid, width = 2)
         else
             if not na(z.inducementHLine)
                 line.delete(z.inducementHLine)
