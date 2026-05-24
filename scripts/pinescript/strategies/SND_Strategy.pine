@@ -191,12 +191,12 @@ liq_max_distance_pips_gold  = input.float(150.0, "liq_max_distance_pips_gold", m
 liq_max_distance_pips_index = input.float(500.0, "liq_max_distance_pips_index", minval = 100.0, group = "💧 Liquidity")
 
 fractalsPeriod = 2  // Williams Fractals period
-plotLiq    = input.bool(false, "plotLiq", group = "🎨 Display")
+
 show_fractals = input.bool(false, "show_fractals", group = "🎨 Display")
 pvtTopColor = color.new(#e11d48, 85)
 pvtBtmColor = color.new(#0284c7, 85)
 pvtStyle    = line.style_dotted
-show_liquidity_connectors = input.bool(false, "show_liquidity_connectors", group = "🎨 Display")
+show_liquidity_connectors = input.bool(true, "Show Zone Liquidity", group = "🎨 Display")
 const int LIQ_MARK_EXTENSION_BARS = 6
 color liq_inducement_pending = color.new(#64748b, 85)
 color liq_inducement_swept = color.new(#f59e0b, 40)
@@ -4627,34 +4627,6 @@ _controlLine(_lines, _activeFlags, __high, __low) =>
             else if isActive and (not isCrossed) and bar_index >= line.get_x1(lineRef)
                 line.set_x2(lineRef, bar_index + 1)
         true  // Return value
-
-
-if isPvtLow and plotLiq
-    int  pBar  = bar_index - 1  // Middle candle of the 3-candle pattern
-    float pLow = low[1]
-    lowLine = line.new(x1 = pBar, y1 = pLow, x2 = bar_index, y2 = pLow,
-                       extend = extend.none, color = pvtBtmColor, style = pvtStyle, xloc = xloc.bar_index)
-    if array.size(_lowLiqLines) >= pvtMax
-        line.delete(array.shift(_lowLiqLines))
-        if array.size(_lowLiqActive) > 0
-            array.shift(_lowLiqActive)
-    array.push(_lowLiqLines, lowLine)
-    array.push(_lowLiqActive, true)
-
-if isPvtHigh and plotLiq
-    int  pBar  = bar_index - 1  // Middle candle of the 3-candle pattern
-    float pHigh = high[1]
-    highLine = line.new(x1 = pBar, y1 = pHigh, x2 = bar_index, y2 = pHigh,extend = extend.none, color = pvtTopColor, style = pvtStyle, xloc = xloc.bar_index)
-    if array.size(_highLiqLines) >= pvtMax
-        line.delete(array.shift(_highLiqLines))
-        if array.size(_highLiqActive) > 0
-            array.shift(_highLiqActive)
-    array.push(_highLiqLines, highLine)
-    array.push(_highLiqActive, true)
-
-if plotLiq and barstate.isconfirmed
-    _controlLine(_lowLiqLines, _lowLiqActive, high, low)
-    _controlLine(_highLiqLines, _highLiqActive, high, low)
 
 var table zoneInspector = na
 var label inspectorIndLabel = na
