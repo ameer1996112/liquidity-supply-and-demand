@@ -1580,7 +1580,9 @@ apply_zone_visual(Core.Zone z, bool isDemand) =>
     if not na(z.inducementHLine)
         if visible
             int liqBar = isDemand ? z.liqLowBar : z.liqHighBar
-            int currentRight = z.active and not z.mitigated ? bar_index + 1 : (na(z.lastTouchBar) ? bar_index : z.lastTouchBar)
+            int sweepBar = z.liquiditySwept and not na(z.liquiditySweptBarIndex) ? z.liquiditySweptBarIndex : na
+            int touchBar = (not z.active or z.mitigated) and not na(z.lastTouchBar) ? z.lastTouchBar : na
+            int currentRight = not na(sweepBar) ? sweepBar : (not na(touchBar) ? touchBar : bar_index + 1)
             line.set_x2(z.inducementHLine, math.max(liqBar, currentRight))
         else
             line.set_color(z.inducementHLine, col_hidden_visual)
@@ -1588,7 +1590,9 @@ apply_zone_visual(Core.Zone z, bool isDemand) =>
     if not na(z.targetHLine)
         if visible
             int tgtBar = isDemand ? z.liqHighBar : z.liqLowBar
-            int currentRight = z.active and not z.mitigated ? bar_index + 1 : (na(z.lastTouchBar) ? bar_index : z.lastTouchBar)
+            int sweepBar = z.targetSwept and not na(z.targetSweptBarIndex) ? z.targetSweptBarIndex : na
+            int touchBar = (not z.active or z.mitigated) and not na(z.lastTouchBar) ? z.lastTouchBar : na
+            int currentRight = not na(sweepBar) ? sweepBar : (not na(touchBar) ? touchBar : bar_index + 1)
             line.set_x2(z.targetHLine, math.max(tgtBar, currentRight))
         else
             line.set_color(z.targetHLine, col_hidden_visual)
@@ -2713,10 +2717,6 @@ validate_liquidity_formation(liqBarIdx, zoneCreatedBarIdx, liqPrice, isHigh) =>
             else
                 true  // If no previous swing found, assume valid (first liquidity)
 
-liquidity_level_end_bar(Core.Zone z) =>
-    int right = z.active and not z.mitigated ? bar_index + LIQ_LEVEL_EXTENSION_BARS : (na(z.lastTouchBar) ? bar_index : z.lastTouchBar)
-    right
-
 clearDemandLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(demandZones)
         Core.Zone z = array.get(demandZones, idx)
@@ -2745,7 +2745,10 @@ updateDemandLiquidityVisual(idx) =>
 
         if not na(z.createdBarIndex)
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                int indEndBar = math.max(z.liqLowBar, liquidity_level_end_bar(z))
+                int sweepBar = z.liquiditySwept and not na(z.liquiditySweptBarIndex) ? z.liquiditySweptBarIndex : na
+                int touchBar = (not z.active or z.mitigated) and not na(z.lastTouchBar) ? z.lastTouchBar : na
+                int currentRight = not na(sweepBar) ? sweepBar : (not na(touchBar) ? touchBar : bar_index + LIQ_LEVEL_EXTENSION_BARS)
+                int indEndBar = math.max(z.liqLowBar, currentRight)
                 z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                                x2 = indEndBar, y2 = z.liqLowPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
@@ -2787,7 +2790,10 @@ updateSupplyLiquidityVisual(idx) =>
 
         if not na(z.createdBarIndex)
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
-                int indEndBar = math.max(z.liqHighBar, liquidity_level_end_bar(z))
+                int sweepBar = z.liquiditySwept and not na(z.liquiditySweptBarIndex) ? z.liquiditySweptBarIndex : na
+                int touchBar = (not z.active or z.mitigated) and not na(z.lastTouchBar) ? z.lastTouchBar : na
+                int currentRight = not na(sweepBar) ? sweepBar : (not na(touchBar) ? touchBar : bar_index + LIQ_LEVEL_EXTENSION_BARS)
+                int indEndBar = math.max(z.liqHighBar, currentRight)
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = indEndBar, y2 = z.liqHighPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
