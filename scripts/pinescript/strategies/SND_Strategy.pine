@@ -193,17 +193,17 @@ liq_max_distance_pips_index = input.float(500.0, "liq_max_distance_pips_index", 
 fractalsPeriod = 2  // Williams Fractals period
 
 show_fractals = input.bool(false, "show_fractals", group = "🎨 Display")
-pvtTopColor = color.new(#e11d48, 85)
-pvtBtmColor = color.new(#0284c7, 85)
+pvtTopColor = color.new(#e11d48, 95)
+pvtBtmColor = color.new(#0284c7, 95)
 pvtStyle    = line.style_dotted
 show_liquidity_connectors = input.bool(true, "Show Zone Liquidity", group = "🎨 Display")
 const int LIQ_MARK_EXTENSION_BARS = 6
-color liq_inducement_pending = color.new(#64748b, 85)
-color liq_inducement_swept = color.new(#f59e0b, 40)
-color liq_target_pending = color.new(#475569, 85)
-color liq_target_swept = color.new(#10b981, 40)
-color liq_connector_pending = color.new(#94a3b8, 90)
-color liq_connector_swept = color.new(#64748b, 70)
+color liq_inducement_pending = color.new(#3b82f6, 0)
+color liq_inducement_swept = color.new(#f59e0b, 0)
+color liq_target_pending = color.new(#3b82f6, 0)
+color liq_target_swept = color.new(#10b981, 0)
+color liq_connector_pending = color.new(#94a3b8, 0)
+color liq_connector_swept = color.new(#64748b, 0)
 liq_line_color = liq_connector_pending
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
@@ -452,21 +452,21 @@ if news_blackout_enabled
         if time >= _pf_ts - 2 * 60 * 1000 and time <= _pf_ts + 2 * 60 * 1000
             pf_is_news_blackout := true
 
-col_demand_bg     = color.new(#047857, 90)
-col_demand_border = color.new(#047857, 60)
+col_demand_bg     = color.new(#047857, 80)
+col_demand_border = color.new(#047857, 40)
 
-col_supply_bg     = color.new(#be123c, 90)
-col_supply_border = color.new(#be123c, 60)
+col_supply_bg     = color.new(#be123c, 80)
+col_supply_border = color.new(#be123c, 40)
 
-col_acc_demand_bg     = color.new(#1d4ed8, 90)
-col_acc_demand_border = color.new(#1d4ed8, 60)
-col_acc_supply_bg     = color.new(#86198f, 90)
-col_acc_supply_border = color.new(#86198f, 60)
+col_acc_demand_bg     = color.new(#1d4ed8, 80)
+col_acc_demand_border = color.new(#1d4ed8, 40)
+col_acc_supply_bg     = color.new(#86198f, 80)
+col_acc_supply_border = color.new(#86198f, 40)
 col_hidden_visual     = color.new(color.black, 100)
-col_used_zone_bg      = color.new(#475569, 90)
-col_used_zone_border  = color.new(#475569, 70)
-col_invalid_zone_bg   = color.new(#334155, 92)
-col_invalid_zone_border = color.new(#334155, 75)
+col_used_zone_bg      = color.new(#475569, 85)
+col_used_zone_border  = color.new(#475569, 50)
+col_invalid_zone_bg   = color.new(#334155, 88)
+col_invalid_zone_border = color.new(#334155, 60)
 
 float tol = pip_size * 1.0
 

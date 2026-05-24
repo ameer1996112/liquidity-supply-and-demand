@@ -183,7 +183,7 @@ pvtStyle    = line.style_dotted
 showChartFractals = show_fractals
 
 const int LIQ_LEVEL_EXTENSION_BARS = 1
-color liq_inducement_level_color = color.new(#64748b, 70)
+color liq_inducement_level_color = color.new(#3b82f6, 0) // Solid Blue
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
 liq_link_lookback_bars = 400
@@ -408,16 +408,16 @@ if news_blackout_enabled
         if time >= _pf_ts - 2 * 60 * 1000 and time <= _pf_ts + 2 * 60 * 1000
             pf_is_news_blackout := true
 
-col_demand_bg     = color.new(#047857, 90)
-col_demand_border = color.new(#047857, 60)
+col_demand_bg     = color.new(#047857, 80)
+col_demand_border = color.new(#047857, 40)
 
-col_supply_bg     = color.new(#be123c, 90)
-col_supply_border = color.new(#be123c, 60)
+col_supply_bg     = color.new(#be123c, 80)
+col_supply_border = color.new(#be123c, 40)
 
-col_acc_demand_bg     = color.new(#1d4ed8, 90)
-col_acc_demand_border = color.new(#1d4ed8, 60)
-col_acc_supply_bg     = color.new(#86198f, 90)
-col_acc_supply_border = color.new(#86198f, 60)
+col_acc_demand_bg     = color.new(#1d4ed8, 80)
+col_acc_demand_border = color.new(#1d4ed8, 40)
+col_acc_supply_bg     = color.new(#86198f, 80)
+col_acc_supply_border = color.new(#86198f, 40)
 col_label_demand      = color.new(color.white, 100)
 col_label_supply      = color.new(color.white, 100)
 col_label_acc_demand  = color.new(color.white, 100)
@@ -429,10 +429,10 @@ col_status_bad        = color.new(#e11d48, 0)
 col_status_info       = color.new(#0284c7, 0)
 col_status_muted      = color.rgb(150, 150, 150)
 col_hidden_visual     = color.new(color.black, 100)
-col_used_zone_bg      = color.new(#475569, 90)
-col_used_zone_border  = color.new(#475569, 70)
-col_invalid_zone_bg   = color.new(#334155, 92)
-col_invalid_zone_border = color.new(#334155, 75)
+col_used_zone_bg      = color.new(#475569, 85)
+col_used_zone_border  = color.new(#475569, 50)
+col_invalid_zone_bg   = color.new(#334155, 88)
+col_invalid_zone_border = color.new(#334155, 60)
 
 float tol = pip_size * 1.0
 
