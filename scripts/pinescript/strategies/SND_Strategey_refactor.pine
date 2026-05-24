@@ -177,13 +177,13 @@ liq_max_distance_pips_index = input.float(500.0, "liq_max_distance_pips_index", 
 fractalsPeriod = 2  // Williams Fractals period
 plotLiq    = input.bool(false, "plotLiq", group = "🎨 Display")
 show_fractals = input.bool(false, "show_fractals", group = "🎨 Display")
-pvtTopColor = color.new(#dc2626, 78)  // Muted raw liquidity markers
-pvtBtmColor = color.new(#059669, 78)
-pvtStyle    = line.style_solid
+pvtTopColor = color.new(#e11d48, 85)
+pvtBtmColor = color.new(#0284c7, 85)
+pvtStyle    = line.style_dotted
 showChartFractals = show_fractals
 showRawLiquidityLevels = plotLiq
 const int LIQ_LEVEL_EXTENSION_BARS = 1
-color liq_inducement_level_color = color.new(#7A6A4D, 20)
+color liq_inducement_level_color = color.new(#64748b, 70)
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
 liq_link_lookback_bars = 400
@@ -210,7 +210,7 @@ zone_label_show_metrics = input.bool(false, "zone_label_show_metrics", group = "
 show_blocked_trade_labels = input.bool(false, "show_blocked_trade_labels", group = "🎨 Display")
 long_label_offset_atr = 0.60
 long_label_offset_ticks = 0
-extend_bars          = 6
+extend_bars          = 0
 
 
 trade_direction       = input.string("Both", "trade_direction", options = ["Both", "Long Only", "Short Only"], group = "🎯 Quick Setup")
@@ -408,31 +408,31 @@ if news_blackout_enabled
         if time >= _pf_ts - 2 * 60 * 1000 and time <= _pf_ts + 2 * 60 * 1000
             pf_is_news_blackout := true
 
-col_demand_bg     = color.new(#8FA6A0, 93)
-col_demand_border = color.new(#54756E, 42)
+col_demand_bg     = color.new(#089981, 85)
+col_demand_border = color.new(#089981, 100)
 
-col_supply_bg     = color.new(#A88F95, 93)
-col_supply_border = color.new(#7A5860, 42)
+col_supply_bg     = color.new(#F23645, 85)
+col_supply_border = color.new(#F23645, 100)
 
-col_acc_demand_bg     = color.new(#8FA6A0, 91)
-col_acc_demand_border = color.new(#3F6860, 24)
-col_acc_supply_bg     = color.new(#A88F95, 91)
-col_acc_supply_border = color.new(#6E4852, 24)
-col_label_demand      = color.new(#23292C, 8)
-col_label_supply      = color.new(#23292C, 8)
-col_label_acc_demand  = color.new(#303332, 6)
-col_label_acc_supply  = color.new(#303332, 6)
-col_label_text        = color.new(#E6EAEC, 0)
-col_status_good       = color.new(#6F9388, 0)
-col_status_warn       = color.new(#7A6A4D, 0)
-col_status_bad        = color.new(#8C5C64, 0)
-col_status_info       = color.new(#5F789D, 0)
+col_acc_demand_bg     = color.new(#2962FF, 85)
+col_acc_demand_border = color.new(#2962FF, 100)
+col_acc_supply_bg     = color.new(#9C27B0, 85)
+col_acc_supply_border = color.new(#9C27B0, 100)
+col_label_demand      = color.new(color.white, 100)
+col_label_supply      = color.new(color.white, 100)
+col_label_acc_demand  = color.new(color.white, 100)
+col_label_acc_supply  = color.new(color.white, 100)
+col_label_text        = color.new(#0284c7, 0)
+col_status_good       = color.new(#10b981, 0)
+col_status_warn       = color.new(#f59e0b, 0)
+col_status_bad        = color.new(#e11d48, 0)
+col_status_info       = color.new(#0284c7, 0)
 col_status_muted      = color.rgb(150, 150, 150)
 col_hidden_visual     = color.new(color.black, 100)
-col_used_zone_bg      = color.new(#9ca3af, 92)
-col_used_zone_border  = color.new(#9ca3af, 62)
-col_invalid_zone_bg   = color.new(#6b7280, 96)
-col_invalid_zone_border = color.new(#6b7280, 74)
+col_used_zone_bg      = color.new(#94a3b8, 85)
+col_used_zone_border  = color.new(#64748b, 100)
+col_invalid_zone_bg   = color.new(#475569, 85)
+col_invalid_zone_border = color.new(#64748b, 100)
 
 float tol = pip_size * 1.0
 
@@ -1486,8 +1486,24 @@ trimZoneArrays(bool isDemand) =>
 zone_inactive_reason(Core.Zone z) =>
     na(z.inactiveReason) ? "" : z.inactiveReason
 
+has_opposite_candle_since(int createdBarIndex, bool isDemand) =>
+    bool found = false
+    int barsBack = bar_index - createdBarIndex
+    if not na(createdBarIndex) and barsBack >= 0 and barsBack < 1000
+        for j = 0 to barsBack
+            if isDemand
+                if close[j] < open[j]
+                    found := true
+                    break
+            else
+                if close[j] > open[j]
+                    found := true
+                    break
+    found
+
 zone_is_active_tradable(Core.Zone z) =>
     z.active and not z.mitigated and zone_inactive_reason(z) == ""
+
 
 zone_is_used_or_mitigated(Core.Zone z) =>
     z.mitigated or (not z.active and not na(z.lastEntryBar))
@@ -1547,6 +1563,10 @@ apply_zone_visual(Core.Zone z, bool isDemand) =>
             box.set_bgcolor(z.boxId, bgColor)
             box.set_border_color(z.boxId, borderColor)
             box.set_border_width(z.boxId, borderWidth)
+            if usedOrMitigated or invalidOrRejected
+                box.set_extend(z.boxId, extend.none)
+            else
+                box.set_extend(z.boxId, extend.right)
         else
             box.set_bgcolor(z.boxId, col_hidden_visual)
             box.set_border_color(z.boxId, col_hidden_visual)
@@ -1942,13 +1962,10 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 string detailedText = (isDemand ? "Demand " : "Supply ") + compactText
                 string id_text = " " + (zone_label_style == "Detailed" ? detailedText : compactText) + " "
                 float mid = (zTop + zBottom) / 2.0
-                color lbl_bg_color = na
-                if isAccuracy
-                    lbl_bg_color := isDemand ? col_label_acc_demand : col_label_acc_supply
-                else
-                    lbl_bg_color := isDemand ? col_label_demand : col_label_supply
+                color lbl_bg_color = color.new(color.white, 100)
+                color dynamic_txt_color = isAccuracy ? (isDemand ? color.new(#2962FF, 0) : color.new(#9C27B0, 0)) : (isDemand ? color.new(#089981, 0) : color.new(#F23645, 0))
                 label idLbl = label.new(x = originBarIdx, y = mid, text = id_text,
-                     style = label.style_label_left, textcolor = col_label_text, color = lbl_bg_color,
+                     style = label.style_label_left, textcolor = dynamic_txt_color, color = lbl_bg_color,
                      size = size.tiny,  // Forced tiny size for clean chart
                      textalign = text.align_center, xloc = xloc.bar_index)
 
@@ -2967,7 +2984,8 @@ if cached_demand_size > 0 and barstate.isconfirmed
                 bool proofReady = z.liquidityValid and z.liquiditySwept and z.targetSwept
                 bool touchesDemand = low <= z.top and high >= z.bottom
 
-                if is_future_bar and z.leftZone and not justLeftZoneThisBar and touchesDemand and not proofReady
+                bool opposite_candle_printed = has_opposite_candle_since(z.createdBarIndex, true)
+                if is_future_bar and z.leftZone and not justLeftZoneThisBar and touchesDemand and not proofReady and opposite_candle_printed
                     int touchBarNow = bar_index
                     z.lastTouchBar := touchBarNow
                     z.wasTouched := true
@@ -3045,7 +3063,8 @@ if cached_supply_size > 0 and barstate.isconfirmed
                 bool proofReady = z.liquidityValid and z.liquiditySwept and z.targetSwept
                 bool touchesSupply = high >= z.bottom and low <= z.top
 
-                if is_future_bar and z.leftZone and not justLeftZoneThisBar and touchesSupply and not proofReady
+                bool opposite_candle_printed = has_opposite_candle_since(z.createdBarIndex, false)
+                if is_future_bar and z.leftZone and not justLeftZoneThisBar and touchesSupply and not proofReady and opposite_candle_printed
                     z.lastTouchBar := bar_index
                     z.wasTouched := true
                     z.touchedPreSweep := true

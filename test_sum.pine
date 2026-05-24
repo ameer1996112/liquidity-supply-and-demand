@@ -1,0 +1,5 @@
+//@version=5
+indicator("test")
+barsBack = bar_index - 10
+count = math.sum(close > open ? 1 : 0, barsBack)
+plot(count)
