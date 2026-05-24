@@ -1599,10 +1599,6 @@ apply_zone_visual(Core.Zone z, bool isDemand) =>
             box.set_bgcolor(z.boxId, bgColor)
             box.set_border_color(z.boxId, borderColor)
             box.set_border_width(z.boxId, borderWidth)
-            if usedOrMitigated or invalidOrRejected
-                box.set_extend(z.boxId, extend.none)
-            else
-                box.set_extend(z.boxId, extend.right)
         else
             box.set_bgcolor(z.boxId, col_hidden_visual)
             box.set_border_color(z.boxId, col_hidden_visual)
