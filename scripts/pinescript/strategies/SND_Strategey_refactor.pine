@@ -1576,6 +1576,23 @@ apply_zone_visual(Core.Zone z, bool isDemand) =>
             label.set_text(z.idLabel, "")
             label.set_color(z.idLabel, col_hidden_visual)
             label.set_textcolor(z.idLabel, col_hidden_visual)
+
+    if not na(z.inducementHLine)
+        if visible
+            int liqBar = isDemand ? z.liqLowBar : z.liqHighBar
+            int currentRight = z.active and not z.mitigated ? bar_index + 1 : (na(z.lastTouchBar) ? bar_index : z.lastTouchBar)
+            line.set_x2(z.inducementHLine, math.max(liqBar, currentRight))
+        else
+            line.set_color(z.inducementHLine, col_hidden_visual)
+            
+    if not na(z.targetHLine)
+        if visible
+            int tgtBar = isDemand ? z.liqHighBar : z.liqLowBar
+            int currentRight = z.active and not z.mitigated ? bar_index + 1 : (na(z.lastTouchBar) ? bar_index : z.lastTouchBar)
+            line.set_x2(z.targetHLine, math.max(tgtBar, currentRight))
+        else
+            line.set_color(z.targetHLine, col_hidden_visual)
+
     visible
 
 zone_overlap_pct(float topA, float bottomA, float topB, float bottomB) =>
@@ -2697,7 +2714,8 @@ validate_liquidity_formation(liqBarIdx, zoneCreatedBarIdx, liqPrice, isHigh) =>
                 true  // If no previous swing found, assume valid (first liquidity)
 
 liquidity_level_end_bar(Core.Zone z) =>
-    math.max(bar_index + LIQ_LEVEL_EXTENSION_BARS, zone_right_bar(z))
+    int right = z.active and not z.mitigated ? bar_index + LIQ_LEVEL_EXTENSION_BARS : (na(z.lastTouchBar) ? bar_index : z.lastTouchBar)
+    right
 
 clearDemandLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(demandZones)
@@ -2727,7 +2745,7 @@ updateDemandLiquidityVisual(idx) =>
 
         if not na(z.createdBarIndex)
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                int indEndBar = liquidity_level_end_bar(z)
+                int indEndBar = math.max(z.liqLowBar, liquidity_level_end_bar(z))
                 z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                                x2 = indEndBar, y2 = z.liqLowPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
@@ -2769,7 +2787,7 @@ updateSupplyLiquidityVisual(idx) =>
 
         if not na(z.createdBarIndex)
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
-                int indEndBar = liquidity_level_end_bar(z)
+                int indEndBar = math.max(z.liqHighBar, liquidity_level_end_bar(z))
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = indEndBar, y2 = z.liqHighPrice,
                                                xloc = xloc.bar_index, extend = extend.none,

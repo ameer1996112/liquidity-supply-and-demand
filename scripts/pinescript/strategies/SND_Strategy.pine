@@ -1613,6 +1613,23 @@ apply_zone_visual(Core.Zone z, bool isDemand) =>
             label.set_text(z.idLabel, "")
             label.set_color(z.idLabel, col_hidden_visual)
             label.set_textcolor(z.idLabel, col_hidden_visual)
+            
+    if not na(z.inducementHLine)
+        if visible
+            int liqBar = isDemand ? z.liqLowBar : z.liqHighBar
+            int currentRight = z.active and not z.mitigated ? bar_index + 1 : (na(z.lastTouchBar) ? bar_index : z.lastTouchBar)
+            line.set_x2(z.inducementHLine, math.max(liqBar, currentRight))
+        else
+            line.set_color(z.inducementHLine, col_hidden_visual)
+            
+    if not na(z.targetHLine)
+        if visible
+            int tgtBar = isDemand ? z.liqHighBar : z.liqLowBar
+            int currentRight = z.active and not z.mitigated ? bar_index + 1 : (na(z.lastTouchBar) ? bar_index : z.lastTouchBar)
+            line.set_x2(z.targetHLine, math.max(tgtBar, currentRight))
+        else
+            line.set_color(z.targetHLine, col_hidden_visual)
+            
     visible
 
 zone_overlap_pct(float topA, float bottomA, float topB, float bottomB) =>
@@ -2740,7 +2757,8 @@ updateDemandLiquidityVisual(idx) =>
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
                 color indColor = z.liquiditySwept ? liq_inducement_swept : liq_inducement_pending
                 int indWidth = 1
-                int indLineEnd = z.liquiditySwept and not na(z.liquiditySweptBarIndex) ? math.max(z.liqLowBar, z.liquiditySweptBarIndex) : bar_index + LIQ_MARK_EXTENSION_BARS
+                int currentRight = z.active and not z.mitigated ? bar_index + LIQ_MARK_EXTENSION_BARS : (na(z.lastTouchBar) ? bar_index : z.lastTouchBar)
+                int indLineEnd = math.max(z.liqLowBar, currentRight)
                 z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                                x2 = indLineEnd, y2 = z.liqLowPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
@@ -2752,7 +2770,8 @@ updateDemandLiquidityVisual(idx) =>
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
                 color tgtColor = z.targetSwept ? liq_target_swept : liq_target_pending
                 int tgtWidth = 1
-                int tgtLineEnd = z.targetSwept and not na(z.targetSweptBarIndex) ? math.max(z.liqHighBar, z.targetSweptBarIndex) : bar_index + LIQ_MARK_EXTENSION_BARS
+                int currentRight = z.active and not z.mitigated ? bar_index + LIQ_MARK_EXTENSION_BARS : (na(z.lastTouchBar) ? bar_index : z.lastTouchBar)
+                int tgtLineEnd = math.max(z.liqHighBar, currentRight)
                 z.targetHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                            x2 = tgtLineEnd, y2 = z.liqHighPrice,
                                            xloc = xloc.bar_index, extend = extend.none,
@@ -2810,7 +2829,8 @@ updateSupplyLiquidityVisual(idx) =>
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
                 color indColor = z.liquiditySwept ? liq_inducement_swept : liq_inducement_pending
                 int indWidth = 1
-                int indLineEnd = z.liquiditySwept and not na(z.liquiditySweptBarIndex) ? math.max(z.liqHighBar, z.liquiditySweptBarIndex) : bar_index + LIQ_MARK_EXTENSION_BARS
+                int currentRight = z.active and not z.mitigated ? bar_index + LIQ_MARK_EXTENSION_BARS : (na(z.lastTouchBar) ? bar_index : z.lastTouchBar)
+                int indLineEnd = math.max(z.liqHighBar, currentRight)
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = indLineEnd, y2 = z.liqHighPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
@@ -2822,7 +2842,8 @@ updateSupplyLiquidityVisual(idx) =>
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
                 color tgtColor = z.targetSwept ? liq_target_swept : liq_target_pending
                 int tgtWidth = 1
-                int tgtLineEnd = z.targetSwept and not na(z.targetSweptBarIndex) ? math.max(z.liqLowBar, z.targetSweptBarIndex) : bar_index + LIQ_MARK_EXTENSION_BARS
+                int currentRight = z.active and not z.mitigated ? bar_index + LIQ_MARK_EXTENSION_BARS : (na(z.lastTouchBar) ? bar_index : z.lastTouchBar)
+                int tgtLineEnd = math.max(z.liqLowBar, currentRight)
                 z.targetHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                            x2 = tgtLineEnd, y2 = z.liqLowPrice,
                                            xloc = xloc.bar_index, extend = extend.none,
