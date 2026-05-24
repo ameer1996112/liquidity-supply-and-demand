@@ -408,16 +408,16 @@ if news_blackout_enabled
         if time >= _pf_ts - 2 * 60 * 1000 and time <= _pf_ts + 2 * 60 * 1000
             pf_is_news_blackout := true
 
-col_demand_bg     = color.new(#089981, 85)
-col_demand_border = color.new(#089981, 100)
+col_demand_bg     = color.new(#047857, 90)
+col_demand_border = color.new(#047857, 60)
 
-col_supply_bg     = color.new(#F23645, 85)
-col_supply_border = color.new(#F23645, 100)
+col_supply_bg     = color.new(#be123c, 90)
+col_supply_border = color.new(#be123c, 60)
 
-col_acc_demand_bg     = color.new(#2962FF, 85)
-col_acc_demand_border = color.new(#2962FF, 100)
-col_acc_supply_bg     = color.new(#9C27B0, 85)
-col_acc_supply_border = color.new(#9C27B0, 100)
+col_acc_demand_bg     = color.new(#1d4ed8, 90)
+col_acc_demand_border = color.new(#1d4ed8, 60)
+col_acc_supply_bg     = color.new(#86198f, 90)
+col_acc_supply_border = color.new(#86198f, 60)
 col_label_demand      = color.new(color.white, 100)
 col_label_supply      = color.new(color.white, 100)
 col_label_acc_demand  = color.new(color.white, 100)
@@ -429,10 +429,10 @@ col_status_bad        = color.new(#e11d48, 0)
 col_status_info       = color.new(#0284c7, 0)
 col_status_muted      = color.rgb(150, 150, 150)
 col_hidden_visual     = color.new(color.black, 100)
-col_used_zone_bg      = color.new(#94a3b8, 85)
-col_used_zone_border  = color.new(#64748b, 100)
-col_invalid_zone_bg   = color.new(#475569, 85)
-col_invalid_zone_border = color.new(#64748b, 100)
+col_used_zone_bg      = color.new(#475569, 90)
+col_used_zone_border  = color.new(#475569, 70)
+col_invalid_zone_bg   = color.new(#334155, 92)
+col_invalid_zone_border = color.new(#334155, 75)
 
 float tol = pip_size * 1.0
 
