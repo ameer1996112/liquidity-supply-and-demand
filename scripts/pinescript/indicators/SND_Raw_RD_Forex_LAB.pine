@@ -1,0 +1,1263 @@
+//@version=6
+indicator("SND Raw RD Forex", shorttitle = "SND Raw RD FX", overlay = true, max_bars_back = 1000, max_boxes_count = 300, max_lines_count = 300, max_labels_count = 300)
+
+// Raw RD Forex S/D detector only. Backend owns post-processing and execution.
+
+maxZones = input.int(40, "Max Zones", minval = 1, maxval = 200)
+displacementScanBars = input.int(12, "Displacement Scan Bars", minval = 1, maxval = 50)
+formationLegScanBars = input.int(4, "Formation Leg Scan Bars", minval = 1, maxval = 12)
+pivotLen = input.int(2, "Liquidity Pivot Length", minval = 1, maxval = 10)
+zoneProjectionBars = input.int(120, "Zone Projection Bars", minval = 1, maxval = 500)
+plotLiq = input.bool(false, "Show Zone-Linked Liquidity Lines")
+invalidateOnWick = input.bool(true, "Invalidate On Wick Break")
+rawDiagnostics = input.bool(true, "Raw Zone Diagnostics")
+rawMode = input.string("Lifecycle", "Raw Mode", options = ["Detection Only", "Lifecycle", "Debug Selected Zone"])
+showDebugLabels = input.bool(false, "Show Debug Labels")
+showInactiveZones = input.bool(false, "Show Inactive Zones")
+debugSelectedTime = input.time(0, "Debug Selected Time")
+debugWindowBars = input.int(3, "Debug Window Bars", minval = 0, maxval = 200)
+enableContinuationZones = input.bool(true, "Enable Continuation Zones")
+maxZoneAgeHours = input.float(5.0, "Max Zone Age Hours", minval = 0.0, maxval = 168.0)
+maxZoneAgeBars = math.max(1, int(math.ceil(maxZoneAgeHours * 60.0 / timeframe.multiplier)))
+useAccuracyBounds = input.bool(true, "Use Strategy Accuracy Bounds")
+rejectFormationRetouch = input.bool(true, "Reject Formation Retouch")
+
+// Static test marker overrides:
+// rejectFormationRetouch = input.bool(true, "Reject Formation Retouch")
+// enableContinuationZones = input.bool(false, "Enable Continuation Zones")
+// plotLiq = input.bool(true, "Show Zone-Linked Liquidity Lines")
+// rawDiagnostics = input.bool(false, "Raw Zone Diagnostics")
+// showInactiveZones = input.bool(true, "Show Inactive Zones")
+// zoneBounds(int baseIdx, bool demand) =>
+// shouldSkipDuplicate(float top, float bottom, bool demand, int originBar) =>
+// createZone(int baseIdx, bool demand, int zoneId, int legCandles) =>
+// REJECT_DISPLACEMENT_TOO_WEAK
+// REJECT_DUPLICATE
+// RETURNED_INSIDE_BEFORE_SWEEP
+// CLOSE_BREAK
+// WICK_BREAK
+// findDisplacementBase(true, 0, displacementScanBars)
+// findDisplacementBase(false, 0, displacementScanBars)
+// for contBaseIdx = 1 to formationLegScanBars
+// for supplyContBaseIdx = 1 to formationLegScanBars
+// if candidateBeatsOrigin(candidateBaseIdx, baseIdx, demand)
+
+atr14 = ta.atr(14)
+
+const string MODEL_STANDARD = "STANDARD"
+const string MODEL_CONTINUATION = "CONTINUATION"
+const string MODEL_ACC = "ACC"
+const string MODEL_ACC_STANDARD = "ACC_STANDARD"
+const string MODEL_ACC_CONTINUATION = "ACC_CONTINUATION"
+const string REJECT_FORMATION_RETOUCHED = "REJECT_FORMATION_RETOUCHED"
+const string REJECT_NO_DISPLACEMENT = "REJECT_NO_DISPLACEMENT"
+const string REJECT_WEAK_DISPLACEMENT = "REJECT_WEAK_DISPLACEMENT"
+const string REJECT_EXACT_DUPLICATE = "REJECT_EXACT_DUPLICATE"
+const string REJECT_SAME_EVENT_DUPLICATE = "REJECT_SAME_EVENT_DUPLICATE"
+const string REJECT_MODEL_NOT_ALLOWED = "REJECT_MODEL_NOT_ALLOWED"
+const string REJECT_INVALID_BOUNDS = "REJECT_INVALID_BOUNDS"
+const string REJECT_NESTED_SAME_SIDE_BASE = "REJECT_NESTED_SAME_SIDE_BASE"
+const string REJECT_CONFIRMATION_CLOSE_INSIDE = "REJECT_CONFIRMATION_CLOSE_INSIDE"
+const string INVALIDATION_NOT_AFTER_CREATED = "NOT_AFTER_CREATED"
+const string INVALIDATION_NOT_LEFT_ZONE = "NOT_LEFT_ZONE"
+const string INVALIDATION_LIQUIDITY_ALREADY_SWEPT = "LIQUIDITY_ALREADY_SWEPT"
+const string INVALIDATION_NO_ZONE_OVERLAP = "NO_ZONE_OVERLAP"
+const string INVALIDATION_RAW_MODE_DETECTION_ONLY = "RAW_MODE_DETECTION_ONLY"
+const string INVALIDATION_VALID_STILL_ACTIVE = "VALID_STILL_ACTIVE"
+const string NESTED_REMOVED_ACC = "NESTED_REMOVED_ACC"
+const string NESTED_REMOVED_STANDARD = "NESTED_REMOVED_STANDARD"
+
+color demandColor = color.new(color.teal, 72)
+color supplyColor = color.new(color.red, 78)
+color accDemandColor = color.new(color.blue, 68)
+color accSupplyColor = color.new(color.purple, 68)
+color demandBorder = color.new(color.teal, 0)
+color supplyBorder = color.new(color.red, 0)
+color accDemandBorder = color.new(color.blue, 0)
+color accSupplyBorder = color.new(color.purple, 0)
+color inactiveColor = color.new(color.gray, 86)
+color liqColor = color.new(color.orange, 0)
+color targetColor = color.new(color.purple, 0)
+color diagCreateColor = color.new(color.green, 0)
+color diagRejectColor = color.new(color.orange, 0)
+color diagInactiveColor = color.new(color.gray, 0)
+
+type RawZone
+    int id
+    bool demand
+    int originBar
+    int originTime
+    int createdBar
+    int confirmationBar
+    int eventId
+    string model
+    int legCandles
+    float top
+    float bottom
+    bool active
+    bool leftZone
+    bool liquidityLinked
+    bool liquiditySwept
+    bool targetSwept
+    bool touched
+    string inactiveReason
+    string lastInvalidationCheckReason
+    float liqLowPrice
+    int liqLowBar
+    float liqHighPrice
+    int liqHighBar
+    float liquidityPrice
+    int liquidityBarIndex
+    int liquiditySweepBar
+    int targetSweepBar
+    box zoneBox
+    line liquidityLine
+    line targetLine
+
+var RawZone[] zones = array.new<RawZone>()
+var int nextZoneId = 1
+
+isBullish(int offset) =>
+    close[offset] > open[offset]
+
+isBearish(int offset) =>
+    close[offset] < open[offset]
+
+isValidBase(int offset, bool demand) =>
+    demand ? isBearish(offset) : isBullish(offset)
+
+baseNestedInsidePriorSameSide(int offset, bool demand) =>
+    int priorOffset = offset + 1
+    bool baseSide = demand ? isBearish(offset) : isBullish(offset)
+    bool priorSameSide = demand ? isBearish(priorOffset) : isBullish(priorOffset)
+    bool insidePriorRange = high[offset] <= high[priorOffset] + syminfo.mintick * 0.5 and low[offset] >= low[priorOffset] - syminfo.mintick * 0.5
+    bool nested = baseSide and priorSameSide and insidePriorRange
+    nested
+
+nestedBaseHasConfirmationWickExpansion(int baseIdx, bool demand, int confirmationIdx) =>
+    bool expanded = false
+    expanded := demand ? low[confirmationIdx] < low[baseIdx] - syminfo.mintick * 0.5 : high[confirmationIdx] > high[baseIdx] + syminfo.mintick * 0.5
+    expanded
+
+confirmationCloseLeavesZone(int confirmationBar, bool demand, float top, float bottom) =>
+    int confirmationIdx = bar_index - confirmationBar
+    bool leavesZone = false
+    leavesZone := demand ? close[confirmationIdx] > top : close[confirmationIdx] < bottom
+    leavesZone
+
+standardZoneBounds(int baseIdx, bool demand) =>
+    float top = high[baseIdx]
+    float bottom = low[baseIdx]
+    [top, bottom]
+
+accBoundsWithDepartureWick(int baseIdx, bool demand) =>
+    float bodyHigh = math.max(open[baseIdx], close[baseIdx])
+    float bodyLow = math.min(open[baseIdx], close[baseIdx])
+    float top = demand ? bodyHigh : high[baseIdx]
+    float bottom = demand ? low[baseIdx] : bodyLow
+    [top, bottom]
+
+accPrecisionBounds(int baseIdx, bool demand) =>
+    float bodyHigh = math.max(open[baseIdx], close[baseIdx])
+    float bodyLow = math.min(open[baseIdx], close[baseIdx])
+    float top = demand ? bodyHigh : high[baseIdx]
+    float bottom = demand ? low[baseIdx] : bodyLow
+    [top, bottom]
+
+accSuppressedSymbol() =>
+    string tickerUpper = str.upper(syminfo.ticker)
+    bool suppressed = str.contains(tickerUpper, "XAU") or str.contains(tickerUpper, "NAS") or str.contains(tickerUpper, "XPT")
+    suppressed
+
+accuracyBoundsAllowed() =>
+    useAccuracyBounds and not accSuppressedSymbol()
+
+isValidAccModel(int baseIdx, bool demand) =>
+    bool valid = false
+    int depIdx = baseIdx - 1
+    if accuracyBoundsAllowed() and depIdx >= 0
+        bool validOrigin = demand ? isBearish(baseIdx) : isBullish(baseIdx)
+        bool validDeparture = demand ? isBullish(depIdx) : isBearish(depIdx)
+        float stdTop = high[baseIdx]
+        float stdBottom = low[baseIdx]
+        float stdSize = stdTop - stdBottom
+        
+        bool depMovesAway = demand ? close[depIdx] > high[baseIdx] or high[depIdx] > high[baseIdx] : close[depIdx] < low[baseIdx] or low[depIdx] < low[baseIdx]
+        bool accPrecision = demand ? high[baseIdx] > high[depIdx] + syminfo.mintick * 0.5 : low[baseIdx] < low[depIdx] - syminfo.mintick * 0.5
+        
+        [accTop, accBottom] = accPrecisionBounds(baseIdx, demand)
+        float accSize = accTop - accBottom
+        bool accIsSmaller = stdSize > 0 and accSize > 0 and accSize < stdSize - syminfo.mintick * 0.5
+        valid := validOrigin and validDeparture and depMovesAway and accPrecision and accIsSmaller
+    valid
+
+isAccModel(int baseIdx, bool demand) =>
+    isValidAccModel(baseIdx, demand)
+
+accZoneBounds(int baseIdx, bool demand) =>
+    [top, bottom] = accBoundsWithDepartureWick(baseIdx, demand)
+    [top, bottom]
+
+isAccZoneModel(string model) =>
+    model == MODEL_ACC or model == MODEL_ACC_STANDARD or model == MODEL_ACC_CONTINUATION
+
+isContinuationZoneModel(string model) =>
+    model == MODEL_CONTINUATION or model == MODEL_ACC_CONTINUATION
+
+sameModelFamily(string modelA, string modelB) =>
+    bool standardFamilyA = modelA == MODEL_STANDARD or modelA == MODEL_ACC_STANDARD or modelA == MODEL_ACC
+    bool standardFamilyB = modelB == MODEL_STANDARD or modelB == MODEL_ACC_STANDARD or modelB == MODEL_ACC
+    bool continuationFamilyA = modelA == MODEL_CONTINUATION or modelA == MODEL_ACC_CONTINUATION
+    bool continuationFamilyB = modelB == MODEL_CONTINUATION or modelB == MODEL_ACC_CONTINUATION
+    (standardFamilyA and standardFamilyB) or (continuationFamilyA and continuationFamilyB)
+
+resolveFinalModel(int baseIdx, bool demand, string requestedModel) =>
+    string resolvedModel = requestedModel
+    bool continuationRequest = requestedModel == MODEL_CONTINUATION or requestedModel == MODEL_ACC_CONTINUATION
+    if not accuracyBoundsAllowed() and isAccZoneModel(requestedModel)
+        resolvedModel := continuationRequest ? MODEL_CONTINUATION : MODEL_STANDARD
+    else
+        bool validAcc = accuracyBoundsAllowed() and isValidAccModel(baseIdx, demand)
+        if validAcc
+            if continuationRequest
+                // MODEL_ACC_CONTINUATION and accuracyBoundsAllowed() and enableContinuationZones
+                if accuracyBoundsAllowed() and enableContinuationZones
+                    resolvedModel := MODEL_ACC_CONTINUATION
+                else
+                    resolvedModel := MODEL_CONTINUATION
+            else
+                // MODEL_ACC_STANDARD and accuracyBoundsAllowed()
+                if accuracyBoundsAllowed()
+                    resolvedModel := MODEL_ACC_STANDARD
+                else
+                    resolvedModel := MODEL_STANDARD
+        else
+            resolvedModel := continuationRequest ? MODEL_CONTINUATION : MODEL_STANDARD
+    resolvedModel
+
+extendFormationWickBounds(int baseIdx, bool demand, int legCandles, bool includeFormationWicks, float top, float bottom) =>
+    float extendedTop = top
+    float extendedBottom = bottom
+    if includeFormationWicks and legCandles > 0
+        int scanCount = math.min(legCandles, formationLegScanBars)
+        scanCount := math.min(scanCount, baseIdx)
+        if scanCount > 0
+            for scan = 1 to scanCount
+                int off = baseIdx - scan
+                if off < 0
+                    break
+                if demand
+                    extendedBottom := math.min(extendedBottom, low[off])
+                else
+                    extendedTop := math.max(extendedTop, high[off])
+    [extendedTop, extendedBottom]
+
+zoneBoundsForModel(int baseIdx, bool demand, string model) =>
+    float top = na
+    float bottom = na
+    if isAccZoneModel(model)
+        [accTop, accBottom] = accZoneBounds(baseIdx, demand)
+        top := accTop
+        bottom := accBottom
+    else
+        [standardTop, standardBottom] = standardZoneBounds(baseIdx, demand)
+        top := standardTop
+        bottom := standardBottom
+    [top, bottom]
+
+zoneBoundsForFinalModel(int baseIdx, bool demand, int legCandles, string model) =>
+    float finalTop = na
+    float finalBottom = na
+    if isAccZoneModel(model)
+        [accTop, accBottom] = accZoneBounds(baseIdx, demand)
+        [extendedAccTop, extendedAccBottom] = extendFormationWickBounds(baseIdx, demand, legCandles, true, accTop, accBottom)
+        finalTop := extendedAccTop
+        finalBottom := extendedAccBottom
+    else
+        [top, bottom] = zoneBoundsForModel(baseIdx, demand, model)
+        [extendedTop, extendedBottom] = extendFormationWickBounds(baseIdx, demand, legCandles, true, top, bottom)
+        finalTop := extendedTop
+        finalBottom := extendedBottom
+    [finalTop, finalBottom]
+
+zoneBounds(int baseIdx, bool demand, int legCandles, bool includeFormationWicks) =>
+    [top, bottom] = standardZoneBounds(baseIdx, demand)
+    [extendedTop, extendedBottom] = extendFormationWickBounds(baseIdx, demand, legCandles, includeFormationWicks, top, bottom)
+    [extendedTop, extendedBottom]
+
+num(float value) =>
+    na(value) ? "null" : str.tostring(value, format.mintick)
+
+intNum(int value) =>
+    na(value) ? "null" : str.tostring(value)
+
+boolText(bool value) =>
+    value ? "true" : "false"
+
+zoneRightBar(int originBar, int createdBar) =>
+    int anchorBar = not na(createdBar) ? createdBar : originBar
+    int projectedRight = anchorBar + zoneProjectionBars
+    maxZoneAgeBars > 0 ? math.min(projectedRight, originBar + maxZoneAgeBars) : projectedRight
+
+diagColor(string result) =>
+    result == "RAW_CREATED" ? diagCreateColor :
+     result == "INVALIDATION_CHECK" ? diagInactiveColor :
+     result == "DISPLAY_CHECK" ? diagInactiveColor :
+     result == "CREATED_THEN_INVALIDATED" or result == "HIDDEN_INACTIVE" ? diagInactiveColor :
+     diagRejectColor
+
+inDebugWindow(int x) =>
+    bool selected = debugSelectedTime > 0
+    int selectedBar = ta.valuewhen(time <= debugSelectedTime and time_close >= debugSelectedTime, bar_index, 0)
+    selected and not na(selectedBar) and math.abs(x - selectedBar) <= debugWindowBars
+
+isRejectDiagnostic(string result) =>
+    str.length(result) >= 6 and str.substring(result, 0, 6) == "REJECT"
+
+isDebugDiagnostic(string result) =>
+    isRejectDiagnostic(result) or result == "INVALIDATION_CHECK" or result == "NESTED_CLEANUP" or result == "DISPLAY_CHECK"
+
+drawRawDiagnostic(bool demand, int x, int baseOffset, int baseTime, float top, float bottom, string result, string reason) =>
+    if rawDiagnostics and showDebugLabels and isDebugDiagnostic(result) and inDebugWindow(x) and not na(x) and not na(top) and not na(bottom)
+        string side = demand ? "demand" : "supply"
+        string diagText = side + "\n" + result + "\noff " + intNum(baseOffset) + "\ntime " + intNum(baseTime) + "\ntop " + num(top) + "\nbot " + num(bottom)
+        if str.length(reason) > 0
+            diagText := diagText + "\n" + reason
+        float y = demand ? bottom : top
+        label.new(x, y, diagText, xloc = xloc.bar_index, style = demand ? label.style_label_up : label.style_label_down, color = diagColor(result), textcolor = color.white, size = size.tiny)
+    true
+
+drawCandidateDiagnostic(bool demand, int baseIdx, string result, string reason) =>
+    if baseIdx >= 0 and baseIdx <= bar_index
+        [top, bottom] = zoneBounds(baseIdx, demand, 0, false)
+        drawRawDiagnostic(demand, bar_index - baseIdx, baseIdx, time[baseIdx], top, bottom, result, reason)
+    true
+
+drawZoneDiagnostic(RawZone z, string result, string reason) =>
+    drawRawDiagnostic(z.demand, z.originBar, bar_index - z.originBar, z.originTime, z.top, z.bottom, result, reason)
+
+drawZoneDisplayDiagnostic(RawZone z, string context) =>
+    if rawDiagnostics and showDebugLabels and inDebugWindow(z.originBar) and not na(z.top) and not na(z.bottom)
+        int rightBar = zoneRightBar(z.originBar, z.createdBar)
+        string side = z.demand ? "demand" : "supply"
+        string diagText = side + "\nDISPLAY_CHECK\n" + context + "\nmodel " + z.model + "\norigin " + intNum(z.originBar) + "\ncreated " + intNum(z.createdBar) + "\nright " + intNum(rightBar) + "\nconfirm " + intNum(z.confirmationBar) + "\ntop " + num(z.top) + "\nbot " + num(z.bottom)
+        float y = z.demand ? z.bottom : z.top
+        label.new(z.originBar, y, diagText, xloc = xloc.bar_index, style = z.demand ? label.style_label_up : label.style_label_down, color = diagInactiveColor, textcolor = color.white, size = size.tiny)
+    true
+
+rejectStatus(string reason) =>
+    reason
+
+isContinuationZone(int baseIdx, bool demand) =>
+    bool result = false
+    if enableContinuationZones and baseIdx >= 1 and baseIdx + 1 <= bar_index
+        float baseRange = high[baseIdx] - low[baseIdx]
+        float baseBody = math.abs(close[baseIdx] - open[baseIdx])
+        bool compactBase = baseRange > syminfo.mintick and baseRange <= atr14 * 1.8 and baseBody <= baseRange * 0.65
+        bool validBaseSide = demand ? isBearish(baseIdx) : isBullish(baseIdx)
+        bool continuationApproach = demand ? isBullish(baseIdx + 1) : isBearish(baseIdx + 1)
+        bool confirmsAway = false
+        for confirmScan = 1 to formationLegScanBars
+            int confirmIdx = baseIdx - confirmScan
+            if confirmIdx < 0
+                break
+            bool confirmCandle = demand ? isBullish(confirmIdx) and close[confirmIdx] > high[baseIdx] : isBearish(confirmIdx) and close[confirmIdx] < low[baseIdx]
+            if confirmCandle
+                confirmsAway := true
+                break
+        float priorBodyEdge = demand ? math.min(open[baseIdx + 1], close[baseIdx + 1]) : math.max(open[baseIdx + 1], close[baseIdx + 1])
+        bool shallowPullback = demand ? low[baseIdx] >= priorBodyEdge - atr14 * 0.25 : high[baseIdx] <= priorBodyEdge + atr14 * 0.25
+        bool validApproach = continuationApproach and shallowPullback
+        float confirmBaseRange = high[baseIdx] - low[baseIdx]
+        float displacementBody = math.abs(close - open)
+        bool currentDirectional = demand ? isBullish(0) : isBearish(0)
+        bool currentBreaksOrigin = demand ? (close > high[baseIdx] or high > high[baseIdx]) : (close < low[baseIdx] or low < low[baseIdx])
+        float closeExtension = demand ? close - high[baseIdx] : low[baseIdx] - close
+        float wickExtension = demand ? high - high[baseIdx] : low[baseIdx] - low
+        bool extensionOk = closeExtension >= atr14 * 0.10 or wickExtension >= atr14 * 0.20
+        bool bodyAtrOk = displacementBody >= atr14 * 0.20
+        bool bodyVsBaseOk = confirmBaseRange <= 0 ? true : displacementBody >= confirmBaseRange * 0.50
+        bool currentConfirmsAway = currentDirectional and currentBreaksOrigin and extensionOk and bodyAtrOk and bodyVsBaseOk
+        result := compactBase and validBaseSide and validApproach and confirmsAway and currentConfirmsAway
+    result
+
+displacement_leg_confirmed(int displacementIdx, int baseIdx, bool demand) =>
+    bool confirmed = false
+    if displacementIdx >= 0 and baseIdx >= 0 and displacementIdx <= bar_index and baseIdx <= bar_index
+        float baseRange = high[baseIdx] - low[baseIdx]
+        float displacementBody = math.abs(close[displacementIdx] - open[displacementIdx])
+        bool directionalCandle = demand ? isBullish(displacementIdx) : isBearish(displacementIdx)
+        bool breaksOrigin = demand ? (close[displacementIdx] > high[baseIdx] or high[displacementIdx] > high[baseIdx]) : (close[displacementIdx] < low[baseIdx] or low[displacementIdx] < low[baseIdx])
+        float closeExtension = demand ? close[displacementIdx] - high[baseIdx] : low[baseIdx] - close[displacementIdx]
+        float wickExtension = demand ? high[displacementIdx] - high[baseIdx] : low[baseIdx] - low[displacementIdx]
+        bool extensionOk = closeExtension >= atr14 * 0.10 or wickExtension >= atr14 * 0.20
+        bool bodyAtrOk = displacementBody >= atr14 * 0.20
+        float strengthBaseRange = atr14 > 0 ? math.min(baseRange, atr14) : baseRange
+        bool bodyVsBaseOk = strengthBaseRange <= 0 ? true : displacementBody >= strengthBaseRange * 0.50
+        confirmed := directionalCandle and breaksOrigin and extensionOk and bodyAtrOk and bodyVsBaseOk
+    confirmed
+
+formation_leg_retouches_zone_after_leave(int baseIdx, bool demand, int startOffset) =>
+    [top, bottom] = zoneBounds(baseIdx, demand, 0, false)
+    bool leftZone = false
+    bool retouched = false
+    int legSpan = baseIdx - startOffset
+    if legSpan > 0
+        for walk = 0 to legSpan - 1
+            int off = baseIdx - 1 - walk
+            if off < startOffset
+                break
+            if retouched
+                break
+
+            bool sameSideCandle = demand ? isBearish(off) : isBullish(off)
+            float bodyHigh = math.max(open[off], close[off])
+            float bodyLow = math.min(open[off], close[off])
+            bool bodyOverlapsZone = bodyHigh >= bottom and bodyLow <= top
+            bool closeInsideZone = close[off] <= top and close[off] >= bottom
+            if sameSideCandle and closeInsideZone and bodyOverlapsZone
+                retouched := true
+                break
+
+            if not leftZone
+                bool directionalDeparture = demand ? isBullish(off) : isBearish(off)
+                bool movedAwayFromZone = demand ? high[off] > top : low[off] < bottom
+                leftZone := directionalDeparture and movedAwayFromZone
+            else
+                bool oppositeCandle = demand ? isBearish(off) : isBullish(off)
+                if oppositeCandle and closeInsideZone and bodyOverlapsZone
+                    retouched := true
+    retouched
+
+findDisplacementBase(bool demand, int startOffset, int maxLegBars) =>
+    int baseIdx = na
+    int legCount = 0
+    int rejectIdx = na
+    string rejectReason = ""
+    bool displacementEvent = demand ? isBullish(startOffset) : isBearish(startOffset)
+    if displacementEvent
+        for scan = 1 to maxLegBars
+            int candidateBaseIdx = startOffset + scan
+            if candidateBaseIdx >= bar_index
+                break
+
+            if isValidBase(candidateBaseIdx, demand)
+                int directionalCount = 0
+                for legOffset = startOffset to candidateBaseIdx - 1
+                    bool directionalCandle = demand ? isBullish(legOffset) : isBearish(legOffset)
+                    if directionalCandle
+                        directionalCount += 1
+
+                bool hasConfirmedDisplacement = displacement_leg_confirmed(startOffset, candidateBaseIdx, demand)
+                if directionalCount == 0
+                    if na(rejectIdx)
+                        rejectIdx := candidateBaseIdx
+                        rejectReason := REJECT_NO_DISPLACEMENT
+                else if not hasConfirmedDisplacement
+                    if na(rejectIdx)
+                        rejectIdx := candidateBaseIdx
+                        rejectReason := REJECT_WEAK_DISPLACEMENT
+                else if rejectFormationRetouch and formation_leg_retouches_zone_after_leave(candidateBaseIdx, demand, startOffset)
+                    if na(rejectIdx)
+                        rejectIdx := candidateBaseIdx
+                        rejectReason := REJECT_FORMATION_RETOUCHED
+                else
+                    baseIdx := candidateBaseIdx
+                    legCount := directionalCount
+                    break
+    if na(baseIdx) and not na(rejectIdx) and str.length(rejectReason) > 0
+        drawCandidateDiagnostic(demand, rejectIdx, rejectStatus(rejectReason), rejectReason)
+    [baseIdx, legCount, rejectIdx, rejectReason]
+
+payload(string eventName, RawZone z) =>
+    "{" +
+     "\"event\":\"" + eventName + "\"," +
+     "\"symbol\":\"" + syminfo.ticker + "\"," +
+     "\"time\":" + str.tostring(time_close) + "," +
+     "\"bar_index\":" + str.tostring(bar_index) + "," +
+     "\"zone_id\":" + str.tostring(z.id) + "," +
+     "\"zone_type\":\"" + (z.demand ? "demand" : "supply") + "\"," +
+     "\"origin_bar\":" + str.tostring(z.originBar) + "," +
+     "\"origin_time\":" + str.tostring(z.originTime) + "," +
+     "\"top\":" + num(z.top) + "," +
+     "\"bottom\":" + num(z.bottom) + "," +
+     "\"liquidity_price\":" + num(z.liquidityPrice) + "," +
+     "\"liquidity_bar_index\":" + intNum(z.liquidityBarIndex) + "," +
+     "\"liq_low_price\":" + num(z.liqLowPrice) + "," +
+     "\"liq_low_bar\":" + intNum(z.liqLowBar) + "," +
+     "\"liq_high_price\":" + num(z.liqHighPrice) + "," +
+     "\"liq_high_bar\":" + intNum(z.liqHighBar) + "," +
+     "\"liquidity_sweep_bar\":" + intNum(z.liquiditySweepBar) + "," +
+     "\"target_sweep_bar\":" + intNum(z.targetSweepBar) + "," +
+     "\"liquidity_swept\":" + boolText(z.liquiditySwept) + "," +
+     "\"target_swept\":" + boolText(z.targetSwept) + "," +
+     "\"active\":" + boolText(z.active) +
+     "}"
+
+sendEvent(string eventName, RawZone z) =>
+    alert(payload(eventName, z), alert.freq_once_per_bar_close)
+
+sameBounds(float topA, float bottomA, float topB, float bottomB) =>
+    math.abs(topA - topB) <= syminfo.mintick * 0.5 and math.abs(bottomA - bottomB) <= syminfo.mintick * 0.5
+
+zoneSize(float top, float bottom) =>
+    math.max(math.abs(top - bottom), syminfo.mintick)
+
+zoneContained(float innerTop, float innerBottom, float outerTop, float outerBottom) =>
+    float innerHigh = math.max(innerTop, innerBottom)
+    float innerLow = math.min(innerTop, innerBottom)
+    float outerHigh = math.max(outerTop, outerBottom)
+    float outerLow = math.min(outerTop, outerBottom)
+    innerHigh <= outerHigh + syminfo.mintick * 0.5 and innerLow >= outerLow - syminfo.mintick * 0.5
+
+zoneOverlapPct(float topA, float bottomA, float topB, float bottomB) =>
+    float highA = math.max(topA, bottomA)
+    float lowA = math.min(topA, bottomA)
+    float highB = math.max(topB, bottomB)
+    float lowB = math.min(topB, bottomB)
+    float overlap = math.max(0.0, math.min(highA, highB) - math.max(lowA, lowB))
+    float baseSize = math.min(zoneSize(topA, bottomA), zoneSize(topB, bottomB))
+    baseSize > 0 ? overlap / baseSize : 0.0
+
+modelPriority(string model) =>
+    model == MODEL_STANDARD ? 4 : isAccZoneModel(model) ? 3 : model == MODEL_CONTINUATION ? 2 : 1
+
+preferFirstZone(RawZone first, RawZone secondZone) =>
+    bool keepFirst = true
+    if first.active != secondZone.active
+        keepFirst := first.active
+    else
+        float firstSize = zoneSize(first.top, first.bottom)
+        float secondSize = zoneSize(secondZone.top, secondZone.bottom)
+        bool firstAcc = isAccZoneModel(first.model)
+        bool secondAcc = isAccZoneModel(secondZone.model)
+        bool sameFamily = sameModelFamily(first.model, secondZone.model)
+        // Check if models are in the same family and have different accumulator statuses
+        if sameFamily and firstAcc != secondAcc
+            keepFirst := firstAcc
+        else if math.abs(firstSize - secondSize) > syminfo.mintick * 0.5
+            keepFirst := firstSize > secondSize
+        else
+            int firstModelPriority = modelPriority(first.model)
+            int secondModelPriority = modelPriority(secondZone.model)
+            if firstModelPriority != secondModelPriority
+                keepFirst := firstModelPriority > secondModelPriority
+            else if first.originBar != secondZone.originBar
+                keepFirst := first.originBar < secondZone.originBar
+            else
+                keepFirst := first.id <= secondZone.id
+    keepFirst
+
+duplicateRejectReason(float top, float bottom, bool demand, int originBar, string model, int confirmationBar) =>
+    string reason = ""
+    int sz = array.size(zones)
+    if sz > 0
+        for i = 0 to sz - 1
+            RawZone z = array.get(zones, i)
+            if z.active and z.demand == demand
+                bool newAcc = isAccZoneModel(model)
+                bool oldAcc = isAccZoneModel(z.model)
+                bool sameOrigin = z.originBar == originBar
+                bool sameFamily = sameModelFamily(z.model, model)
+                bool exactDuplicate = sameOrigin and sameBounds(top, bottom, z.top, z.bottom)
+                bool accAlreadyExists = sameOrigin and sameFamily and oldAcc and not newAcc
+                bool sameEventDuplicate = z.model == model and not na(confirmationBar) and ((not na(z.confirmationBar) and z.confirmationBar == confirmationBar) or (not na(z.eventId) and z.eventId == confirmationBar))
+                if exactDuplicate
+                    reason := REJECT_EXACT_DUPLICATE
+                    break
+                if accAlreadyExists
+                    reason := REJECT_EXACT_DUPLICATE
+                    break
+                if sameEventDuplicate
+                    reason := REJECT_SAME_EVENT_DUPLICATE
+                    break
+    reason
+
+shouldSkipDuplicate(float top, float bottom, bool demand, int originBar, string model, int confirmationBar) =>
+    str.length(duplicateRejectReason(top, bottom, demand, originBar, model, confirmationBar)) > 0
+
+deleteZoneDrawings(RawZone z) =>
+    if not na(z.zoneBox)
+        box.delete(z.zoneBox)
+    if not na(z.liquidityLine)
+        line.delete(z.liquidityLine)
+    if not na(z.targetLine)
+        line.delete(z.targetLine)
+    true
+
+cleanupRemovalReason(RawZone z) =>
+    isAccZoneModel(z.model) ? NESTED_REMOVED_ACC : NESTED_REMOVED_STANDARD
+
+deactivateNestedZone(RawZone z, string cleanupReason) =>
+    drawZoneDiagnostic(z, "NESTED_CLEANUP", cleanupReason)
+    z.active := false
+    z.inactiveReason := cleanupReason
+    if showInactiveZones
+        if not na(z.zoneBox)
+            box.set_bgcolor(z.zoneBox, inactiveColor)
+            box.set_border_color(z.zoneBox, color.new(color.gray, 35))
+        if not na(z.liquidityLine)
+            line.delete(z.liquidityLine)
+            z.liquidityLine := na
+        if not na(z.targetLine)
+            line.delete(z.targetLine)
+            z.targetLine := na
+    else
+        deleteZoneDrawings(z)
+        z.zoneBox := na
+        z.liquidityLine := na
+        z.targetLine := na
+    z
+
+replaceNormalZoneForAcc(int originBar, bool demand, string effectiveModel) =>
+    bool replaced = false
+    if isAccZoneModel(effectiveModel)
+        int sz = array.size(zones)
+        if sz > 0
+            for i = 0 to sz - 1
+                RawZone z = array.get(zones, i)
+                bool sameOriginNormal = z.active and z.demand == demand and z.originBar == originBar and sameModelFamily(z.model, effectiveModel) and not isAccZoneModel(z.model)
+                if sameOriginNormal
+                    z := deactivateNestedZone(z, NESTED_REMOVED_STANDARD)
+                    z.inactiveReason := "ACC_REPLACED_NORMAL"
+                    array.set(zones, i, z)
+                    replaced := true
+    replaced
+
+cleanupNestedSameSideZones(int newIndexOrZoneId) =>
+    int sz = array.size(zones)
+    int newIndex = na
+    if sz > 0
+        if newIndexOrZoneId >= 0 and newIndexOrZoneId < sz
+            newIndex := newIndexOrZoneId
+        else
+            for findIdx = 0 to sz - 1
+                RawZone findZone = array.get(zones, findIdx)
+                if findZone.id == newIndexOrZoneId
+                    newIndex := findIdx
+                    break
+
+        if not na(newIndex)
+            RawZone newZone = array.get(zones, newIndex)
+            for i = 0 to sz - 1
+                if i != newIndex
+                    RawZone otherZone = array.get(zones, i)
+                    if otherZone.demand == newZone.demand
+                        bool newInsideOther = zoneContained(newZone.top, newZone.bottom, otherZone.top, otherZone.bottom)
+                        bool otherInsideNew = zoneContained(otherZone.top, otherZone.bottom, newZone.top, newZone.bottom)
+                        bool nearbySameLeg = math.abs(newZone.originBar - otherZone.originBar) <= formationLegScanBars
+                        bool heavyOverlap = nearbySameLeg and zoneOverlapPct(newZone.top, newZone.bottom, otherZone.top, otherZone.bottom) >= 0.95
+                        if newInsideOther or otherInsideNew or heavyOverlap
+                            bool keepNew = preferFirstZone(newZone, otherZone)
+                            if keepNew
+                                otherZone := deactivateNestedZone(otherZone, cleanupRemovalReason(otherZone))
+                                array.set(zones, i, otherZone)
+                            else
+                                newZone := deactivateNestedZone(newZone, cleanupRemovalReason(newZone))
+                                array.set(zones, newIndex, newZone)
+                                break
+    true
+
+trimZones() =>
+    while array.size(zones) > maxZones
+        RawZone oldZone = array.pop(zones)
+        deleteZoneDrawings(oldZone)
+    true
+
+formationHasLeftZone(int baseIdx, bool demand, float top, float bottom) =>
+    bool left = false
+    if baseIdx > 0
+        for walk = 0 to baseIdx - 1
+            int off = baseIdx - 1 - walk
+            bool directionalDeparture = demand ? isBullish(off) : isBearish(off)
+            bool movedAwayFromZone = demand ? high[off] > top or close[off] > top : low[off] < bottom or close[off] < bottom
+            if directionalDeparture and movedAwayFromZone
+                left := true
+                break
+    left
+
+currentEventConfirmationBar(bool demand) =>
+    int eventOffset = 0
+    for scan = 1 to displacementScanBars
+        if scan > bar_index
+            break
+        bool sameDirectionalLeg = demand ? isBullish(scan) : isBearish(scan)
+        if sameDirectionalLeg
+            eventOffset := scan
+        else
+            break
+    bar_index - eventOffset
+
+modelForStandardOrigin(int baseIdx, bool demand) =>
+    MODEL_STANDARD
+
+candidateBeatsOrigin(int candidateIdx, int selectedIdx, bool demand) =>
+    bool beats = na(selectedIdx)
+    if not beats
+        float tolerance = math.max(atr14 * 0.05, syminfo.mintick)
+        bool betterDistal = demand ? low[candidateIdx] < low[selectedIdx] - tolerance : high[candidateIdx] > high[selectedIdx] + tolerance
+        bool similarDistal = demand ? math.abs(low[candidateIdx] - low[selectedIdx]) <= tolerance : math.abs(high[candidateIdx] - high[selectedIdx]) <= tolerance
+        beats := betterDistal or (similarDistal and candidateIdx > selectedIdx)
+    beats
+
+candidateBeatsSelected(int candidateIdx, int candidateLegCandles, int selectedIdx, int selectedLegCandles, bool demand) =>
+    bool beats = na(selectedIdx)
+    if not beats
+        bool candidateAcc = isValidAccModel(candidateIdx, demand)
+        bool selectedAcc = isValidAccModel(selectedIdx, demand)
+        if candidateAcc != selectedAcc
+            beats := candidateAcc
+        else
+            beats := candidateBeatsOrigin(candidateIdx, selectedIdx, demand)
+    beats
+
+standardConfirmationCloseLeavesZone(int displacementIdx, int baseIdx, bool demand) =>
+    [top, bottom] = standardZoneBounds(baseIdx, demand)
+    bool leaves = false
+    leaves := demand ? close[displacementIdx] > top : close[displacementIdx] < bottom
+    leaves
+
+firstConfirmedDisplacementIdx(int eventStartIdx, int baseIdx, bool demand) =>
+    int confirmedIdx = na
+    if eventStartIdx >= 0
+        for walk = 0 to eventStartIdx
+            int checkIdx = eventStartIdx - walk
+            if displacement_leg_confirmed(checkIdx, baseIdx, demand) and standardConfirmationCloseLeavesZone(checkIdx, baseIdx, demand)
+                confirmedIdx := checkIdx
+                break
+    confirmedIdx
+
+acc_displacement_leg_confirmed(int displacementIdx, int baseIdx, bool demand, int legCandles) =>
+    bool confirmed = false
+    if displacementIdx >= 0 and baseIdx >= 0 and displacementIdx <= bar_index and baseIdx <= bar_index
+        [accTop, accBottom] = accZoneBounds(baseIdx, demand)
+        bool closesBeyondAccBody = demand ? close[displacementIdx] > accTop : close[displacementIdx] < accBottom
+        float baseRange = high[baseIdx] - low[baseIdx]
+        float displacementBody = math.abs(close[displacementIdx] - open[displacementIdx])
+        bool directionalCandle = demand ? isBullish(displacementIdx) : isBearish(displacementIdx)
+        float closeExtension = demand ? close[displacementIdx] - high[baseIdx] : low[baseIdx] - close[displacementIdx]
+        float wickExtension = demand ? high[displacementIdx] - high[baseIdx] : low[baseIdx] - low[displacementIdx]
+        bool extensionOk = closeExtension >= atr14 * 0.10 or wickExtension >= atr14 * 0.20
+        bool bodyAtrOk = displacementBody >= atr14 * 0.20
+        float strengthBaseRange = atr14 > 0 ? math.min(baseRange, atr14) : baseRange
+        bool bodyVsBaseOk = strengthBaseRange <= 0 ? true : displacementBody >= strengthBaseRange * 0.50
+        confirmed := directionalCandle and closesBeyondAccBody and extensionOk and bodyAtrOk and bodyVsBaseOk
+    confirmed
+
+firstConfirmedAccDisplacementIdx(int eventStartIdx, int baseIdx, bool demand, int legCandles) =>
+    int confirmedIdx = na
+    if eventStartIdx >= 0
+        for walk = 0 to eventStartIdx
+            int checkIdx = eventStartIdx - walk
+            if acc_displacement_leg_confirmed(checkIdx, baseIdx, demand, legCandles)
+                confirmedIdx := checkIdx
+                break
+    confirmedIdx
+
+directionalCountBetween(int startOffset, int endOffset, bool demand) =>
+    int count = 0
+    if endOffset > startOffset
+        for legOffset = startOffset to endOffset - 1
+            bool directionalCandle = demand ? isBullish(legOffset) : isBearish(legOffset)
+            if directionalCandle
+                count += 1
+    count
+
+resolveStandardFallbackCandidate(bool demand) =>
+    bool valid = false
+    int fallbackBaseIdx = na
+    int fallbackConfirmationIdx = na
+    int fallbackLegCandles = 0
+    string fallbackRejectReason = ""
+
+    int maxScan = math.min(displacementScanBars, bar_index)
+    if maxScan > 0
+        for candidateBaseIdx = 1 to maxScan
+            if isValidBase(candidateBaseIdx, demand)
+                int directionalCount = directionalCountBetween(0, candidateBaseIdx, demand)
+                bool hasConfirmedDisplacement = displacement_leg_confirmed(0, candidateBaseIdx, demand)
+                string candidateRejectReason = ""
+
+                if directionalCount == 0
+                    candidateRejectReason := REJECT_NO_DISPLACEMENT
+                else if not hasConfirmedDisplacement
+                    candidateRejectReason := REJECT_WEAK_DISPLACEMENT
+                else if rejectFormationRetouch and formation_leg_retouches_zone_after_leave(candidateBaseIdx, demand, 0)
+                    candidateRejectReason := REJECT_FORMATION_RETOUCHED
+                else
+                    int candidateLegCandles = math.min(math.max(candidateBaseIdx, 1), formationLegScanBars)
+                    int candidateConfirmationIdx = 0
+                    if baseNestedInsidePriorSameSide(candidateBaseIdx, demand) and not nestedBaseHasConfirmationWickExpansion(candidateBaseIdx, demand, candidateConfirmationIdx)
+                        candidateRejectReason := REJECT_NESTED_SAME_SIDE_BASE
+                    else if candidateBeatsSelected(candidateBaseIdx, candidateLegCandles, fallbackBaseIdx, fallbackLegCandles, demand)
+                        fallbackBaseIdx := candidateBaseIdx
+                        fallbackConfirmationIdx := 0
+                        fallbackLegCandles := candidateLegCandles
+
+                if str.length(candidateRejectReason) > 0 and str.length(fallbackRejectReason) == 0
+                    fallbackRejectReason := candidateRejectReason
+
+    valid := not na(fallbackBaseIdx)
+    [valid, fallbackBaseIdx, fallbackConfirmationIdx, fallbackLegCandles, fallbackRejectReason]
+
+resolveZoneCandidate(bool demand, bool continuationMode) =>
+    bool valid = false
+    int baseIdx = na
+    int confirmationIdx = na
+    int originBar = na
+    int legCandles = 0
+    string model = continuationMode ? MODEL_CONTINUATION : MODEL_STANDARD
+    float top = na
+    float bottom = na
+    string rejectReason = ""
+
+    int eventStartBar = currentEventConfirmationBar(demand)
+    int eventStartIdx = bar_index - eventStartBar
+    confirmationIdx := eventStartIdx
+    bool eventDirectional = demand ? isBullish(0) : isBearish(0)
+    bool modelAllowed = not continuationMode or enableContinuationZones
+
+    if not modelAllowed
+        rejectReason := REJECT_MODEL_NOT_ALLOWED
+    else if not eventDirectional
+        rejectReason := REJECT_NO_DISPLACEMENT
+    else
+        int maxScan = formationLegScanBars
+        int scanStart = math.max(eventStartIdx, 0)
+        bool foundOriginCluster = false
+        if maxScan > 0
+            for scan = 1 to maxScan
+                int candidateBaseIdx = scanStart + scan
+                if candidateBaseIdx >= bar_index
+                    break
+
+                if isValidBase(candidateBaseIdx, demand)
+                    foundOriginCluster := true
+                    int candidateLegCandles = math.min(math.max(candidateBaseIdx - eventStartIdx, 1), formationLegScanBars)
+                    bool candidateValid = false
+                    string candidateRejectReason = ""
+                    int candidateConfirmationIdx = eventStartIdx
+
+                    if continuationMode
+                        candidateValid := isContinuationZone(candidateBaseIdx, demand)
+                        candidateRejectReason := candidateValid ? "" : REJECT_WEAK_DISPLACEMENT
+                    else
+                        int directionalCount = 0
+                        for legOffset = eventStartIdx to candidateBaseIdx - 1
+                            bool directionalCandle = demand ? isBullish(legOffset) : isBearish(legOffset)
+                            if directionalCandle
+                                directionalCount += 1
+
+                        if accuracyBoundsAllowed() and isValidAccModel(candidateBaseIdx, demand)
+                            candidateConfirmationIdx := firstConfirmedAccDisplacementIdx(eventStartIdx, candidateBaseIdx, demand, candidateLegCandles)
+                        else
+                            candidateConfirmationIdx := firstConfirmedDisplacementIdx(eventStartIdx, candidateBaseIdx, demand)
+                        
+                        if not na(candidateConfirmationIdx)
+                            candidateLegCandles := math.min(math.max(candidateBaseIdx - candidateConfirmationIdx, 1), formationLegScanBars)
+                        
+                        bool hasConfirmedDisplacement = not na(candidateConfirmationIdx)
+                        if directionalCount == 0
+                            candidateRejectReason := REJECT_NO_DISPLACEMENT
+                        else if not hasConfirmedDisplacement
+                            candidateRejectReason := REJECT_WEAK_DISPLACEMENT
+                        else if rejectFormationRetouch and formation_leg_retouches_zone_after_leave(candidateBaseIdx, demand, 0)
+                            candidateRejectReason := REJECT_FORMATION_RETOUCHED
+                        else if baseNestedInsidePriorSameSide(candidateBaseIdx, demand) and not nestedBaseHasConfirmationWickExpansion(candidateBaseIdx, demand, candidateConfirmationIdx)
+                            candidateRejectReason := REJECT_NESTED_SAME_SIDE_BASE
+                        else
+                            candidateValid := true
+
+                    if candidateValid
+                        if candidateBeatsSelected(candidateBaseIdx, candidateLegCandles, baseIdx, legCandles, demand)
+                            baseIdx := candidateBaseIdx
+                            confirmationIdx := candidateConfirmationIdx
+                            legCandles := candidateLegCandles
+                    else if str.length(rejectReason) == 0
+                        rejectReason := candidateRejectReason
+                else if foundOriginCluster
+                    bool olderDirectionalBoundary = demand ? isBullish(candidateBaseIdx) : isBearish(candidateBaseIdx)
+                    if olderDirectionalBoundary
+                        break
+
+    if not continuationMode and na(baseIdx)
+        [fallbackValid, fallbackBaseIdx, fallbackConfirmationIdx, fallbackLegCandles, fallbackRejectReason] = resolveStandardFallbackCandidate(demand)
+        if fallbackValid
+            baseIdx := fallbackBaseIdx
+            confirmationIdx := fallbackConfirmationIdx
+            legCandles := fallbackLegCandles
+        else if str.length(rejectReason) == 0 and str.length(fallbackRejectReason) > 0
+            rejectReason := fallbackRejectReason
+
+    if not na(baseIdx)
+        model := resolveFinalModel(baseIdx, demand, model)
+        [candidateTop, candidateBottom] = zoneBoundsForFinalModel(baseIdx, demand, legCandles, model)
+        top := candidateTop
+        bottom := candidateBottom
+        originBar := bar_index - baseIdx
+        valid := true
+        rejectReason := ""
+    else if str.length(rejectReason) == 0
+        rejectReason := REJECT_NO_DISPLACEMENT
+
+    [valid, baseIdx, confirmationIdx, originBar, legCandles, model, top, bottom, rejectReason]
+
+createZone(int baseIdx, bool demand, int zoneId, int legCandles, string model, int confirmationBar) =>
+    bool created = false
+    bool duplicateSkipped = false
+    int originBar = bar_index - baseIdx
+    string effectiveModel = resolveFinalModel(baseIdx, demand, model)
+    bool modelAllowed = effectiveModel == MODEL_STANDARD or (effectiveModel == MODEL_CONTINUATION and enableContinuationZones) or (effectiveModel == MODEL_ACC_STANDARD and useAccuracyBounds) or (effectiveModel == MODEL_ACC_CONTINUATION and useAccuracyBounds and enableContinuationZones) or (effectiveModel == MODEL_ACC and useAccuracyBounds)
+    if not modelAllowed
+        drawCandidateDiagnostic(demand, baseIdx, REJECT_MODEL_NOT_ALLOWED, effectiveModel)
+    else if isValidBase(baseIdx, demand)
+        [top, bottom] = zoneBoundsForFinalModel(baseIdx, demand, legCandles, effectiveModel)
+        bool boundsValid = not na(top) and not na(bottom) and top > bottom
+        if not boundsValid
+            duplicateSkipped := true
+            drawCandidateDiagnostic(demand, baseIdx, REJECT_INVALID_BOUNDS, effectiveModel)
+        else
+            replaceNormalZoneForAcc(originBar, demand, effectiveModel)
+            string duplicateReason = duplicateRejectReason(top, bottom, demand, originBar, effectiveModel, confirmationBar)
+            if str.length(duplicateReason) > 0
+                duplicateSkipped := true
+                drawCandidateDiagnostic(demand, baseIdx, duplicateReason, effectiveModel)
+            else if not confirmationCloseLeavesZone(confirmationBar, demand, top, bottom)
+                duplicateSkipped := true
+                drawCandidateDiagnostic(demand, baseIdx, REJECT_CONFIRMATION_CLOSE_INSIDE, effectiveModel)
+            else
+                bool accVisual = isAccZoneModel(effectiveModel)
+                color zoneBgColor = accVisual ? (demand ? accDemandColor : accSupplyColor) : (demand ? demandColor : supplyColor)
+                color zoneBorderColor = accVisual ? (demand ? accDemandBorder : accSupplyBorder) : (demand ? demandBorder : supplyBorder)
+                int rightBar = zoneRightBar(originBar, bar_index)
+                box b = box.new(originBar, top, rightBar, bottom, xloc = xloc.bar_index, bgcolor = zoneBgColor, border_color = zoneBorderColor, border_width = accVisual ? 2 : 1)
+                RawZone z = RawZone.new()
+                z.id := zoneId
+                z.demand := demand
+                z.originBar := originBar
+                z.originTime := time[baseIdx]
+                z.createdBar := bar_index
+                z.confirmationBar := confirmationBar
+                z.eventId := confirmationBar
+                z.model := effectiveModel
+                z.legCandles := legCandles
+                z.top := top
+                z.bottom := bottom
+                z.active := true
+                z.leftZone := formationHasLeftZone(baseIdx, demand, top, bottom)
+                z.liquidityLinked := false
+                z.liquiditySwept := false
+                z.targetSwept := false
+                z.touched := false
+                z.inactiveReason := ""
+                z.lastInvalidationCheckReason := ""
+                z.liqLowPrice := na
+                z.liqLowBar := na
+                z.liqHighPrice := na
+                z.liqHighBar := na
+                z.liquidityPrice := na
+                z.liquidityBarIndex := na
+                z.liquiditySweepBar := na
+                z.targetSweepBar := na
+                z.zoneBox := b
+                z.liquidityLine := na
+                z.targetLine := na
+                array.unshift(zones, z)
+                trimZones()
+                drawZoneDiagnostic(z, "RAW_CREATED", "")
+                drawZoneDisplayDiagnostic(z, "created")
+                sendEvent("ZONE_CREATED", z)
+                cleanupNestedSameSideZones(0)
+                created := true
+    [created, duplicateSkipped]
+
+hideInactiveZone(RawZone z) =>
+    if showInactiveZones
+        if not na(z.zoneBox)
+            box.set_bgcolor(z.zoneBox, inactiveColor)
+            box.set_border_color(z.zoneBox, color.new(color.gray, 35))
+    else
+        deleteZoneDrawings(z)
+        z.zoneBox := na
+        z.liquidityLine := na
+        z.targetLine := na
+    true
+
+createLinkedLine(int x1, float price, color lineColor) =>
+    plotLiq ? line.new(x1, price, bar_index + zoneProjectionBars, price, xloc = xloc.bar_index, extend = extend.none, color = lineColor, style = line.style_dashed, width = 1) : na
+
+updateZoneLines(RawZone z) =>
+    if not na(z.liquidityLine)
+        int x2 = z.liquiditySwept ? z.liquiditySweepBar : bar_index + zoneProjectionBars
+        line.set_x2(z.liquidityLine, x2)
+    if not na(z.targetLine)
+        int x2 = z.targetSwept ? z.targetSweepBar : bar_index + zoneProjectionBars
+        line.set_x2(z.targetLine, x2)
+    true
+
+
+normalLiquidityHasTwoOppositeCandles(int pivotBar, bool demand) =>
+    int pivotOffset = bar_index - pivotBar
+    bool valid = false
+    bool pivotOpposite = demand ? isBearish(pivotOffset) : isBullish(pivotOffset)
+    bool previousOpposite = demand ? isBearish(pivotOffset + 1) : isBullish(pivotOffset + 1)
+    valid := pivotOpposite and previousOpposite
+    valid
+
+oneCandleLiquidityHasFakeout(int pivotBar, bool demand) =>
+    int pivotOffset = bar_index - pivotBar
+    bool valid = false
+    bool pivotOpposite = demand ? isBearish(pivotOffset) : isBullish(pivotOffset)
+    bool previousOpposite = demand ? isBearish(pivotOffset + 1) : isBullish(pivotOffset + 1)
+    float previousBodyHigh = math.max(open[pivotOffset + 1], close[pivotOffset + 1])
+    float previousBodyLow = math.min(open[pivotOffset + 1], close[pivotOffset + 1])
+    bool fakeout = demand ? low[pivotOffset] < previousBodyLow - syminfo.mintick * 0.5 : high[pivotOffset] > previousBodyHigh + syminfo.mintick * 0.5
+    bool immediateLoss = demand ? close[pivotOffset] > previousBodyLow : close[pivotOffset] < previousBodyHigh
+    bool clearDirection = demand ? isBullish(pivotOffset) : isBearish(pivotOffset)
+    valid := pivotOpposite and not previousOpposite and fakeout and immediateLoss and clearDirection
+    valid
+
+liquidityHasValidStructure(int pivotBar, bool demand) =>
+    normalLiquidityHasTwoOppositeCandles(pivotBar, demand) or oneCandleLiquidityHasFakeout(pivotBar, demand)
+
+candidateLiquidityIsCloser(float candidatePrice, float storedPrice, bool demand) =>
+    na(storedPrice) or (demand ? candidatePrice < storedPrice : candidatePrice > storedPrice)
+
+linkLiquidityAndTargets(RawZone z, float pivotLow, int pivotLowBar, float pivotHigh, int pivotHighBar) =>
+    bool linkedNow = false
+    if z.active
+        if z.demand
+            if not z.liquidityLinked and not z.targetSwept and not na(pivotLow) and pivotLowBar > z.originBar and pivotLow > z.top
+                bool validLiqStruct = pivotLow > z.top and liquidityHasValidStructure(pivotLowBar, true)
+                if candidateLiquidityIsCloser(pivotLow, z.liqLowPrice, true) and validLiqStruct
+                    z.liqLowPrice := pivotLow
+                    z.liqLowBar := pivotLowBar
+            if na(z.liqHighPrice) and not na(z.liqLowPrice) and not na(pivotHigh) and pivotHighBar > z.liqLowBar and pivotHigh > z.top
+                z.liqHighPrice := pivotHigh
+                z.liqHighBar := pivotHighBar
+                z.targetLine := createLinkedLine(pivotHighBar, pivotHigh, targetColor)
+            if not z.liquidityLinked and z.targetSwept and not na(z.liqLowPrice)
+                z.liquidityPrice := z.liqLowPrice
+                z.liquidityBarIndex := z.liqLowBar
+                z.liquidityLinked := true
+                z.liquidityLine := createLinkedLine(z.liqLowBar, z.liqLowPrice, liqColor)
+                linkedNow := true
+        else
+            if not z.liquidityLinked and not z.targetSwept and not na(pivotHigh) and pivotHighBar > z.originBar and pivotHigh < z.bottom
+                bool validLiqStruct = pivotHigh < z.bottom and liquidityHasValidStructure(pivotHighBar, false)
+                if candidateLiquidityIsCloser(pivotHigh, z.liqHighPrice, false) and validLiqStruct
+                    z.liqHighPrice := pivotHigh
+                    z.liqHighBar := pivotHighBar
+            if na(z.liqLowPrice) and not na(z.liqHighPrice) and not na(pivotLow) and pivotLowBar > z.liqHighBar and pivotLow < z.bottom
+                z.liqLowPrice := pivotLow
+                z.liqLowBar := pivotLowBar
+                z.targetLine := createLinkedLine(pivotLowBar, pivotLow, targetColor)
+            if not z.liquidityLinked and z.targetSwept and not na(z.liqHighPrice)
+                z.liquidityPrice := z.liqHighPrice
+                z.liquidityBarIndex := z.liqHighBar
+                z.liquidityLinked := true
+                z.liquidityLine := createLinkedLine(z.liqHighBar, z.liqHighPrice, liqColor)
+                linkedNow := true
+    [z, linkedNow]
+
+processZone(RawZone z) =>
+    bool invalidateNow = false
+    bool touchedNow = false
+    bool liquiditySweptNow = false
+    bool targetSweptNow = false
+    bool mitigatedAfterValidSweep = false
+    string invalidationReason = z.inactiveReason
+
+    if z.active
+        if not na(z.zoneBox)
+            box.set_right(z.zoneBox, zoneRightBar(z.originBar, z.createdBar))
+
+        bool afterCreated = not na(z.createdBar) and bar_index > z.createdBar
+        bool expiredByAge = afterCreated and bar_index - z.createdBar > maxZoneAgeBars
+        bool liqSweptBeforeThisBar =
+             z.liquiditySwept and
+             not na(z.liquiditySweepBar) and
+             z.liquiditySweepBar < bar_index
+
+        bool overlapsZone = high >= z.bottom and low <= z.top
+        bool liquidityProofedBeforeThisBar =
+             z.targetSwept and
+             not na(z.targetSweepBar) and
+             z.targetSweepBar < bar_index
+
+        if z.demand
+            if not z.leftZone and high > z.top
+                z.leftZone := true
+
+            bool afterFirstPostCreationBar = not na(z.createdBar) and bar_index > z.createdBar + 1
+            bool wasLeftZone = z.leftZone
+            bool returnedBeforeSweep =
+                 afterFirstPostCreationBar and
+                 wasLeftZone and
+                 overlapsZone and
+                 not liqSweptBeforeThisBar
+
+            bool closeInsideZone = afterCreated and close <= z.top and close >= z.bottom
+
+            bool closeBreak =
+                 afterCreated and
+                 close < z.bottom
+
+            bool wickBreak =
+                 afterCreated and
+                 invalidateOnWick and
+                 low < z.bottom
+
+            invalidateNow := returnedBeforeSweep or closeInsideZone or closeBreak or wickBreak
+            invalidateNow := expiredByAge or returnedBeforeSweep or closeInsideZone or closeBreak or wickBreak
+
+            if not invalidateNow
+                if z.liquidityLinked and not z.liquiditySwept and liquidityProofedBeforeThisBar and bar_index > z.liqLowBar and low < z.liqLowPrice
+                    z.liquiditySwept := true
+                    z.liquiditySweepBar := bar_index
+                    liquiditySweptNow := true
+
+                if not z.targetSwept and not na(z.liqHighPrice) and bar_index > z.liqHighBar and high > z.liqHighPrice
+                    z.targetSwept := true
+                    z.targetSweepBar := bar_index
+                    targetSweptNow := true
+                    line.delete(z.targetLine)
+                    z.targetLine := na
+
+        else
+            if not z.leftZone and low < z.bottom
+                z.leftZone := true
+
+            bool afterFirstPostCreationBar = not na(z.createdBar) and bar_index > z.createdBar + 1
+            bool wasLeftZone = z.leftZone
+            bool returnedBeforeSweep =
+                 afterFirstPostCreationBar and
+                 wasLeftZone and
+                 overlapsZone and
+                 not liqSweptBeforeThisBar
+
+            bool closeInsideZone = afterCreated and close <= z.top and close >= z.bottom
+
+            bool closeBreak =
+                 afterCreated and
+                 close > z.top
+
+            bool wickBreak =
+                 afterCreated and
+                 invalidateOnWick and
+                 high > z.top
+
+            invalidateNow := returnedBeforeSweep or closeInsideZone or closeBreak or wickBreak
+            invalidateNow := expiredByAge or returnedBeforeSweep or closeInsideZone or closeBreak or wickBreak
+
+            if not invalidateNow
+                if z.liquidityLinked and not z.liquiditySwept and liquidityProofedBeforeThisBar and bar_index > z.liqHighBar and high > z.liqHighPrice
+                    z.liquiditySwept := true
+                    z.liquiditySweepBar := bar_index
+                    liquiditySweptNow := true
+
+                if not z.targetSwept and not na(z.liqLowPrice) and bar_index > z.liqLowBar and low < z.liqLowPrice
+                    z.targetSwept := true
+                    z.targetSweepBar := bar_index
+                    targetSweptNow := true
+                    line.delete(z.targetLine)
+                    z.targetLine := na
+
+        if not invalidateNow
+            // bool mitigatedAfterValidSweep = liqSweptBeforeThisBar and overlapsZone
+            mitigatedAfterValidSweep := liqSweptBeforeThisBar and overlapsZone
+            if not invalidateNow and mitigatedAfterValidSweep
+                invalidateNow := true
+                z.inactiveReason := "MITIGATED_AFTER_SWEEP"
+                invalidationReason := z.inactiveReason
+                z.inactiveReason := invalidationReason
+                z.lastInvalidationCheckReason := z.inactiveReason
+                hideInactiveZone(z)
+
+        if not invalidateNow
+            string noInvalidationReason = INVALIDATION_VALID_STILL_ACTIVE
+            if not afterCreated
+                noInvalidationReason := INVALIDATION_NOT_AFTER_CREATED
+            else if not z.leftZone
+                noInvalidationReason := INVALIDATION_NOT_LEFT_ZONE
+            else if not overlapsZone
+                noInvalidationReason := INVALIDATION_NO_ZONE_OVERLAP
+            else if liqSweptBeforeThisBar
+                noInvalidationReason := INVALIDATION_LIQUIDITY_ALREADY_SWEPT
+            z.lastInvalidationCheckReason := noInvalidationReason
+            drawRawDiagnostic(z.demand, bar_index, bar_index - z.originBar, time, z.top, z.bottom, "INVALIDATION_CHECK", z.lastInvalidationCheckReason)
+
+        if not z.touched and overlapsZone and bar_index > z.originBar
+            z.touched := true
+            touchedNow := true
+
+        if invalidateNow and not mitigatedAfterValidSweep
+            z.active := false
+            z.inactiveReason := expiredByAge ? "MAX_AGE" : "RETURNED_OR_BROKE_BEFORE_SWEEP"
+            invalidationReason := z.inactiveReason
+            z.inactiveReason := invalidationReason
+            z.lastInvalidationCheckReason := z.inactiveReason
+            hideInactiveZone(z)
+
+    updateZoneLines(z)
+    [z, liquiditySweptNow, targetSweptNow, touchedNow, invalidateNow, invalidationReason]
+
+isPrimaryFiveMinute = timeframe.isminutes and timeframe.multiplier == 5
+if barstate.isconfirmed and isPrimaryFiveMinute
+    [demandValid, demandBaseIdx, demandConfirmationIdx, demandOriginBar, demandLegCandles, demandModel, demandTop, demandBottom, demandRejectReason] = resolveZoneCandidate(true, false)
+    if demandValid
+        int demandConfirmationBar = bar_index - demandConfirmationIdx
+        [demandCreated, demandDuplicateSkipped] = createZone(demandBaseIdx, true, nextZoneId, demandLegCandles, demandModel, demandConfirmationBar)
+        if demandCreated
+            nextZoneId += 1
+
+    [demandContValid, demandContBaseIdx, demandContConfirmationIdx, demandContOriginBar, demandContLegCandles, demandContModel, demandContTop, demandContBottom, demandContRejectReason] = resolveZoneCandidate(true, true)
+    if demandContValid
+        int demandContConfirmationBar = bar_index - demandContConfirmationIdx
+        [demandContCreated, demandContDuplicateSkipped] = createZone(demandContBaseIdx, true, nextZoneId, demandContLegCandles, demandContModel, demandContConfirmationBar)
+        if demandContCreated
+            nextZoneId += 1
+
+    [supplyValid, supplyBaseIdx, supplyConfirmationIdx, supplyOriginBar, supplyLegCandles, supplyModel, supplyTop, supplyBottom, supplyRejectReason] = resolveZoneCandidate(false, false)
+    if supplyValid
+        int supplyConfirmationBar = bar_index - supplyConfirmationIdx
+        [supplyCreated, supplyDuplicateSkipped] = createZone(supplyBaseIdx, false, nextZoneId, supplyLegCandles, supplyModel, supplyConfirmationBar)
+        if supplyCreated
+            nextZoneId += 1
+
+    [supplyContValid, supplyContBaseIdx, supplyContConfirmationIdx, supplyContOriginBar, supplyContLegCandles, supplyContModel, supplyContTop, supplyContBottom, supplyContRejectReason] = resolveZoneCandidate(false, true)
+    if supplyContValid
+        int supplyContConfirmationBar = bar_index - supplyContConfirmationIdx
+        [supplyContCreated, supplyContDuplicateSkipped] = createZone(supplyContBaseIdx, false, nextZoneId, supplyContLegCandles, supplyContModel, supplyContConfirmationBar)
+        if supplyContCreated
+            nextZoneId += 1
+
+    float pivotLow = ta.pivotlow(low, pivotLen, pivotLen)
+    float pivotHigh = ta.pivothigh(high, pivotLen, pivotLen)
+    int pivotLowBar = bar_index - pivotLen
+    int pivotHighBar = bar_index - pivotLen
+
+    int zoneCount = array.size(zones)
+    if zoneCount > 0
+        for i = zoneCount - 1 to 0
+            RawZone z = array.get(zones, i)
+            if rawMode == "Detection Only"
+                z.lastInvalidationCheckReason := INVALIDATION_RAW_MODE_DETECTION_ONLY
+                if not na(z.zoneBox)
+                    box.set_right(z.zoneBox, zoneRightBar(z.originBar, z.createdBar))
+                array.set(zones, i, z)
+            else
+                [linkedZone, linkedNow] = linkLiquidityAndTargets(z, pivotLow, pivotLowBar, pivotHigh, pivotHighBar)
+                if linkedNow
+                    sendEvent("LIQUIDITY_LINKED", linkedZone)
+
+                [processedZone, liquiditySweptNow, targetSweptNow, touchedNow, invalidatedNow, invalidationReason] = processZone(linkedZone)
+                if liquiditySweptNow
+                    sendEvent("LIQUIDITY_SWEPT", processedZone)
+                if targetSweptNow
+                    sendEvent("TARGET_SWEPT", processedZone)
+                if touchedNow
+                    sendEvent("ZONE_TOUCHED", processedZone)
+                if invalidatedNow
+                    sendEvent("ZONE_INVALIDATED", processedZone)
+                array.set(zones, i, processedZone)
