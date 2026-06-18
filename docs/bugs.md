@@ -1,5 +1,6 @@
 # Bugs
 
+- 2026-06-18 | `scripts/pinescript/indicators/SND_Raw_RD_Forex_LAB.pine`, `scripts/pinescript/indicators/SND_Raw_RD_Forex_PROD.pine` | Orange demand liquidity line could still pick a shallow valid pivot because candidates were ranked by distance from the zone edge instead of the actual liquidity extreme | Rank demand liquidity by the deepest valid low and supply liquidity by the highest valid high while keeping strict/local pivot filtering unchanged
 - 2026-06-18 | `scripts/pinescript/indicators/SND_Raw_RD_Forex_LAB.pine`, `scripts/pinescript/indicators/SND_Raw_RD_Forex_PROD.pine` | One-candle/local demand liquidity was briefly mapped to the candle body-side level, which made the green demand liquidity line too shallow instead of the expected deeper `29783.01` level | Restored local liquidity line pricing to the actual low/high extreme while keeping strict/local candidate competition intact
 - 2026-06-18 | `scripts/pinescript/indicators/SND_Raw_RD_Forex_LAB.pine`, `scripts/pinescript/indicators/SND_Raw_RD_Forex_PROD.pine` | Raw local high/low fallback made liquidity detection too broad and created incorrect lines across zones | Rolled back raw local fallback; keep liquidity selection limited to strict and one-candle pivot candidates while preserving candidate visibility fixes
 

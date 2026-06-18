@@ -1510,8 +1510,8 @@ f_scan_demand_liquidity(RawZone z) =>
                             bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
 
                             if distOK
-                                bool isCloser = distFromZone < bestDist
-                                bool isSameDistance = distFromZone == bestDist
+                                bool isCloser = pLow < bestLiqPrice
+                                bool isSameDistance = pLow == bestLiqPrice
                                 bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
                                 bool preferAwayFromEdge = use_inducement_linking and zoneHeight >= pip_size * 5.0
                                 bool isNearEdge = preferAwayFromEdge and distFromZone < pip_size * 2.0
@@ -1547,8 +1547,8 @@ f_scan_demand_liquidity(RawZone z) =>
                             bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
 
                             if distOK
-                                bool isCloser = distFromZone < bestDist
-                                bool isSameDistance = distFromZone == bestDist
+                                bool isCloser = pLow < bestLiqPrice
+                                bool isSameDistance = pLow == bestLiqPrice
                                 bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
                                 bool preferAwayFromEdge = use_inducement_linking and zoneHeight >= pip_size * 5.0
                                 bool isNearEdge = preferAwayFromEdge and distFromZone < pip_size * 2.0
@@ -1667,8 +1667,8 @@ f_scan_supply_liquidity(RawZone z) =>
                             bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZoneCheck <= maxDistPrice
 
                             if distOK
-                                bool isCloser = distFromZoneCheck < bestDist
-                                bool isSameDistance = distFromZoneCheck == bestDist
+                                bool isCloser = pHigh > bestLiqPrice
+                                bool isSameDistance = pHigh == bestLiqPrice
                                 bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
 
                                 if isCloser or (isSameDistance and isMoreRecent)
@@ -1700,8 +1700,8 @@ f_scan_supply_liquidity(RawZone z) =>
 
                             if distOK
                                 float distFromZoneCheck = distFromZone
-                                bool isCloser = distFromZoneCheck < bestDist
-                                bool isSameDistance = distFromZoneCheck == bestDist
+                                bool isCloser = pHigh > bestLiqPrice
+                                bool isSameDistance = pHigh == bestLiqPrice
                                 bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
 
                                 if isCloser or (isSameDistance and isMoreRecent)
