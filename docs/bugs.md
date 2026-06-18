@@ -1,6 +1,6 @@
 # Bugs
 
-- 2026-06-18 | `scripts/pinescript/indicators/SND_Raw_RD_Forex_LAB.pine`, `scripts/pinescript/indicators/SND_Raw_RD_Forex_PROD.pine` | Lowest demand zone could still miss the intended liquidity low when the level was a raw/local low rather than a stored pivot-array candidate | Added local raw high/low liquidity candidates to compete with strict and one-candle pivot candidates using the same distance ranking
+- 2026-06-18 | `scripts/pinescript/indicators/SND_Raw_RD_Forex_LAB.pine`, `scripts/pinescript/indicators/SND_Raw_RD_Forex_PROD.pine` | Raw local high/low fallback made liquidity detection too broad and created incorrect lines across zones | Rolled back raw local fallback; keep liquidity selection limited to strict and one-candle pivot candidates while preserving candidate visibility fixes
 
 - 2026-06-18 | `scripts/pinescript/indicators/SND_Raw_RD_Forex_LAB.pine`, `scripts/pinescript/indicators/SND_Raw_RD_Forex_PROD.pine` | 23:10 demand zone could choose `29793.07` instead of the lower `29782.85` liquidity because local one-candle pivots were only scanned when no strict pivot existed | Let local one-candle liquidity candidates compete with strict pivots so the closer valid level can win
 
