@@ -2084,8 +2084,13 @@ if rawDiagnostics and showDebugLabels and debugSelectedTime > 0 and barstate.isl
         label.delete(selectedZoneStatusLabel)
         selectedZoneStatusLabel := na
     int selectedZoneCount = array.size(zones)
+    bool selectedZoneMatched = false
     if selectedZoneCount > 0
         for selectedIdx = selectedZoneCount - 1 to 0
             RawZone selectedZone = array.get(zones, selectedIdx)
             if inDebugWindow(selectedZone.originBar)
+                selectedZoneMatched := true
                 selectedZoneStatusLabel := drawSelectedZoneStatus(selectedZone, selectedZoneStatusLabel)
+    if not selectedZoneMatched
+        string fallbackText = "NO_SELECTED_ZONE\nselected_time " + intNum(debugSelectedTime) + "\nzone_count " + intNum(selectedZoneCount) + "\nNo active zone origin matched the selected time."
+        selectedZoneStatusLabel := label.new(bar_index, close, fallbackText, xloc = xloc.bar_index, style = label.style_label_left, color = color.new(color.red, 0), textcolor = color.white, size = size.small)
