@@ -154,6 +154,7 @@ type RawZone
     string liqSource
 
 var RawZone[] zones = array.new<RawZone>()
+var label selectedZoneStatusLabel = na
 var int nextZoneId = 1
 
 const int MAX_LIQ_SCAN_BARS = 500
@@ -444,6 +445,22 @@ drawCandidateDiagnostic(bool demand, int baseIdx, string result, string reason) 
 
 drawZoneDiagnostic(RawZone z, string result, string reason) =>
     drawRawDiagnostic(z.demand, z.originBar, bar_index - z.originBar, z.originTime, z.top, z.bottom, result, reason)
+
+drawSelectedZoneStatus(RawZone z, label existingLabel) =>
+    label result = existingLabel
+    if rawDiagnostics and showDebugLabels and rawMode == "Debug Selected Zone" and barstate.islast and inDebugWindow(z.originBar) and not na(z.top) and not na(z.bottom)
+        if not na(result)
+            label.delete(result)
+        string side = z.demand ? "demand" : "supply"
+        string inactive = na(z.inactiveReason) ? "" : z.inactiveReason
+        string invalidation = na(z.lastInvalidationCheckReason) ? "" : z.lastInvalidationCheckReason
+        string reason = str.length(inactive) > 0 ? inactive : invalidation
+        reason := str.length(reason) > 0 ? reason : "NONE"
+        string source = str.length(z.liqSource) > 0 ? z.liqSource : "NONE"
+        string statusText = side + "\nZONE_STATUS\nid " + intNum(z.id) + "\ntime " + intNum(z.originTime) + "\ntop " + num(z.top) + "\nbot " + num(z.bottom) + "\nactive " + boolText(z.active) + "\nliquidityValid " + boolText(z.liquidityValid) + "\nliquidityPrice " + num(z.liquidityPrice) + "\nliquidityBar " + intNum(z.liquidityBarIndex) + "\nliqLow " + num(z.liqLowPrice) + " / " + intNum(z.liqLowBar) + "\nliqHigh " + num(z.liqHighPrice) + " / " + intNum(z.liqHighBar) + "\nliqSwept " + boolText(z.liquiditySwept) + "\ntargetSwept " + boolText(z.targetSwept) + "\nsource " + source + "\nreason " + reason
+        color statusColor = z.liquidityValid ? color.new(color.green, 0) : color.new(color.orange, 0)
+        result := label.new(bar_index, z.demand ? z.bottom : z.top, statusText, xloc = xloc.bar_index, style = z.demand ? label.style_label_up : label.style_label_down, color = statusColor, textcolor = color.white, size = size.small)
+    result
 
 rejectStatus(string reason) =>
     reason
@@ -2045,6 +2062,7 @@ if barstate.isconfirmed and isPrimaryFiveMinute
                 z.lastInvalidationCheckReason := INVALIDATION_RAW_MODE_DETECTION_ONLY
                 if not na(z.zoneBox)
                     box.set_right(z.zoneBox, zoneRightBar(z))
+                selectedZoneStatusLabel := drawSelectedZoneStatus(z, selectedZoneStatusLabel)
                 array.set(zones, i, z)
             else
                 [linkedZone, linkedNow] = linkLiquidityAndTargets(z, pivotLow, pivotLowBar, pivotHigh, pivotHighBar, targetPivotHigh, targetPivotHighBar, targetPivotLow, targetPivotLowBar)
@@ -2060,4 +2078,5 @@ if barstate.isconfirmed and isPrimaryFiveMinute
                     sendEvent("ZONE_TOUCHED", processedZone)
                 if invalidatedNow
                     sendEvent("ZONE_INVALIDATED", processedZone)
+                selectedZoneStatusLabel := drawSelectedZoneStatus(processedZone, selectedZoneStatusLabel)
                 array.set(zones, i, processedZone)
