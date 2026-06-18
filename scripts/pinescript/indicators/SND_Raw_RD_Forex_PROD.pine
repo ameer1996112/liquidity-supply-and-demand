@@ -1116,7 +1116,7 @@ targetLineSweptOnThisBar(RawZone z) =>
     not z.targetSwept and not na(price) and not na(lineBar) and bar_index > lineBar and (z.demand ? high > price : low < price)
 
 zoneShowsLinkedLiquidity(RawZone z) =>
-    z.active and z.liquidityLinked and not na(z.zoneBox)
+    z.active and not na(z.zoneBox) and (z.liquidityLinked or (z.liquidityValid and not na(z.liquidityPrice) and not na(z.liquidityBarIndex)))
 
 updateZoneLines(RawZone z) =>
     bool showLinkedLines = plotLiq and zoneShowsLinkedLiquidity(z)
@@ -1474,7 +1474,7 @@ getBarOfMinLow(int startBarAbs, int endBarAbs) =>
 
 f_scan_demand_liquidity(RawZone z) =>
     RawZone out = z
-    if out.liquidityValid or (out.liqSource == TOUCH_SWEEP_SOURCE and not na(out.liquidityPrice))
+    if out.liquiditySwept or out.targetSwept or (out.liqSource == TOUCH_SWEEP_SOURCE and not na(out.liquidityPrice))
         out
     else if na(out.createdBar) or bar_index <= out.createdBar
         out
@@ -1632,7 +1632,7 @@ f_scan_demand_liquidity(RawZone z) =>
 
 f_scan_supply_liquidity(RawZone z) =>
     RawZone out = z
-    if out.liquidityValid or (out.liqSource == TOUCH_SWEEP_SOURCE and not na(out.liquidityPrice))
+    if out.liquiditySwept or out.targetSwept or (out.liqSource == TOUCH_SWEEP_SOURCE and not na(out.liquidityPrice))
         out
     else if na(out.createdBar) or bar_index <= out.createdBar
         out

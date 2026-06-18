@@ -1,5 +1,7 @@
 # Bugs
 
+- 2026-06-18 | `scripts/pinescript/indicators/SND_Raw_RD_Forex_LAB.pine`, `scripts/pinescript/indicators/SND_Raw_RD_Forex_PROD.pine` | Valid liquidity candidates could disappear or freeze on an older level because the scanner stopped after `liquidityValid` and line display waited for `targetSwept` | Keep rescanning until liquidity or target sweep proof and keep valid unswept liquidity candidates visible
+
 - 2026-06-18 | `scripts/pinescript/indicators/SND_Raw_RD_Forex*.pine` | NAS100 LAB/PROD suppressed ACC bounds, so the 23:10 origin fell back to a broad standard demand zone instead of the compact upper wick-to-body zone shown by the reference | Allowed ACC bounds on index symbols and aligned ACC bounds so demand uses origin high to body high while supply uses body low to origin low
 
 - 2026-04-23 | `src/api_positions.py` | Dashboard live positions and live account summary only used one primary broker adapter, so multi-account live positions could disappear behind signal fallback even while other accounts were connected | Added profile-based live aggregation across eligible MetaAPI and cTrader accounts and corrected the frontend fallback mapper to preserve `signal.size`
