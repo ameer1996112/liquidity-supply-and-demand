@@ -3558,8 +3558,6 @@ if demandSize > 0
                 bool gatedReturnedInvalidAfterLeft = canJudgeInvalidation and not validSweepOrProof and returned_invalid_after_left
                 bool gatedCloseBelowZone = canJudgeInvalidation and not validSweepOrProof and close_below_zone
                 bool gatedWickBelowZone = canJudgeInvalidation and not validSweepOrProof and invalidate_on_wick and wick_below_zone
-                // bool canTrackDemandPreSweepMitigation = bar_index >= demandInvalidationStartBar and not na(z.structureBreakBarIndex) and z.structureBreakBarIndex >= demandInvalidationStartBar
-                // if is_future_bar and z.leftZone and (closes_inside or breaches_zone) and not current_bar_sweeping and not z.liquiditySwept and canTrackDemandPreSweepMitigation
 
                 if visual_zone_touch
                     record_visual_stop(z.id, bar_index)
