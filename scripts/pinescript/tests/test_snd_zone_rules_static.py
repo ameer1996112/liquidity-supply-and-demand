@@ -111,9 +111,6 @@ def main() -> None:
     _require(
         strategy,
         [
-            "int demandSize = array.size(demandZones)",
-            "if demandSize > 0",
-            "for i = demandSize - 1 to 0",
             "bool close_below_zone = current_close < z.bottom",
             "bool wick_below_zone  = current_low < z.bottom",
             "bool close_inside_zone = current_close <= z.top and current_close >= z.bottom",
@@ -134,9 +131,6 @@ def main() -> None:
             "bool gatedWickBelowZone = canJudgeInvalidation and not validSweepOrProof and invalidate_on_wick and wick_below_zone",
             "if gatedReturnedBeforeLiqSweep or gatedReturnedInvalidAfterLeft or gatedCloseBelowZone or gatedWickBelowZone or isTooOld",
             "remove_zone_all_arrays(true, i)",
-            "int supplySize = array.size(supplyZones)",
-            "if supplySize > 0",
-            "for i = supplySize - 1 to 0",
             "bool close_above_zone = current_close > z.top",
             "bool wick_above_zone  = current_high > z.top",
             "bool wick_mitigates_zone = z.isHistorical and z.leftZone and not z.mitigated and current_high >= z.bottom and current_low <= z.top",
@@ -171,10 +165,13 @@ def main() -> None:
         [
             "is_base_time_used(int baseIdx, array<int> baseArray) =>",
             "baseIdx >= 0 and baseIdx <= bar_index and array.includes(baseArray, time[baseIdx])",
+            "int baseTime = time[baseIdx]",
+            "bool alreadyUsed = false",
+            "if isDemand",
+            "if array.includes(used_demand_base_times, baseTime)",
+            "if array.includes(used_supply_base_times, baseTime)",
             "array.push(used_demand_base_times, baseTime)",
             "array.push(used_supply_base_times, baseTime)",
-            "array.includes(used_demand_base_times, baseTime)",
-            "array.includes(used_supply_base_times, baseTime)",
             "global_zone_id_counter := global_zone_id_counter + 1",
         ],
         "Deterministic base-time and ID allocation",
@@ -269,14 +266,16 @@ def main() -> None:
         "Visual lifecycle cleanup",
     )
 
-    _require(
+    _forbid(
         strategy,
         [
-            "zone_visual_right(Core.Zone z) =>",
-            "int stopBar = visual_stop_bar(z.id)",
-            "not na(stopBar) ? stopBar : bar_index",
+            "show_entry_used_zones",
+            "zone_lab_mode",
+            "show_mitigated_zones",
+            "show_invalid_zones",
+            "show_candidate_zones",
         ],
-        "Entry-used zone archive display shape",
+        "Removed visual mode logic",
     )
 
     print("SND displacement scanner static contract passed")

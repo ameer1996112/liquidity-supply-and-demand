@@ -51,6 +51,7 @@ def main() -> None:
         'recordDiag(304, true, bar_index - z.createdBarIndex, "wick invalidated")',
         'recordDiag(306, true, bar_index - z.createdBarIndex, "expired too early")',
         "remove_zone_all_arrays(true, i)",
+        "z.isHistorical",
     ]:
         if needle not in demand_lifecycle:
             raise AssertionError(f"demand lifecycle missing {needle!r}")
@@ -79,6 +80,7 @@ def main() -> None:
         'recordDiag(304, false, bar_index - z.createdBarIndex, "wick invalidated")',
         'recordDiag(306, false, bar_index - z.createdBarIndex, "expired too early")',
         "remove_zone_all_arrays(false, i)",
+        "z.isHistorical",
     ]:
         if needle not in supply_lifecycle:
             raise AssertionError(f"supply lifecycle missing {needle!r}")
@@ -88,6 +90,31 @@ def main() -> None:
     ]:
         if forbidden in supply_lifecycle:
             raise AssertionError(f"supply lifecycle still has stale contract {forbidden!r}")
+
+    create_zone = _body(
+        strategy,
+        "createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID, bool allowUsedBase = false) =>",
+        "\nremove_zone_all_arrays(",
+    )
+    for needle in [
+        "int baseTime = time[baseIdx]",
+        "bool alreadyUsed = false",
+        "if isDemand",
+        "if array.includes(used_demand_base_times, baseTime)",
+        "if array.includes(used_supply_base_times, baseTime)",
+        'db_upsertZone(z, "DEMAND")',
+        'db_upsertZone(z, "SUPPLY")',
+        "array.push(used_demand_base_times, baseTime)",
+        "array.push(used_supply_base_times, baseTime)",
+    ]:
+        if needle not in create_zone:
+            raise AssertionError(f"createZone missing {needle!r}")
+    demand_db = create_zone.index('db_upsertZone(z, "DEMAND")')
+    demand_base_used = create_zone.index("array.push(used_demand_base_times, baseTime)")
+    supply_db = create_zone.index('db_upsertZone(z, "SUPPLY")')
+    supply_base_used = create_zone.index("array.push(used_supply_base_times, baseTime)")
+    if not (demand_db < demand_base_used and supply_db < supply_base_used):
+        raise AssertionError("Accepted-zone creation ordering changed")
 
     print("SND zone invalidation static contract passed")
 
