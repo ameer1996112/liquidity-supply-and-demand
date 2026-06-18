@@ -1561,25 +1561,6 @@ f_scan_demand_liquidity(RawZone z) =>
                                     bestLiqBar := pBar
                                     bestLiqNearEdge := isNearEdge
 
-            float localMaxDistPrice = effective_liq_max_dist * pip_size
-            int localLookback = math.min(MAX_LIQ_SCAN_BARS, bar_index - liquidityScanStartBar)
-            [localLowPrice, localLowBar] = findLocalDemandLiquidity(out.top, localMaxDistPrice, syminfo.mintick * equalLiquidityToleranceTicks, localLookback, use_inducement_linking)
-            if not na(localLowPrice) and not na(localLowBar) and localLowBar >= liquidityScanStartBar
-                float localDistFromZone = use_inducement_linking ? math.max(0.0, localLowPrice - out.top) : out.bottom - localLowPrice
-                bool localIsCloser = localDistFromZone < bestDist
-                bool localIsSameDistance = localDistFromZone == bestDist
-                bool localIsMoreRecent = na(bestLiqBar) or localLowBar > bestLiqBar
-                bool localPreferAwayFromEdge = use_inducement_linking and zoneHeight >= pip_size * 5.0
-                bool localIsNearEdge = localPreferAwayFromEdge and localDistFromZone < pip_size * 2.0
-                bool localImprovesEdgeQuality = bestLiqNearEdge and not localIsNearEdge
-                bool localSameEdgeQuality = bestLiqNearEdge == localIsNearEdge
-
-                if na(bestLiqBar) or localImprovesEdgeQuality or (localSameEdgeQuality and (localIsCloser or (localIsSameDistance and localIsMoreRecent)))
-                    bestDist := localDistFromZone
-                    bestLiqPrice := localLowPrice
-                    bestLiqBar := localLowBar
-                    bestLiqNearEdge := localIsNearEdge
-
         if not na(bestLiqBar) and bestLiqPrice < 1.0e10
             bool inductionChanged = na(out.liqLowPrice) or out.liqLowPrice != bestLiqPrice or na(out.liqLowBar) or out.liqLowBar != bestLiqBar
 
@@ -1727,20 +1708,6 @@ f_scan_supply_liquidity(RawZone z) =>
                                     bestDist := distFromZoneCheck
                                     bestLiqPrice := pHigh
                                     bestLiqBar := pBar
-
-            float localMaxDistPrice = effective_liq_max_dist * pip_size
-            int localLookback = math.min(MAX_LIQ_SCAN_BARS, bar_index - liquidityScanStartBar)
-            [localHighPrice, localHighBar] = findLocalSupplyLiquidity(out.bottom, localMaxDistPrice, syminfo.mintick * equalLiquidityToleranceTicks, localLookback, use_inducement_linking)
-            if not na(localHighPrice) and not na(localHighBar) and localHighBar >= liquidityScanStartBar
-                float localDistFromZone = use_inducement_linking ? math.max(0.0, out.bottom - localHighPrice) : localHighPrice - out.top
-                bool localIsCloser = localDistFromZone < bestDist
-                bool localIsSameDistance = localDistFromZone == bestDist
-                bool localIsMoreRecent = na(bestLiqBar) or localHighBar > bestLiqBar
-
-                if localIsCloser or (localIsSameDistance and localIsMoreRecent)
-                    bestDist := localDistFromZone
-                    bestLiqPrice := localHighPrice
-                    bestLiqBar := localHighBar
 
         if not na(bestLiqBar) and bestLiqPrice > 0.0
             bool inductionChanged = na(out.liqHighPrice) or out.liqHighPrice != bestLiqPrice or na(out.liqHighBar) or out.liqHighBar != bestLiqBar
