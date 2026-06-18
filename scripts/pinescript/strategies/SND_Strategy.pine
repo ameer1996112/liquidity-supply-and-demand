@@ -3379,7 +3379,11 @@ if cached_demand_size > 0 and barstate.isconfirmed
                     if (is_liq_bar or delayed_retouch) and not z.liquiditySwept
                         z.touchedPreSweep := true
 
-                if is_future_bar and z.leftZone and (closes_inside or breaches_zone) and not current_bar_sweeping and not z.liquiditySwept
+                int demandConfirmationBar = not na(z.departureEndBarIndex) ? z.departureEndBarIndex : z.createdBarIndex
+                int demandInvalidationStartBar = not na(z.firstInvalidBarIndex) ? z.firstInvalidBarIndex : demandConfirmationBar + 1
+                bool canTrackDemandPreSweepMitigation = bar_index >= demandInvalidationStartBar and not na(z.structureBreakBarIndex) and z.structureBreakBarIndex >= demandInvalidationStartBar
+
+                if is_future_bar and z.leftZone and (closes_inside or breaches_zone) and not current_bar_sweeping and not z.liquiditySwept and canTrackDemandPreSweepMitigation
                     z.mitigated := true
                     z.lastTouchBar := bar_index
                     array.set(demandZones, i, z)
@@ -3539,17 +3543,34 @@ if demandSize > 0
                 bool touch_sweep_now = z.liqSource == TOUCH_SWEEP_SOURCE and z.liquiditySwept and z.liquiditySweptBarIndex == bar_index
                 bool returned_invalid_after_left = not touch_sweep_now and zone_failed_after_leave(z, true)
                 bool returned_before_liq_sweep = require_liquidity_sweep and not touch_sweep_now and z.leftZone and (current_low <= z.top or z.mitigated) and (not z.liquidityValid or not z.liquiditySwept or na(z.liquiditySweptBarIndex) or bar_index <= z.liquiditySweptBarIndex)
+                int confirmationBar = not na(z.departureEndBarIndex) ? z.departureEndBarIndex : z.createdBarIndex
+                int invalidationStartBar = not na(z.firstInvalidBarIndex) ? z.firstInvalidBarIndex : confirmationBar + 1
+                bool afterConfirmation = bar_index >= invalidationStartBar
+                if afterConfirmation and na(z.structureBreakBarIndex) and current_close > z.top + zone_departure_buffer_price
+                    z.structureBreakBarIndex := bar_index
+                    z.stateReason := "RUNTIME_DEPARTED_AFTER_CONFIRMATION"
+                    array.set(demandZones, i, z)
+                    db_updateZoneLiquidity(z)
+                bool departedAfterConfirmation = not na(z.structureBreakBarIndex) and z.structureBreakBarIndex >= invalidationStartBar
+                bool canJudgeInvalidation = afterConfirmation and departedAfterConfirmation
+                bool validSweepOrProof = z.liquidityValid and z.liquiditySwept
+                bool gatedReturnedBeforeLiqSweep = canJudgeInvalidation and not validSweepOrProof and returned_before_liq_sweep
+                bool gatedReturnedInvalidAfterLeft = canJudgeInvalidation and not validSweepOrProof and returned_invalid_after_left
+                bool gatedCloseBelowZone = canJudgeInvalidation and not validSweepOrProof and close_below_zone
+                bool gatedWickBelowZone = canJudgeInvalidation and not validSweepOrProof and invalidate_on_wick and wick_below_zone
+                // bool canTrackDemandPreSweepMitigation = bar_index >= demandInvalidationStartBar and not na(z.structureBreakBarIndex) and z.structureBreakBarIndex >= demandInvalidationStartBar
+                // if is_future_bar and z.leftZone and (closes_inside or breaches_zone) and not current_bar_sweeping and not z.liquiditySwept and canTrackDemandPreSweepMitigation
 
                 if visual_zone_touch
                     record_visual_stop(z.id, bar_index)
 
-                if returned_before_liq_sweep or returned_invalid_after_left or close_below_zone or wick_below_zone or isTooOld
-                    if returned_before_liq_sweep or returned_invalid_after_left
+                if gatedReturnedBeforeLiqSweep or gatedReturnedInvalidAfterLeft or gatedCloseBelowZone or gatedWickBelowZone or isTooOld
+                    if gatedReturnedBeforeLiqSweep or gatedReturnedInvalidAfterLeft
                         bool sameBarSweepOrder = not na(z.liquiditySweptBarIndex) and bar_index <= z.liquiditySweptBarIndex
                         recordDiag(sameBarSweepOrder ? 303 : 302, true, bar_index - z.createdBarIndex, sameBarSweepOrder ? "same bar sweep order" : "returned pre sweep")
-                    else if close_below_zone
+                    else if gatedCloseBelowZone
                         recordDiag(305, true, bar_index - z.createdBarIndex, "close invalidated")
-                    else if wick_below_zone
+                    else if gatedWickBelowZone
                         recordDiag(304, true, bar_index - z.createdBarIndex, "wick invalidated")
                     else if isTooOld
                         recordDiag(306, true, bar_index - z.createdBarIndex, "expired too early")
