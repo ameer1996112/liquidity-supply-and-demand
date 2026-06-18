@@ -2097,6 +2097,10 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
 
             int baseEndAbsolute = baseBarIdx + actualCandlesInBase - 1
             z.baseEndBarIndex := baseEndAbsolute
+            z.departureEndBarIndex := bar_index
+            z.firstInvalidBarIndex := bar_index + 1
+            z.structureBreakBarIndex := na
+            z.stateReason := "CONFIRMED_WAIT_RUNTIME_DEPARTURE"
             float temp_base_quality = Core.calculate_base_quality(baseEndAbsolute, baseBarIdx, bar_index, high, low, open, close)
             float temp_departure_strength = Core.calculate_departure_strength(baseIdx, isDemand, high, low, open, close, atr14, base_width, actualCandlesInBase)
 
