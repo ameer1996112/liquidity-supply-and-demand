@@ -129,6 +129,7 @@ def main() -> None:
     )
     for needle in [
         "string lifecycleDebug =",
+        '"Origin"',
         '"Confirm"',
         '"InvStart"',
         '"CanJudge"',

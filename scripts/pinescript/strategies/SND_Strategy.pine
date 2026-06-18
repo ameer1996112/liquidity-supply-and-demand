@@ -5472,9 +5472,10 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             int dbgInvStartBar = not na(inspectorZone.firstInvalidBarIndex) ? inspectorZone.firstInvalidBarIndex : dbgConfirmBar + 1
             bool dbgDeparted = not na(inspectorZone.structureBreakBarIndex) and inspectorZone.structureBreakBarIndex >= dbgInvStartBar
             bool dbgCanJudge = bar_index >= dbgInvStartBar and dbgDeparted
-            lifecycleDebug := "Confirm" + " " + str.tostring(dbgConfirmBar) + " | " + "InvStart" + " " + str.tostring(dbgInvStartBar) + " | Left " + (dbgDeparted ? "Yes" : "No") + " | " + "CanJudge" + " " + (dbgCanJudge ? "Yes" : "No")
+            string dbgOriginTime = not na(inspectorZone.startTime) ? " @ " + str.tostring(inspectorZone.startTime) : ""
+            lifecycleDebug := "Origin" + " " + str.tostring(inspectorZone.createdBarIndex) + dbgOriginTime + " | " + "Confirm" + " " + str.tostring(dbgConfirmBar) + " | " + "InvStart" + " " + str.tostring(dbgInvStartBar) + " | Left " + (dbgDeparted ? "Yes" : "No") + " | " + "CanJudge" + " " + (dbgCanJudge ? "Yes" : "No")
         else if foundInDB and not na(dbEntry)
-            lifecycleDebug := "Confirm" + " N/A | " + "InvStart" + " N/A | " + "CanJudge" + " No"
+            lifecycleDebug := "Origin" + " " + str.tostring(dbEntry.createdBar) + " | " + "Confirm" + " N/A | " + "InvStart" + " N/A | Left N/A | " + "CanJudge" + " No"
 
         table.cell(zoneInspector, 0, nextRow, "Lifecycle", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = tbl_sz)
         table.cell(zoneInspector, 1, nextRow, lifecycleDebug, text_color = color.rgb(120, 190, 255), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = tbl_sz)
