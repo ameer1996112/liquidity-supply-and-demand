@@ -1532,15 +1532,18 @@ f_scan_demand_liquidity(RawZone z) =>
                     int pBar = array.get(liqPvtLowBars, pivotIdx)
 
                     if not na(pLow) and not na(pBar) and pBar >= liquidityScanStartBar and pBar <= bar_index
+                        int pOff = bar_index - pBar
+                        bool oneCandleLocal = oneCandleLiquidityHasFakeout(pBar, true) or oneCandleRetracementLiquidityAt(pOff, true)
+                        float pLineLow = oneCandleLocal and pOff >= 0 and pOff <= bar_index ? math.min(open[pOff], close[pOff]) : pLow
                         bool isValidLocation = false
                         float distFromZone = 0.0
 
                         if use_inducement_linking
-                            isValidLocation := pLow >= out.top - (syminfo.mintick * equalLiquidityToleranceTicks)
-                            distFromZone := math.max(0.0, pLow - out.top)
+                            isValidLocation := pLineLow >= out.top - (syminfo.mintick * equalLiquidityToleranceTicks)
+                            distFromZone := math.max(0.0, pLineLow - out.top)
                         else
-                            isValidLocation := pLow < out.bottom
-                            distFromZone := out.bottom - pLow
+                            isValidLocation := pLineLow < out.bottom
+                            distFromZone := out.bottom - pLineLow
 
                         if isValidLocation
                             float maxDistPrice = effective_liq_max_dist * pip_size
@@ -1557,7 +1560,7 @@ f_scan_demand_liquidity(RawZone z) =>
 
                                 if na(bestLiqBar) or improvesEdgeQuality or (sameEdgeQuality and (isCloser or (isSameDistance and isMoreRecent)))
                                     bestDist := distFromZone
-                                    bestLiqPrice := pLow
+                                    bestLiqPrice := pLineLow
                                     bestLiqBar := pBar
                                     bestLiqNearEdge := isNearEdge
 
@@ -1684,15 +1687,18 @@ f_scan_supply_liquidity(RawZone z) =>
                     int pBar = array.get(liqPvtHighBars, pivotIdx)
 
                     if not na(pHigh) and not na(pBar) and pBar >= liquidityScanStartBar and pBar <= bar_index
+                        int pOff = bar_index - pBar
+                        bool oneCandleLocal = oneCandleLiquidityHasFakeout(pBar, false) or oneCandleRetracementLiquidityAt(pOff, false)
+                        float pLineHigh = oneCandleLocal and pOff >= 0 and pOff <= bar_index ? math.max(open[pOff], close[pOff]) : pHigh
                         bool isValidLocation = false
                         float distFromZone = 0.0
 
                         if use_inducement_linking
-                            isValidLocation := pHigh <= out.bottom + (syminfo.mintick * equalLiquidityToleranceTicks)
-                            distFromZone := math.max(0.0, out.bottom - pHigh)
+                            isValidLocation := pLineHigh <= out.bottom + (syminfo.mintick * equalLiquidityToleranceTicks)
+                            distFromZone := math.max(0.0, out.bottom - pLineHigh)
                         else
-                            isValidLocation := pHigh > out.top
-                            distFromZone := pHigh - out.top
+                            isValidLocation := pLineHigh > out.top
+                            distFromZone := pLineHigh - out.top
 
                         if isValidLocation
                             float maxDistPrice = effective_liq_max_dist * pip_size
@@ -1706,7 +1712,7 @@ f_scan_supply_liquidity(RawZone z) =>
 
                                 if isCloser or (isSameDistance and isMoreRecent)
                                     bestDist := distFromZoneCheck
-                                    bestLiqPrice := pHigh
+                                    bestLiqPrice := pLineHigh
                                     bestLiqBar := pBar
 
         if not na(bestLiqBar) and bestLiqPrice > 0.0
