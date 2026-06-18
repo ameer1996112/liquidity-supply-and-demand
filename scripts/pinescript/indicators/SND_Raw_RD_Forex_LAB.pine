@@ -1524,7 +1524,7 @@ f_scan_demand_liquidity(RawZone z) =>
                                     bestLiqBar := pBar
                                     bestLiqNearEdge := isNearEdge
 
-        if na(bestLiqBar) and enableOneCandleLiquidity
+        if enableOneCandleLiquidity
             int localPivotCount = array.size(liqPvtLowPrices)
             if localPivotCount > 0
                 for pivotIdx = 0 to localPivotCount - 1
@@ -1676,7 +1676,7 @@ f_scan_supply_liquidity(RawZone z) =>
                                     bestLiqPrice := pHigh
                                     bestLiqBar := pBar
 
-        if na(bestLiqBar) and enableOneCandleLiquidity
+        if enableOneCandleLiquidity
             int localPivotCount = array.size(liqPvtHighPrices)
             if localPivotCount > 0
                 for pivotIdx = 0 to localPivotCount - 1
