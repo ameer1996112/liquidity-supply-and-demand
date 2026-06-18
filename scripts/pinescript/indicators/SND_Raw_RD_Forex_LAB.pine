@@ -446,6 +446,16 @@ drawCandidateDiagnostic(bool demand, int baseIdx, string result, string reason) 
 drawZoneDiagnostic(RawZone z, string result, string reason) =>
     drawRawDiagnostic(z.demand, z.originBar, bar_index - z.originBar, z.originTime, z.top, z.bottom, result, reason)
 
+drawZoneStateDiagnostic(RawZone z, int x, string result, string reason) =>
+    if rawDiagnostics and showDebugLabels and isDebugDiagnostic(result) and inDebugWindow(x) and not na(x) and not na(z.top) and not na(z.bottom)
+        string side = z.demand ? "demand" : "supply"
+        string source = str.length(z.liqSource) > 0 ? z.liqSource : "NONE"
+        string diagText = side + "\n" + result + "\noff " + intNum(bar_index - z.originBar) + "\ntime " + intNum(z.originTime) + "\ntop " + num(z.top) + "\nbot " + num(z.bottom) + "\nliquidityPrice " + num(z.liquidityPrice) + "\nliquidityBar " + intNum(z.liquidityBarIndex) + "\nliqLow " + num(z.liqLowPrice) + " / " + intNum(z.liqLowBar) + "\nliqHigh " + num(z.liqHighPrice) + " / " + intNum(z.liqHighBar) + "\nliquidityValid " + boolText(z.liquidityValid) + "\nliqSwept " + boolText(z.liquiditySwept) + "\ntargetSwept " + boolText(z.targetSwept) + "\nsource " + source
+        if str.length(reason) > 0
+            diagText := diagText + "\n" + reason
+        label.new(x, z.demand ? z.bottom : z.top, diagText, xloc = xloc.bar_index, style = z.demand ? label.style_label_up : label.style_label_down, color = diagColor(result), textcolor = color.white, size = size.tiny)
+    true
+
 drawSelectedZoneStatus(RawZone z, label existingLabel) =>
     label result = existingLabel
     if rawDiagnostics and showDebugLabels and debugSelectedTime > 0 and barstate.islast and inDebugWindow(z.originBar) and not na(z.top) and not na(z.bottom)
@@ -1941,7 +1951,7 @@ processZone(RawZone z) =>
             else if liqSweptBeforeThisBar
                 noInvalidationReason := INVALIDATION_LIQUIDITY_ALREADY_SWEPT
             z.lastInvalidationCheckReason := noInvalidationReason
-            drawRawDiagnostic(z.demand, bar_index, bar_index - z.originBar, time, z.top, z.bottom, "INVALIDATION_CHECK", z.lastInvalidationCheckReason)
+            drawZoneStateDiagnostic(z, bar_index, "INVALIDATION_CHECK", z.lastInvalidationCheckReason)
 
         if not z.touched and overlapsZone and bar_index > z.originBar
             z.touched := true
