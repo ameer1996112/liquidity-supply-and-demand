@@ -2062,7 +2062,6 @@ if barstate.isconfirmed and isPrimaryFiveMinute
                 z.lastInvalidationCheckReason := INVALIDATION_RAW_MODE_DETECTION_ONLY
                 if not na(z.zoneBox)
                     box.set_right(z.zoneBox, zoneRightBar(z))
-                selectedZoneStatusLabel := drawSelectedZoneStatus(z, selectedZoneStatusLabel)
                 array.set(zones, i, z)
             else
                 [linkedZone, linkedNow] = linkLiquidityAndTargets(z, pivotLow, pivotLowBar, pivotHigh, pivotHighBar, targetPivotHigh, targetPivotHighBar, targetPivotLow, targetPivotLowBar)
@@ -2078,5 +2077,15 @@ if barstate.isconfirmed and isPrimaryFiveMinute
                     sendEvent("ZONE_TOUCHED", processedZone)
                 if invalidatedNow
                     sendEvent("ZONE_INVALIDATED", processedZone)
-                selectedZoneStatusLabel := drawSelectedZoneStatus(processedZone, selectedZoneStatusLabel)
                 array.set(zones, i, processedZone)
+
+if rawDiagnostics and showDebugLabels and debugSelectedTime > 0 and barstate.islast
+    if not na(selectedZoneStatusLabel)
+        label.delete(selectedZoneStatusLabel)
+        selectedZoneStatusLabel := na
+    int selectedZoneCount = array.size(zones)
+    if selectedZoneCount > 0
+        for selectedIdx = selectedZoneCount - 1 to 0
+            RawZone selectedZone = array.get(zones, selectedIdx)
+            if inDebugWindow(selectedZone.originBar)
+                selectedZoneStatusLabel := drawSelectedZoneStatus(selectedZone, selectedZoneStatusLabel)
