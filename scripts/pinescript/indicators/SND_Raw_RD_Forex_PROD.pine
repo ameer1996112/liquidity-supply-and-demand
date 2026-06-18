@@ -1778,7 +1778,45 @@ probeDebugLiquidityFromOrigin(RawZone z) =>
         out.liquiditySwept := false
         out.targetSwept := false
         out.liqSource := ""
-        out := out.demand ? f_scan_demand_liquidity(out) : f_scan_supply_liquidity(out)
+        if out.demand
+            out := f_scan_demand_liquidity(out)
+        else
+            out := f_scan_supply_liquidity(out)
+    if na(out.liquidityPrice)
+        float bestDebugPrice = out.demand ? 1.0e10 : 0.0
+        int bestDebugBar = na
+        int maxDebugOff = math.min(math.max(bar_index - out.originBar - 1, 0), MAX_LIQ_SCAN_BARS)
+        if maxDebugOff >= 0
+            for off = 0 to maxDebugOff
+                int candidateBar = bar_index - off
+                if candidateBar > out.originBar
+                    float candidatePrice = out.demand ? low[off] : high[off]
+                    bool validSide = out.demand ? candidatePrice > out.top : candidatePrice < out.bottom
+                    float distFromZone = out.demand ? candidatePrice - out.top : out.bottom - candidatePrice
+                    float maxDistPrice = effective_liq_max_dist * pip_size
+                    bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
+                    if validSide and distOK
+                        if out.demand
+                            if candidatePrice < bestDebugPrice
+                                bestDebugPrice := candidatePrice
+                                bestDebugBar := candidateBar
+                        else
+                            if candidatePrice > bestDebugPrice
+                                bestDebugPrice := candidatePrice
+                                bestDebugBar := candidateBar
+        bool foundDebug = out.demand ? bestDebugPrice < 1.0e10 : bestDebugPrice > 0.0
+        if foundDebug and not na(bestDebugBar)
+            out.liquidityPrice := bestDebugPrice
+            out.liquidityBarIndex := bestDebugBar
+            out.liqSource := "DEBUG_RAW_LOCAL"
+            out.liquidityValid := false
+            out.inactiveReason := "DEBUG_ONLY_RAW_LOCAL"
+            if out.demand
+                out.liqLowPrice := bestDebugPrice
+                out.liqLowBar := bestDebugBar
+            else
+                out.liqHighPrice := bestDebugPrice
+                out.liqHighBar := bestDebugBar
     out
 
 linkLiquidityAndTargets(RawZone z, float pivotLow, int pivotLowBar, float pivotHigh, int pivotHighBar, float targetPivotHigh, int targetPivotHighBar, float targetPivotLow, int targetPivotLowBar) =>
