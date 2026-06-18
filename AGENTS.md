@@ -130,6 +130,16 @@ cd frontend && npm run build
 
 ---
 
+## 🤖 AI Execution Rules (Paxel Learnings)
+
+To keep AI agents (Codex, Claude, Cursor) disciplined and ensure we do not ship regressions on this live system:
+
+1. **Adopt "Done Means..."**: Every feature, bug fix, or operational task must end with explicit acceptance criteria. (e.g., *"Done means: `pytest tests/` runs successfully, the FastAPI server boots on 8000, and no new warnings are printed."*)
+2. **Force the Validation Loop**: Do not accept "it should work now." The agent MUST run a validation command (`pytest`, `npm run build` in the frontend, or verification scripts) to prove the fix works before completing the task.
+3. **Slice Broad Prompts**: Instead of delegating a large feature (like a full sprint, next.js layout rewrite, or complex strategy optimization), request changes in small, verified slices (one route, one component, one helper test) to keep the feedback loop narrow.
+
+---
+
 ## ⛔ Anti-Patterns (Do NOT Do These)
 
 - **No blind `find .` or `grep -r` from root** — use MODULE_MAP to locate files

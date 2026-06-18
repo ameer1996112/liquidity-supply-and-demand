@@ -1,0 +1,50 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node '/Users/ameeramer/dev/projects/galilsoftware/sources/trading/.codex/hooks/gsd-prompt-guard.js'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node '/Users/ameeramer/dev/projects/galilsoftware/sources/trading/.codex/hooks/gsd-context-monitor.js'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/jira/jira-agent.js session-start",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/jira/jira-agent.js session-end",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

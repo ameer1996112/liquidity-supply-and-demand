@@ -5,15 +5,14 @@ import sys
 import types
 
 
+import src.pipeline
 _MODULE_PATH = Path(__file__).resolve().parents[1] / "src" / "pipeline" / "account_guards.py"
-_PIPELINE_PKG = types.ModuleType("src.pipeline")
 _ACCOUNT_STATE = types.ModuleType("src.pipeline.account_state")
 _ACCOUNT_STATE.get_account_daily_pnl = lambda profile: 0.0
 _ACCOUNT_STATE.get_account_daily_trade_count = lambda profile: 0
 _ACCOUNT_STATE.get_account_weekly_pnl = lambda profile: 0.0
 _ACCOUNT_STATE.get_account_monthly_pnl = lambda profile: 0.0
 _ACCOUNT_STATE.get_account_positions_from_db = lambda profile: []
-sys.modules.setdefault("src.pipeline", _PIPELINE_PKG)
 sys.modules["src.pipeline.account_state"] = _ACCOUNT_STATE
 _SPEC = importlib.util.spec_from_file_location("account_guards_runtime_module", _MODULE_PATH)
 _ACCOUNT_GUARDS = importlib.util.module_from_spec(_SPEC)

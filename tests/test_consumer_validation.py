@@ -28,6 +28,8 @@ def _make_audit_spy():
 
 
 VALID_ENTRY = {
+    "strategy_id": "test-strategy",
+    "strategy_version": "1.0",
     "symbol": "XAUUSD",
     "side": "buy",
     "entry": 2500.0,

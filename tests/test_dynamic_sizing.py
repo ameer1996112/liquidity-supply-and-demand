@@ -76,47 +76,51 @@ test_cases = [
 
 TARGET_RISK = ACCOUNT_BALANCE * RISK_PERCENT / 100.0  # $250
 
-print(f"\n{'='*80}")
-print(f"Dynamic Risk Engine Test — Account: ${ACCOUNT_BALANCE:,.0f} | Risk: {RISK_PERCENT}% = ${TARGET_RISK:.0f}")
-print(f"{'='*80}\n")
+if __name__ == "__main__":
+    TARGET_RISK = ACCOUNT_BALANCE * RISK_PERCENT / 100.0  # $250
 
-all_passed = True
+    print(f"\n{'='*80}")
+    print(f"Dynamic Risk Engine Test — Account: ${ACCOUNT_BALANCE:,.0f} | Risk: {RISK_PERCENT}% = ${TARGET_RISK:.0f}")
+    print(f"{'='*80}\n")
 
-for tc in test_cases:
-    result = calculate_position_size_with_spread(
-        payload=tc["payload"],
-        account_balance=ACCOUNT_BALANCE,
-        risk_percent=RISK_PERCENT,
-        spread=tc["spread"],
-        broker_spec=tc["broker_spec"],
-    )
+    all_passed = True
 
-    symbol = tc["payload"]["symbol"]
-    lots = result["lots"]
-    risk_usd = result["risk_usd"]
-    target = result.get("target_risk_usd", TARGET_RISK)
-    sl_pips = result["sl_pips"]
-    spread_pips = result["spread_pips"]
-    eff_sl = result["effective_sl_pips"]
-    pip_val = result["pip_value_per_lot"]
-    rejected = result["rejected"]
+    for tc in test_cases:
+        result = calculate_position_size_with_spread(
+            payload=tc["payload"],
+            account_balance=ACCOUNT_BALANCE,
+            risk_percent=RISK_PERCENT,
+            spread=tc["spread"],
+            broker_spec=tc["broker_spec"],
+        )
 
-    # Verify risk is within 10% of target (rounding and lot step cause small deviations)
-    deviation = abs(risk_usd - target) / target * 100 if target > 0 else 0
-    ok = not rejected and deviation < 10
-    status = "✅ PASS" if ok else "❌ FAIL"
-    if not ok:
-        all_passed = False
+        symbol = tc["payload"]["symbol"]
+        lots = result["lots"]
+        risk_usd = result["risk_usd"]
+        target = result.get("target_risk_usd", TARGET_RISK)
+        sl_pips = result["sl_pips"]
+        spread_pips = result["spread_pips"]
+        eff_sl = result["effective_sl_pips"]
+        pip_val = result["pip_value_per_lot"]
+        rejected = result["rejected"]
 
-    print(f"  {status} | {tc['name']}")
-    print(f"         Lots: {lots:.2f} | Risk: ${risk_usd:.2f} / ${target:.2f} target ({deviation:.1f}% off)")
-    print(f"         SL: {sl_pips:.1f} pips + {spread_pips:.1f} spread = {eff_sl:.1f} effective | Pip value: ${pip_val:.4f}")
-    if rejected:
-        print(f"         REJECTED: {result['rejection_reason']}")
-    print()
+        # Verify risk is within 10% of target (rounding and lot step cause small deviations)
+        deviation = abs(risk_usd - target) / target * 100 if target > 0 else 0
+        ok = not rejected and deviation < 10
+        status = "✅ PASS" if ok else "❌ FAIL"
+        if not ok:
+            all_passed = False
 
-print(f"{'='*80}")
-print(f"{'✅ ALL TESTS PASSED' if all_passed else '❌ SOME TESTS FAILED'}")
-print(f"{'='*80}\n")
+        print(f"  {status} | {tc['name']}")
+        print(f"         Lots: {lots:.2f} | Risk: ${risk_usd:.2f} / ${target:.2f} target ({deviation:.1f}% off)")
+        print(f"         SL: {sl_pips:.1f} pips + {spread_pips:.1f} spread = {eff_sl:.1f} effective | Pip value: ${pip_val:.4f}")
+        if rejected:
+            print(f"         REJECTED: {result['rejection_reason']}")
+        print()
 
-sys.exit(0 if all_passed else 1)
+    print(f"{'='*80}")
+    print(f"{'✅ ALL TESTS PASSED' if all_passed else '❌ SOME TESTS FAILED'}")
+    print(f"{'='*80}\n")
+
+    sys.exit(0 if all_passed else 1)
+
