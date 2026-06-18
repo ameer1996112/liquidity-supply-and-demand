@@ -6,12 +6,12 @@ indicator("SND Raw RD Forex", shorttitle = "SND RawRD", overlay = true, max_bars
 maxZones = input.int(200, "Max Zones", minval = 1, maxval = 200)
 displacementScanBars = input.int(12, "Displacement Scan Bars", minval = 1, maxval = 50)
 formationLegScanBars = input.int(4, "Formation Leg Scan Bars", minval = 1, maxval = 12)
-pivotLen = input.int(2, "Liquidity Pivot Length", minval = 1, maxval = 10)
+pivotLen = input.int(10, "Liquidity Pivot Length", minval = 1, maxval = 10)
 liquiditySearchBars = input.int(120, "RD Liquidity Search Bars", minval = 10, maxval = 500)
 strictRdLiquidity = input.bool(true, "Strict RD Liquidity Structure")
 equalLiquidityToleranceTicks = input.int(2, "Equal Liquidity Tolerance Ticks", minval = 0, maxval = 20)
 equalLiquidityScanBars = input.int(8, "Equal Liquidity Scan Bars", minval = 2, maxval = 50)
-enableOneCandleLiquidity = input.bool(true, "Enable One Candle Liquidity")
+enableOneCandleLiquidity = input.bool(false, "Enable One Candle Liquidity")
 zoneProjectionHours = input.float(10.0, "Zone Projection Hours", minval = 0.25, maxval = 500.0, step = 0.25)
 plotLiq = input.bool(true, "Show Zone-Linked Liquidity Lines")
 invalidateOnWick = input.bool(true, "Invalidate On Wick Break")
@@ -1160,6 +1160,58 @@ updateZoneLines(RawZone z) =>
 liqTolerance() =>
     syminfo.mintick * equalLiquidityToleranceTicks
 
+isMakuchakuPvtLow(series float srcLow, int idx) =>
+    idx >= 0 and idx + 2 <= bar_index and srcLow[idx + 1] < srcLow[idx] and srcLow[idx + 1] < srcLow[idx + 2]
+
+isMakuchakuPvtHigh(series float srcHigh, int idx) =>
+    idx >= 0 and idx + 2 <= bar_index and srcHigh[idx + 1] > srcHigh[idx] and srcHigh[idx + 1] > srcHigh[idx + 2]
+
+validateDemandLiquidity(series float srcLow, series float srcHigh, int pivotBarOffset, int lookback, bool useImpulseFallback) =>
+    bool brokeInternalHigh = false
+    if not na(pivotBarOffset) and pivotBarOffset >= 0 and lookback > 0 and pivotBarOffset <= bar_index
+        float pivotLowPrice = srcLow[pivotBarOffset]
+        int scanStart = pivotBarOffset + 1
+        int scanEnd = math.min(math.min(pivotBarOffset + lookback, 500), bar_index)
+        if scanStart <= scanEnd
+            for i = scanStart to scanEnd
+                if isMakuchakuPvtHigh(srcHigh, i)
+                    float previousHighPrice = srcHigh[i + 1]
+                    if pivotLowPrice < previousHighPrice
+                        brokeInternalHigh := true
+                        break
+        if not brokeInternalHigh and useImpulseFallback and scanStart <= scanEnd
+            for i = scanStart to scanEnd
+                if i >= 1 and i + 1 <= bar_index
+                    float candleRange = srcHigh[i] - srcLow[i]
+                    if candleRange > 0 and srcHigh[i] > srcHigh[i + 1] and srcHigh[i] > srcHigh[i - 1]
+                        if pivotLowPrice < srcHigh[i]
+                            brokeInternalHigh := true
+                            break
+    brokeInternalHigh
+
+validateSupplyLiquidity(series float srcHigh, series float srcLow, int pivotBarOffset, int lookback, bool useImpulseFallback) =>
+    bool brokeInternalLow = false
+    if not na(pivotBarOffset) and pivotBarOffset >= 0 and lookback > 0 and pivotBarOffset <= bar_index
+        float pivotHighPrice = srcHigh[pivotBarOffset]
+        int scanStart = pivotBarOffset + 1
+        int scanEnd = math.min(math.min(pivotBarOffset + lookback, 500), bar_index)
+        if scanStart <= scanEnd
+            for i = scanStart to scanEnd
+                if isMakuchakuPvtLow(srcLow, i)
+                    float previousLowPrice = srcLow[i + 1]
+                    if pivotHighPrice > previousLowPrice
+                        brokeInternalLow := true
+                        break
+        if not brokeInternalLow and useImpulseFallback and scanStart <= scanEnd
+            for i = scanStart to scanEnd
+                if i >= 1 and i + 1 <= bar_index
+                    float candleRange = srcHigh[i] - srcLow[i]
+                    if candleRange > 0 and srcLow[i] < srcLow[i + 1] and srcLow[i] < srcLow[i - 1]
+                        if pivotHighPrice > srcLow[i]
+                            brokeInternalLow := true
+                            break
+    brokeInternalLow
+
 historicalPivotHighAt(int offset) =>
     bool valid = offset - pivotLen >= 0 and offset + pivotLen <= bar_index
     if valid
@@ -1481,85 +1533,37 @@ f_scan_demand_liquidity(RawZone z) =>
     else
         float bestLiqPrice = 1.0e10
         int bestLiqBar = na
-        float bestDist = 1.0e10
-        bool bestLiqNearEdge = false
-        float zoneHeight = math.abs(out.top - out.bottom)
-        int liquidityScanStartBar = math.max(0, out.createdBar - displacementScanBars - formationLegScanBars)
-
-        int maxOff = math.min(MAX_LIQ_SCAN_BARS, bar_index - liquidityScanStartBar - pivotLen)
+        int rawMaxOff = bar_index - out.createdBar - 2
+        int maxOff = math.min(rawMaxOff, MAX_LIQ_SCAN_BARS)
 
         if maxOff >= 0
             for off = 0 to maxOff
-                float pLow = pLowSeries[off]
-                if not na(pLow)
-                    int pBar = bar_index - off - pivotLen
+                if isMakuchakuPvtLow(low, off)
+                    float pLow = low[off + 1]
+                    int pBar = bar_index - (off + 1)
 
-                    if pBar >= liquidityScanStartBar
-                        bool isValidLocation = false
-                        float distFromZone = 0.0
+                    if pBar > out.createdBar
+                        int pivotOffset = off + 1
+                        bool isValidLiquidity = validateDemandLiquidity(low, high, pivotOffset, 100, true)
+                        if isValidLiquidity
+                            bool isValidLocation = false
+                            float distFromZone = 0.0
 
-                        if use_inducement_linking
-                            isValidLocation := pLow >= out.top - (syminfo.mintick * equalLiquidityToleranceTicks)
-                            distFromZone := math.max(0.0, pLow - out.top)
-                        else
-                            isValidLocation := pLow < out.bottom
-                            distFromZone := out.bottom - pLow
+                            if use_inducement_linking
+                                isValidLocation := pLow > out.top
+                                distFromZone := pLow - out.top
+                            else
+                                isValidLocation := pLow < out.bottom
+                                distFromZone := out.bottom - pLow
 
-                        if isValidLocation
-                            float maxDistPrice = effective_liq_max_dist * pip_size
-                            bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
+                            if isValidLocation
+                                float maxDistPrice = effective_liq_max_dist * pip_size
+                                bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
 
-                            if distOK
-                                bool isCloser = pLow < bestLiqPrice
-                                bool isSameDistance = pLow == bestLiqPrice
-                                bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
-                                bool preferAwayFromEdge = use_inducement_linking and zoneHeight >= pip_size * 5.0
-                                bool isNearEdge = preferAwayFromEdge and distFromZone < pip_size * 2.0
-                                bool improvesEdgeQuality = bestLiqNearEdge and not isNearEdge
-                                bool sameEdgeQuality = bestLiqNearEdge == isNearEdge
-
-                                if na(bestLiqBar) or improvesEdgeQuality or (sameEdgeQuality and (isCloser or (isSameDistance and isMoreRecent)))
-                                    bestDist := distFromZone
-                                    bestLiqPrice := pLow
-                                    bestLiqBar := pBar
-                                    bestLiqNearEdge := isNearEdge
-
-        if enableOneCandleLiquidity
-            int localPivotCount = array.size(liqPvtLowPrices)
-            if localPivotCount > 0
-                for pivotIdx = 0 to localPivotCount - 1
-                    float pLow = array.get(liqPvtLowPrices, pivotIdx)
-                    int pBar = array.get(liqPvtLowBars, pivotIdx)
-
-                    if not na(pLow) and not na(pBar) and pBar >= liquidityScanStartBar and pBar <= bar_index
-                        bool isValidLocation = false
-                        float distFromZone = 0.0
-
-                        if use_inducement_linking
-                            isValidLocation := pLow >= out.top - (syminfo.mintick * equalLiquidityToleranceTicks)
-                            distFromZone := math.max(0.0, pLow - out.top)
-                        else
-                            isValidLocation := pLow < out.bottom
-                            distFromZone := out.bottom - pLow
-
-                        if isValidLocation
-                            float maxDistPrice = effective_liq_max_dist * pip_size
-                            bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
-
-                            if distOK
-                                bool isCloser = pLow < bestLiqPrice
-                                bool isSameDistance = pLow == bestLiqPrice
-                                bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
-                                bool preferAwayFromEdge = use_inducement_linking and zoneHeight >= pip_size * 5.0
-                                bool isNearEdge = preferAwayFromEdge and distFromZone < pip_size * 2.0
-                                bool improvesEdgeQuality = bestLiqNearEdge and not isNearEdge
-                                bool sameEdgeQuality = bestLiqNearEdge == isNearEdge
-
-                                if na(bestLiqBar) or improvesEdgeQuality or (sameEdgeQuality and (isCloser or (isSameDistance and isMoreRecent)))
-                                    bestDist := distFromZone
-                                    bestLiqPrice := pLow
-                                    bestLiqBar := pBar
-                                    bestLiqNearEdge := isNearEdge
+                                if distOK
+                                    if pLow < bestLiqPrice
+                                        bestLiqPrice := pLow
+                                        bestLiqBar := pBar
 
         if not na(bestLiqBar) and bestLiqPrice < 1.0e10
             bool inductionChanged = na(out.liqLowPrice) or out.liqLowPrice != bestLiqPrice or na(out.liqLowBar) or out.liqLowBar != bestLiqBar
@@ -1639,75 +1643,37 @@ f_scan_supply_liquidity(RawZone z) =>
     else
         float bestLiqPrice = 0.0
         int bestLiqBar = na
-        float bestDist = 1.0e10
-        int liquidityScanStartBar = math.max(0, out.createdBar - displacementScanBars - formationLegScanBars)
-
-        int maxOff = math.min(MAX_LIQ_SCAN_BARS, bar_index - liquidityScanStartBar - pivotLen)
+        int rawMaxOff = bar_index - out.createdBar - 2
+        int maxOff = math.min(rawMaxOff, MAX_LIQ_SCAN_BARS)
 
         if maxOff >= 0
             for off = 0 to maxOff
-                float pHigh = pHighSeries[off]
-                if not na(pHigh)
-                    int pBar = bar_index - off - pivotLen
+                if isMakuchakuPvtHigh(high, off)
+                    float pHigh = high[off + 1]
+                    int pBar = bar_index - (off + 1)
 
-                    if pBar >= liquidityScanStartBar
-                        bool isValidLocation = false
-                        float distFromZone = 0.0
+                    if pBar > out.createdBar
+                        int pivotOffset = off + 1
+                        bool isValidLiquidity = validateSupplyLiquidity(high, low, pivotOffset, 100, true)
+                        if isValidLiquidity
+                            bool isValidLocation = false
+                            float distFromZone = 0.0
 
-                        if use_inducement_linking
-                            isValidLocation := pHigh <= out.bottom + (syminfo.mintick * equalLiquidityToleranceTicks)
-                            distFromZone := math.max(0.0, out.bottom - pHigh)
-                        else
-                            isValidLocation := pHigh > out.top
-                            distFromZone := pHigh - out.top
+                            if use_inducement_linking
+                                isValidLocation := pHigh < out.bottom
+                                distFromZone := out.bottom - pHigh
+                            else
+                                isValidLocation := pHigh > out.top
+                                distFromZone := pHigh - out.top
 
-                        if isValidLocation
-                            float distFromZoneCheck = distFromZone
-                            float maxDistPrice = effective_liq_max_dist * pip_size
-                            bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZoneCheck <= maxDistPrice
+                            if isValidLocation
+                                float maxDistPrice = effective_liq_max_dist * pip_size
+                                bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
 
-                            if distOK
-                                bool isCloser = pHigh > bestLiqPrice
-                                bool isSameDistance = pHigh == bestLiqPrice
-                                bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
-
-                                if isCloser or (isSameDistance and isMoreRecent)
-                                    bestDist := distFromZoneCheck
-                                    bestLiqPrice := pHigh
-                                    bestLiqBar := pBar
-
-        if enableOneCandleLiquidity
-            int localPivotCount = array.size(liqPvtHighPrices)
-            if localPivotCount > 0
-                for pivotIdx = 0 to localPivotCount - 1
-                    float pHigh = array.get(liqPvtHighPrices, pivotIdx)
-                    int pBar = array.get(liqPvtHighBars, pivotIdx)
-
-                    if not na(pHigh) and not na(pBar) and pBar >= liquidityScanStartBar and pBar <= bar_index
-                        bool isValidLocation = false
-                        float distFromZone = 0.0
-
-                        if use_inducement_linking
-                            isValidLocation := pHigh <= out.bottom + (syminfo.mintick * equalLiquidityToleranceTicks)
-                            distFromZone := math.max(0.0, out.bottom - pHigh)
-                        else
-                            isValidLocation := pHigh > out.top
-                            distFromZone := pHigh - out.top
-
-                        if isValidLocation
-                            float maxDistPrice = effective_liq_max_dist * pip_size
-                            bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
-
-                            if distOK
-                                float distFromZoneCheck = distFromZone
-                                bool isCloser = pHigh > bestLiqPrice
-                                bool isSameDistance = pHigh == bestLiqPrice
-                                bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
-
-                                if isCloser or (isSameDistance and isMoreRecent)
-                                    bestDist := distFromZoneCheck
-                                    bestLiqPrice := pHigh
-                                    bestLiqBar := pBar
+                                if distOK
+                                    if pHigh > bestLiqPrice
+                                        bestLiqPrice := pHigh
+                                        bestLiqBar := pBar
 
         if not na(bestLiqBar) and bestLiqPrice > 0.0
             bool inductionChanged = na(out.liqHighPrice) or out.liqHighPrice != bestLiqPrice or na(out.liqHighBar) or out.liqHighBar != bestLiqBar
