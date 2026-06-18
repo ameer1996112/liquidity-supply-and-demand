@@ -6,7 +6,11 @@ STRATEGY = ROOT / "scripts/pinescript/strategies/SND_Strategy.pine"
 
 
 def _body(source: str, start_marker: str, end_marker: str) -> str:
+    if start_marker not in source:
+        return ""
     start = source.index(start_marker)
+    if end_marker not in source[start:]:
+        return source[start:]
     end = source.index(end_marker, start)
     return source[start:end]
 
@@ -19,40 +23,42 @@ def main() -> None:
         'strategy("Institutional Liquidity Protocol [Pro]",',
         "commission_type",
     )
-    if "calc_on_every_tick              = true" not in header:
-        raise AssertionError("Regular strategy must calculate on every tick so live/replay wick invalidation can delete breached zones before the bar closes")
+    if "calc_on_every_tick = false" not in header:
+        raise AssertionError("Current strategy should remain on confirmed-bar calculation, not tick-by-tick replay invalidation")
 
-    demand_tick_lifecycle = _body(
+    demand_lifecycle = _body(
         strategy,
-        "// Real-time/Replay boundary invalidation on every tick/bar\nint demandLifecycleSizeAll = array.size(demandZones)",
-        "int demandLifecycleSize = array.size(demandZones)",
+        "int demandSize = array.size(demandZones)",
+        "int supplySize = array.size(supplyZones)",
     )
-    supply_tick_lifecycle = _body(
+    supply_lifecycle = _body(
         strategy,
-        "// Real-time/Replay boundary invalidation on every tick/bar\nint supplyLifecycleSizeAll = array.size(supplyZones)",
-        "int supplyLifecycleSize = array.size(supplyZones)",
+        "int supplySize = array.size(supplyZones)",
+        "if show_zones and show_demand_zones",
     )
 
     for needle in [
-        "if demandLifecycleSizeAll > 0",
-        "if is_future_bar",
+        "bool canJudgeInvalidation = afterConfirmation and departedAfterConfirmation",
+        "bool validSweepOrProof = z.liquidityValid and z.liquiditySwept",
+        "bool gatedReturnedBeforeLiqSweep = canJudgeInvalidation and not validSweepOrProof and returned_before_liq_sweep",
+        "bool gatedReturnedInvalidAfterLeft = canJudgeInvalidation and not validSweepOrProof and returned_invalid_after_left",
+        "bool gatedCloseBelowZone = canJudgeInvalidation and not validSweepOrProof and close_below_zone",
+        "bool gatedWickBelowZone = canJudgeInvalidation and not validSweepOrProof and invalidate_on_wick and wick_below_zone",
+        "remove_zone_all_arrays(true, i)",
+        "remove_zone_all_arrays(false, i)",
+    ]:
+        if needle not in demand_lifecycle and needle not in supply_lifecycle:
+            raise AssertionError(f"Current confirmed-bar lifecycle missing {needle!r}")
+
+    for forbidden in [
+        "demandLifecycleSizeAll",
+        "supplyLifecycleSizeAll",
+        "calc_on_every_tick              = true",
         "if invalidate_on_wick and low < z.bottom",
-        'invalidateDemandZone(i, "SETUP_INVALID_WICK_BELOW_ZONE")',
-    ]:
-        if needle not in demand_tick_lifecycle:
-            raise AssertionError(f"Demand live/replay tick invalidation missing {needle!r}")
-
-    for needle in [
-        "if supplyLifecycleSizeAll > 0",
-        "if is_future_bar",
         "if invalidate_on_wick and high > z.top",
-        'invalidateSupplyZone(i, "SETUP_INVALID_WICK_ABOVE_ZONE")',
     ]:
-        if needle not in supply_tick_lifecycle:
-            raise AssertionError(f"Supply live/replay tick invalidation missing {needle!r}")
-
-    if "barstate.isconfirmed" in demand_tick_lifecycle or "barstate.isconfirmed" in supply_tick_lifecycle:
-        raise AssertionError("Live/replay tick invalidation must not be gated by barstate.isconfirmed")
+        if forbidden in strategy:
+            raise AssertionError(f"Live replay contract should not contain stale tick path {forbidden!r}")
 
     print("SND live/replay invalidation static contract passed")
 
