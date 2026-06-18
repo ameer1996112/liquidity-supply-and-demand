@@ -1771,6 +1771,16 @@ f_scan_supply_liquidity(RawZone z) =>
 
         out
 
+probeDebugLiquidityFromOrigin(RawZone z) =>
+    RawZone out = z
+    if na(out.liquidityPrice)
+        out.createdBar := out.originBar
+        out.liquiditySwept := false
+        out.targetSwept := false
+        out.liqSource := ""
+        out := out.demand ? f_scan_demand_liquidity(out) : f_scan_supply_liquidity(out)
+    out
+
 linkLiquidityAndTargets(RawZone z, float pivotLow, int pivotLowBar, float pivotHigh, int pivotHighBar, float targetPivotHigh, int targetPivotHighBar, float targetPivotLow, int targetPivotLowBar) =>
     RawZone out = z
     bool linkedNow = false
@@ -1951,7 +1961,11 @@ processZone(RawZone z) =>
             else if liqSweptBeforeThisBar
                 noInvalidationReason := INVALIDATION_LIQUIDITY_ALREADY_SWEPT
             z.lastInvalidationCheckReason := noInvalidationReason
-            drawZoneStateDiagnostic(z, bar_index, "INVALIDATION_CHECK", z.lastInvalidationCheckReason)
+            RawZone debugZone = probeDebugLiquidityFromOrigin(z)
+            string debugReason = z.lastInvalidationCheckReason
+            if na(z.liquidityPrice) and not na(debugZone.liquidityPrice)
+                debugReason := debugReason + "\ndebugLiquidityFromOrigin"
+            drawZoneStateDiagnostic(debugZone, bar_index, "INVALIDATION_CHECK", debugReason)
 
         if not z.touched and overlapsZone and bar_index > z.originBar
             z.touched := true
