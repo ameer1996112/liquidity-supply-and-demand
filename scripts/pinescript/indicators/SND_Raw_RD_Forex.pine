@@ -67,6 +67,7 @@ type RawZone
     int originTime
     int createdBar
     int confirmationBar
+    int invalidationStartBar
     int eventId
     string model
     int legCandles
@@ -74,6 +75,7 @@ type RawZone
     float bottom
     bool active
     bool leftZone
+    bool runtimeLeftZoneAfterConfirmation
     bool liquidityLinked
     bool liquiditySwept
     bool targetSwept
@@ -110,14 +112,10 @@ standardZoneBounds(int baseIdx, bool demand) =>
     [top, bottom]
 
 accBoundsWithDepartureWick(int baseIdx, bool demand) =>
-    int depIdx = baseIdx - 1
-    float top = demand ? open[baseIdx] : high[baseIdx]
-    float bottom = demand ? low[baseIdx] : open[baseIdx]
-    if depIdx >= 0
-        if demand and low[depIdx] < bottom
-            bottom := low[depIdx]
-        if not demand and high[depIdx] > top
-            top := high[depIdx]
+    float bodyHigh = math.max(open[baseIdx], close[baseIdx])
+    float bodyLow = math.min(open[baseIdx], close[baseIdx])
+    float top = demand ? high[baseIdx] : bodyLow
+    float bottom = demand ? bodyHigh : low[baseIdx]
     [top, bottom]
 
 isValidAccModel(int baseIdx, bool demand) =>
@@ -129,8 +127,10 @@ isValidAccModel(int baseIdx, bool demand) =>
         float stdTop = high[baseIdx]
         float stdBottom = low[baseIdx]
         float stdSize = stdTop - stdBottom
-        float accTop = demand ? open[baseIdx] : high[baseIdx]
-        float accBottom = demand ? low[baseIdx] : open[baseIdx]
+        float bodyHigh = math.max(open[baseIdx], close[baseIdx])
+        float bodyLow = math.min(open[baseIdx], close[baseIdx])
+        float accTop = demand ? high[baseIdx] : bodyLow
+        float accBottom = demand ? bodyHigh : low[baseIdx]
         float accSize = accTop - accBottom
         bool depMovesAway = demand ? (high[depIdx] > accTop or close[depIdx] > accTop) : (low[depIdx] < accBottom or close[depIdx] < accBottom)
         bool accPrecision = demand ? high[baseIdx] > high[depIdx] + syminfo.mintick * 0.5 : low[baseIdx] < low[depIdx] - syminfo.mintick * 0.5
@@ -743,6 +743,7 @@ createZone(int baseIdx, bool demand, int zoneId, int legCandles, string model, i
                 z.originTime := time[baseIdx]
                 z.createdBar := bar_index
                 z.confirmationBar := confirmationBar
+                z.invalidationStartBar := not na(confirmationBar) ? confirmationBar + 1 : bar_index + 1
                 z.eventId := confirmationBar
                 z.model := effectiveModel
                 z.legCandles := legCandles
@@ -750,6 +751,7 @@ createZone(int baseIdx, bool demand, int zoneId, int legCandles, string model, i
                 z.bottom := bottom
                 z.active := true
                 z.leftZone := formationHasLeftZone(baseIdx, demand, top, bottom)
+                z.runtimeLeftZoneAfterConfirmation := true
                 z.liquidityLinked := false
                 z.liquiditySwept := false
                 z.targetSwept := false
@@ -841,6 +843,8 @@ processZone(RawZone z) =>
             box.set_right(z.zoneBox, bar_index + zoneProjectionBars)
 
         bool afterCreated = not na(z.createdBar) and bar_index > z.createdBar
+        int effectiveInvalidationStartBar = not na(z.invalidationStartBar) ? z.invalidationStartBar : (not na(z.confirmationBar) ? z.confirmationBar + 1 : z.createdBar + 1)
+        bool afterConfirmation = not na(effectiveInvalidationStartBar) and bar_index >= effectiveInvalidationStartBar
         bool liqSweptBeforeThisBar =
              z.liquiditySwept and
              not na(z.liquiditySweepBar) and
@@ -850,13 +854,16 @@ processZone(RawZone z) =>
         if z.demand
             if not z.leftZone and high > z.top
                 z.leftZone := true
+            if afterConfirmation and not z.runtimeLeftZoneAfterConfirmation and high > z.top
+                z.runtimeLeftZoneAfterConfirmation := true
+            bool canJudgeInvalidation = afterConfirmation and z.runtimeLeftZoneAfterConfirmation
 
             bool closeBreak =
-                 afterCreated and
+                 canJudgeInvalidation and
                  close < z.bottom
 
             bool wickBreak =
-                 afterCreated and
+                 canJudgeInvalidation and
                  invalidateOnWick and
                  low < z.bottom
 
@@ -876,13 +883,16 @@ processZone(RawZone z) =>
         else
             if not z.leftZone and low < z.bottom
                 z.leftZone := true
+            if afterConfirmation and not z.runtimeLeftZoneAfterConfirmation and low < z.bottom
+                z.runtimeLeftZoneAfterConfirmation := true
+            bool canJudgeInvalidation = afterConfirmation and z.runtimeLeftZoneAfterConfirmation
 
             bool closeBreak =
-                 afterCreated and
+                 canJudgeInvalidation and
                  close > z.top
 
             bool wickBreak =
-                 afterCreated and
+                 canJudgeInvalidation and
                  invalidateOnWick and
                  high > z.top
 
@@ -903,7 +913,7 @@ processZone(RawZone z) =>
             string noInvalidationReason = INVALIDATION_VALID_STILL_ACTIVE
             if not afterCreated
                 noInvalidationReason := INVALIDATION_NOT_AFTER_CREATED
-            else if not z.leftZone
+            else if not z.runtimeLeftZoneAfterConfirmation
                 noInvalidationReason := INVALIDATION_NOT_LEFT_ZONE
             else if not overlapsZone
                 noInvalidationReason := INVALIDATION_NO_ZONE_OVERLAP
