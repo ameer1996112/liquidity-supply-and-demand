@@ -448,7 +448,7 @@ drawZoneDiagnostic(RawZone z, string result, string reason) =>
 
 drawSelectedZoneStatus(RawZone z, label existingLabel) =>
     label result = existingLabel
-    if rawDiagnostics and showDebugLabels and rawMode == "Debug Selected Zone" and barstate.islast and inDebugWindow(z.originBar) and not na(z.top) and not na(z.bottom)
+    if rawDiagnostics and showDebugLabels and debugSelectedTime > 0 and barstate.islast and inDebugWindow(z.originBar) and not na(z.top) and not na(z.bottom)
         if not na(result)
             label.delete(result)
         string side = z.demand ? "demand" : "supply"
