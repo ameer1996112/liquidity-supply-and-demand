@@ -1999,11 +1999,15 @@ processZone(RawZone z) =>
             else if liqSweptBeforeThisBar
                 noInvalidationReason := INVALIDATION_LIQUIDITY_ALREADY_SWEPT
             z.lastInvalidationCheckReason := noInvalidationReason
-            RawZone debugZone = probeDebugLiquidityFromOrigin(z)
-            string debugReason = z.lastInvalidationCheckReason
-            if na(z.liquidityPrice) and not na(debugZone.liquidityPrice)
-                debugReason := debugReason + "\ndebugLiquidityFromOrigin"
-            drawZoneStateDiagnostic(debugZone, bar_index, "INVALIDATION_CHECK", debugReason)
+            bool shouldDrawStateDiagnostic = false
+            if rawDiagnostics and showDebugLabels and debugSelectedTime > 0
+                shouldDrawStateDiagnostic := inDebugWindow(bar_index)
+            if shouldDrawStateDiagnostic
+                RawZone debugZone = probeDebugLiquidityFromOrigin(z)
+                string debugReason = z.lastInvalidationCheckReason
+                if na(z.liquidityPrice) and not na(debugZone.liquidityPrice)
+                    debugReason := debugReason + "\ndebugLiquidityFromOrigin"
+                drawZoneStateDiagnostic(debugZone, bar_index, "INVALIDATION_CHECK", debugReason)
 
         if not z.touched and overlapsZone and bar_index > z.originBar
             z.touched := true
