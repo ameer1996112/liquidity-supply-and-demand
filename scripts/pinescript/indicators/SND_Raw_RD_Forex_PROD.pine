@@ -1,37 +1,42 @@
 //@version=6
-indicator("SND Raw RD PROD", shorttitle = "SND RawRD-PROD", overlay = true, max_bars_back = 1000, max_boxes_count = 300, max_lines_count = 300, max_labels_count = 300)
+indicator("SND Raw RD PROD", shorttitle = "SND RD PRD", overlay = true, max_bars_back = 1000, max_boxes_count = 300, max_lines_count = 300, max_labels_count = 300)
 
 // Raw RD Forex S/D detector only. Backend owns post-processing and execution.
+// Fixed runtime profile: preserves prior input defaults without exposing settings.
 
-maxZones = input.int(200, "Max Zones", minval = 1, maxval = 200)
-displacementScanBars = input.int(12, "Displacement Scan Bars", minval = 1, maxval = 50)
-formationLegScanBars = input.int(4, "Formation Leg Scan Bars", minval = 1, maxval = 12)
-pivotLen = input.int(5, "Liquidity Pivot Length", minval = 1, maxval = 20)
-liquiditySearchBars = input.int(120, "RD Liquidity Search Bars", minval = 10, maxval = 500)
-strictRdLiquidity = input.bool(true, "Strict RD Liquidity Structure")
-equalLiquidityToleranceTicks = input.int(2, "Equal Liquidity Tolerance Ticks", minval = 0, maxval = 20)
-equalLiquidityScanBars = input.int(8, "Equal Liquidity Scan Bars", minval = 2, maxval = 50)
-enableOneCandleLiquidity = input.bool(true, "Enable One Candle Liquidity")
-zoneProjectionHours = input.float(10.0, "Zone Projection Hours", minval = 0.25, maxval = 500.0, step = 0.25)
-plotLiq = input.bool(true, "Show Zone-Linked Liquidity Lines")
-invalidateOnWick = input.bool(true, "Invalidate On Wick Break")
-rawDiagnostics = input.bool(false, "Raw Zone Diagnostics")
-rawMode = input.string("Lifecycle", "Raw Mode", options = ["Detection Only", "Lifecycle", "Debug Selected Zone"])
-showDebugLabels = input.bool(false, "Show Debug Labels")
-showInactiveZones = input.bool(false, "Show Inactive Zones")
-debugSelectedTime = input.time(0, "Debug Selected Time")
-debugWindowBars = input.int(3, "Debug Window Bars", minval = 0, maxval = 200)
-enableContinuationZones = input.bool(false, "Enable Continuation Zones")
-maxZoneAgeHours = input.float(26.0, "Max Zone Age Hours", minval = 0.1, maxval = 500.0, step = 0.25)
-useAccuracyBounds = input.bool(true, "Use Strategy Accuracy Bounds")
-rejectFormationRetouch = input.bool(true, "Reject Formation Retouch")
-
-// === STRATEGY PORTED LIQUIDITY INPUTS ===
-use_zone_touch_sweep_liq = input.bool(true, "Zone-Touch Sweep Liquidity", group = "💧 Liquidity")
-liq_max_distance_pips_forex = input.float(33.9, "Max Distance - Forex (pips)", minval = 5.0, group = "💧 Liquidity")
-liq_max_distance_pips_gold  = input.float(150.0, "Max Distance - Gold (pips)", minval = 5.0, group = "💧 Liquidity")
-liq_max_distance_pips_index = input.float(500.0, "Max Distance - Indices (pips)", minval = 100.0, group = "💧 Liquidity")
-pvtMax              = input.int(12, "Max Liquidity Lines", minval = 1, maxval = 500, group = "💧 Liquidity")
+const int maxZones = 200
+const int displacementScanBars = 12
+const int formationLegScanBars = 4
+const int pivotLen = 5
+const int liquiditySearchBars = 120
+const bool strictRdLiquidity = true
+const int equalLiquidityToleranceTicks = 2
+const int equalLiquidityScanBars = 8
+const bool enableOneCandleLiquidity = true
+const float zoneProjectionHours = 10.0
+const bool plotLiq = true
+const bool invalidateOnWick = true
+const string rawMode = "Lifecycle"
+const bool showInactiveZones = false
+const bool enableContinuationZones = true
+const float maxZoneAgeHours = 26.0
+const bool useAccuracyBounds = true
+const bool rejectFormationRetouch = true
+const bool use_zone_touch_sweep_liq = true
+const float liq_max_distance_pips_forex = 33.9
+const float liq_max_distance_pips_gold = 150.0
+const float liq_max_distance_pips_index = 500.0
+const float liq_atr_distance_multiplier = 1.5
+const int pvtMax = 12
+const int referenceLiquidityMaxLines = 220
+const int referenceLiquidityPivotLen = 2
+const float referenceLiquidityClusterAtrMultiplier = 0.25
+const float referenceLiquidityEqualAtrMultiplier = 0.03
+const int runtimeLookbackBars = 900
+showOnlyStrategyValidLiquidity = input.bool(true, "Only Draw Strategy-Valid Liquidity", group = "Liquidity Compare")
+showLiquidityCompareLabels = input.bool(false, "Liquidity Compare Labels", group = "Liquidity Compare")
+showRejectedLiquidityCandidates = input.bool(false, "Show Rejected Liquidity Candidates", group = "Liquidity Compare")
+showLiquidityDebugTable = input.bool(false, "Show Liquidity Debug Table", group = "Liquidity Compare")
 
 var bool is_gold = str.contains(syminfo.ticker, "XAU") or str.contains(syminfo.ticker, "GOLD")
 var bool is_index = str.contains(syminfo.ticker, "NAS") or str.contains(syminfo.ticker, "US100") or str.contains(syminfo.ticker, "NDX") or str.contains(syminfo.ticker, "SPX") or str.contains(syminfo.ticker, "US500") or str.contains(syminfo.ticker, "US30") or str.contains(syminfo.ticker, "DJI")
@@ -79,9 +84,7 @@ const string REJECT_FORMATION_RETOUCHED = "REJECT_FORMATION_RETOUCHED"
 const string REJECT_NO_DISPLACEMENT = "REJECT_NO_DISPLACEMENT"
 const string REJECT_WEAK_DISPLACEMENT = "REJECT_WEAK_DISPLACEMENT"
 const string REJECT_EXACT_DUPLICATE = "REJECT_EXACT_DUPLICATE"
-const string REJECT_SAME_EVENT_DUPLICATE = "REJECT_SAME_EVENT_DUPLICATE"
 const string REJECT_MODEL_NOT_ALLOWED = "REJECT_MODEL_NOT_ALLOWED"
-const string REJECT_INVALID_BOUNDS = "REJECT_INVALID_BOUNDS"
 const string REJECT_CONFIRMATION_CLOSE_INSIDE = "REJECT_CONFIRMATION_CLOSE_INSIDE"
 const string REJECT_NESTED_SAME_SIDE_BASE = "REJECT_NESTED_SAME_SIDE_BASE"
 const string INVALIDATION_NOT_AFTER_CREATED = "NOT_AFTER_CREATED"
@@ -104,9 +107,6 @@ color accSupplyBorder = color.new(color.purple, 0)
 color inactiveColor = color.new(color.gray, 86)
 color liqColor = color.new(color.orange, 0)
 color targetColor = color.new(color.purple, 0)
-color diagCreateColor = color.new(color.green, 0)
-color diagRejectColor = color.new(color.orange, 0)
-color diagInactiveColor = color.new(color.gray, 0)
 
 type RawZone
     int id
@@ -152,11 +152,17 @@ type RawZone
     int liqLowTime
     int liqHighTime
     string liqSource
+    float liquidityDistanceFromZone
+    string liquidityDecisionReason
+    string liquidityRejectedReason
+    int liquidityRejectedBar
+    float liquidityRejectedPrice
+    label liquidityCompareLabel
 
 var RawZone[] zones = array.new<RawZone>()
 var int nextZoneId = 1
 
-const int MAX_LIQ_SCAN_BARS = 500
+const int MAX_LIQ_SCAN_BARS = liquiditySearchBars
 liq_candle_count_max = 10
 use_inducement_linking = true
 
@@ -199,6 +205,12 @@ var array<float> liqPvtHighPrices = array.new_float()
 var array<int>   liqPvtHighBars   = array.new_int()
 var array<float> liqPvtLowPrices  = array.new_float()
 var array<int>   liqPvtLowBars    = array.new_int()
+var array<line> referenceLiquidityLines = array.new<line>()
+var array<float> referenceLiquidityPrices = array.new_float()
+var array<int> referenceLiquidityBars = array.new_int()
+var array<bool> referenceLiquidityDemand = array.new_bool()
+var array<bool> referenceLiquiditySwept = array.new_bool()
+var table liquidityDebugTable = na
 
 bool isPvtLow  = low[2] > low[1] and low[1] < low[0]
 bool isPvtHigh = high[2] < high[1] and high[1] > high[0]
@@ -409,44 +421,90 @@ intNum(int value) =>
 boolText(bool value) =>
     value ? "true" : "false"
 
-diagColor(string result) =>
-    result == "RAW_CREATED" ? diagCreateColor :
-     result == "INVALIDATION_CHECK" ? diagInactiveColor :
-     result == "CREATED_THEN_INVALIDATED" or result == "HIDDEN_INACTIVE" ? diagInactiveColor :
-     diagRejectColor
+liquiditySourceDisplay(string liqSource) =>
+    liqSource == "ZONE_TOUCH_SWEEP" ? "TOUCH_SWEEP" : (liqSource == "LOCAL" ? "LOCAL" : "PIVOT")
 
-inDebugWindow(int x) =>
-    bool selected = debugSelectedTime > 0
-    int selectedBar = ta.valuewhen(time <= debugSelectedTime and time_close >= debugSelectedTime, bar_index, 0)
-    selected and not na(selectedBar) and math.abs(x - selectedBar) <= debugWindowBars
+liquidityDistanceFromZoneValue(RawZone z, float price) =>
+    na(price) ? na : (z.demand ? math.max(0.0, price - z.top) : math.max(0.0, z.bottom - price))
 
-isRejectDiagnostic(string result) =>
-    str.length(result) >= 6 and str.substring(result, 0, 6) == "REJECT"
+clearLiquidityDebugState(RawZone z) =>
+    RawZone out = z
+    out.liquidityDistanceFromZone := na
+    out.liquidityDecisionReason := ""
+    out.liquidityRejectedReason := ""
+    out.liquidityRejectedBar := na
+    out.liquidityRejectedPrice := na
+    out
 
-isDebugDiagnostic(string result) =>
-    result == "RAW_CREATED" or isRejectDiagnostic(result) or result == "INVALIDATION_CHECK" or result == "NESTED_CLEANUP"
+recordRejectedLiquidityCandidate(RawZone z, int candidateBar, float candidatePrice, string reason) =>
+    RawZone out = z
+    out.liquidityRejectedReason := reason
+    out.liquidityRejectedBar := candidateBar
+    out.liquidityRejectedPrice := candidatePrice
+    out
 
-drawRawDiagnostic(bool demand, int x, int baseOffset, int baseTime, float top, float bottom, string result, string reason) =>
-    if rawDiagnostics and showDebugLabels and isDebugDiagnostic(result) and inDebugWindow(x) and not na(x) and not na(top) and not na(bottom)
-        string side = demand ? "demand" : "supply"
-        string diagText = side + "\n" + result + "\noff " + intNum(baseOffset) + "\ntime " + intNum(baseTime) + "\ntop " + num(top) + "\nbot " + num(bottom)
-        if str.length(reason) > 0
-            diagText := diagText + "\n" + reason
-        float y = demand ? bottom : top
-        label.new(x, y, diagText, xloc = xloc.bar_index, style = demand ? label.style_label_up : label.style_label_down, color = diagColor(result), textcolor = color.white, size = size.tiny)
+liquidityCompareText(RawZone z) =>
+    string distanceText = na(z.liquidityDistanceFromZone) ? "na" : str.tostring(z.liquidityDistanceFromZone / pip_size, "#.##")
+    string selectedReason = str.length(z.liquidityDecisionReason) > 0 ? z.liquidityDecisionReason : "WAITING"
+    string rejectedText = showRejectedLiquidityCandidates and str.length(z.liquidityRejectedReason) > 0 ? "\nrej " + z.liquidityRejectedReason + " @" + num(z.liquidityRejectedPrice) + " b" + intNum(z.liquidityRejectedBar) : ""
+    "Z" + str.tostring(z.id) + " " + (z.demand ? "D" : "S") + " " + liquiditySourceDisplay(z.liqSource) +
+     "\nliq " + num(z.liquidityPrice) + " b" + intNum(z.liquidityBarIndex) +
+     "\ndist " + distanceText + "p " + selectedReason +
+     "\nsweep " + intNum(z.liquiditySweepBar) + " tgt " + intNum(z.targetSweepBar) + rejectedText
+
+updateLiquidityCompareLabel(RawZone z) =>
+    bool showLabel = showLiquidityCompareLabels and z.active and not na(z.liquidityPrice) and not na(z.liquidityBarIndex)
+    if not showLabel
+        if not na(z.liquidityCompareLabel)
+            label.delete(z.liquidityCompareLabel)
+            z.liquidityCompareLabel := na
+    else
+        int linkedBar = z.demand ? z.liqLowBar : z.liqHighBar
+        float linkedPrice = z.demand ? z.liqLowPrice : z.liqHighPrice
+        int labelBar = not na(linkedBar) ? linkedBar : z.liquidityBarIndex
+        float labelPrice = not na(linkedPrice) ? linkedPrice : z.liquidityPrice
+        if not na(labelBar) and not na(labelPrice)
+            labelStyle = z.demand ? label.style_label_up : label.style_label_down
+            if na(z.liquidityCompareLabel)
+                z.liquidityCompareLabel := label.new(labelBar, labelPrice, liquidityCompareText(z), xloc = xloc.bar_index, style = labelStyle, textcolor = color.white, color = color.new(color.black, 20), size = size.tiny)
+            else
+                label.set_x(z.liquidityCompareLabel, labelBar)
+                label.set_y(z.liquidityCompareLabel, labelPrice)
+                label.set_text(z.liquidityCompareLabel, liquidityCompareText(z))
+                label.set_style(z.liquidityCompareLabel, labelStyle)
+                label.set_color(z.liquidityCompareLabel, color.new(color.black, 20))
+                label.set_textcolor(z.liquidityCompareLabel, color.white)
     true
 
-drawCandidateDiagnostic(bool demand, int baseIdx, string result, string reason) =>
-    if baseIdx >= 0 and baseIdx <= bar_index
-        [top, bottom] = zoneBounds(baseIdx, demand, 0, false)
-        drawRawDiagnostic(demand, bar_index - baseIdx, baseIdx, time[baseIdx], top, bottom, result, reason)
-    true
-
-drawZoneDiagnostic(RawZone z, string result, string reason) =>
-    drawRawDiagnostic(z.demand, z.originBar, bar_index - z.originBar, z.originTime, z.top, z.bottom, result, reason)
-
-rejectStatus(string reason) =>
-    reason
+updateLiquidityDebugTable(table tbl) =>
+    table result = tbl
+    int tableRows = 7
+    if showLiquidityDebugTable
+        if na(result)
+            result := table.new(position.bottom_right, 2, tableRows, bgcolor = color.new(color.black, 10), border_width = 1, border_color = color.new(color.white, 70))
+        table.cell(result, 0, 0, "Zone", text_color = color.white, bgcolor = color.new(color.gray, 70), text_size = size.tiny)
+        table.cell(result, 1, 0, "Liquidity Debug", text_color = color.white, bgcolor = color.new(color.gray, 70), text_size = size.tiny)
+        int row = 1
+        int zoneCount = array.size(zones)
+        if zoneCount > 0
+            for i = 0 to zoneCount - 1
+                if row >= tableRows
+                    break
+                RawZone z = array.get(zones, i)
+                bool showRow = z.active or not na(z.liquidityPrice) or str.length(z.liquidityRejectedReason) > 0
+                if showRow
+                    table.cell(result, 0, row, str.tostring(z.id), text_color = color.white, bgcolor = color.new(color.black, 0), text_size = size.tiny)
+                    table.cell(result, 1, row, liquidityCompareText(z), text_color = color.white, bgcolor = color.new(color.black, 0), text_size = size.tiny)
+                    row += 1
+        while row < tableRows
+            table.cell(result, 0, row, "", bgcolor = color.new(color.black, 0))
+            table.cell(result, 1, row, "", bgcolor = color.new(color.black, 0))
+            row += 1
+    else if not na(result)
+        for row = 0 to tableRows - 1
+            table.cell(result, 0, row, "", bgcolor = color.new(color.black, 100))
+            table.cell(result, 1, row, "", bgcolor = color.new(color.black, 100))
+    result
 
 isContinuationZone(int baseIdx, bool demand) =>
     bool result = false
@@ -456,6 +514,7 @@ isContinuationZone(int baseIdx, bool demand) =>
         bool compactBase = baseRange > syminfo.mintick and baseRange <= atr14 * 1.8 and baseBody <= baseRange * 0.65
         bool validBaseSide = demand ? isBearish(baseIdx) : isBullish(baseIdx)
         bool continuationApproach = demand ? isBullish(baseIdx + 1) : isBearish(baseIdx + 1)
+        bool reversalApproach = demand ? isBearish(baseIdx + 1) : isBullish(baseIdx + 1)
         bool confirmsAway = false
         for confirmScan = 1 to formationLegScanBars
             int confirmIdx = baseIdx - confirmScan
@@ -467,7 +526,8 @@ isContinuationZone(int baseIdx, bool demand) =>
                 break
         float priorBodyEdge = demand ? math.min(open[baseIdx + 1], close[baseIdx + 1]) : math.max(open[baseIdx + 1], close[baseIdx + 1])
         bool shallowPullback = demand ? low[baseIdx] >= priorBodyEdge - atr14 * 0.25 : high[baseIdx] <= priorBodyEdge + atr14 * 0.25
-        bool validApproach = continuationApproach and shallowPullback
+        bool reversalExtreme = demand ? low[baseIdx] <= low[baseIdx + 1] + atr14 * 0.25 : high[baseIdx] >= high[baseIdx + 1] - atr14 * 0.25
+        bool validApproach = (continuationApproach and shallowPullback) or (reversalApproach and reversalExtreme)
         float confirmBaseRange = high[baseIdx] - low[baseIdx]
         float displacementBody = math.abs(close - open)
         bool currentDirectional = demand ? isBullish(0) : isBearish(0)
@@ -579,8 +639,6 @@ findDisplacementBase(bool demand, int startOffset, int maxLegBars) =>
                     baseIdx := candidateBaseIdx
                     legCount := directionalCount
                     break
-    if na(baseIdx) and not na(rejectIdx) and str.length(rejectReason) > 0
-        drawCandidateDiagnostic(demand, rejectIdx, rejectStatus(rejectReason), rejectReason)
     [baseIdx, legCount, rejectIdx, rejectReason]
 
 payload(string eventName, RawZone z) =>
@@ -601,6 +659,9 @@ payload(string eventName, RawZone z) =>
      "\"liq_low_bar\":" + intNum(z.liqLowBar) + "," +
      "\"liq_high_price\":" + num(z.liqHighPrice) + "," +
      "\"liq_high_bar\":" + intNum(z.liqHighBar) + "," +
+     "\"liq_source\":\"" + liquiditySourceDisplay(z.liqSource) + "\"," +
+     "\"liq_distance\":" + num(z.liquidityDistanceFromZone) + "," +
+     "\"liq_reason\":\"" + z.liquidityDecisionReason + "\"," +
      "\"liquidity_sweep_bar\":" + intNum(z.liquiditySweepBar) + "," +
      "\"target_sweep_bar\":" + intNum(z.targetSweepBar) + "," +
      "\"liquidity_swept\":" + boolText(z.liquiditySwept) + "," +
@@ -661,6 +722,8 @@ preferFirstZone(RawZone first, RawZone other) =>
         bool sameFamily = sameModelFamily(first.model, other.model)
         if sameFamily and firstAcc != otherAcc
             keepFirst := firstAcc
+        else if first.originBar != other.originBar
+            keepFirst := first.originBar > other.originBar
         else if math.abs(firstSize - otherSize) > syminfo.mintick * 0.5
             keepFirst := firstSize > otherSize
         else
@@ -668,8 +731,6 @@ preferFirstZone(RawZone first, RawZone other) =>
             int otherModelPriority = modelPriority(other.model)
             if firstModelPriority != otherModelPriority
                 keepFirst := firstModelPriority > otherModelPriority
-            else if first.originBar != other.originBar
-                keepFirst := first.originBar < other.originBar
             else
                 keepFirst := first.id <= other.id
     keepFirst
@@ -712,13 +773,14 @@ deleteZoneDrawings(RawZone z) =>
         line.delete(z.liquidityLine)
     if not na(z.targetLine)
         line.delete(z.targetLine)
+    if not na(z.liquidityCompareLabel)
+        label.delete(z.liquidityCompareLabel)
     true
 
 cleanupRemovalReason(RawZone z) =>
     isAccZoneModel(z.model) ? NESTED_REMOVED_ACC : NESTED_REMOVED_STANDARD
 
 deactivateNestedZone(RawZone z, string cleanupReason) =>
-    drawZoneDiagnostic(z, "NESTED_CLEANUP", cleanupReason)
     z.active := false
     z.inactiveReason := cleanupReason
     if showInactiveZones
@@ -1004,28 +1066,19 @@ createZone(int baseIdx, bool demand, int zoneId, int legCandles, string model, i
     int originBar = bar_index - baseIdx
     string effectiveModel = resolveFinalModel(baseIdx, demand, model, legCandles)
     bool modelAllowed = effectiveModel == MODEL_STANDARD or (effectiveModel == MODEL_CONTINUATION and enableContinuationZones) or (effectiveModel == MODEL_ACC_STANDARD and accuracyBoundsAllowed()) or (effectiveModel == MODEL_ACC_CONTINUATION and accuracyBoundsAllowed() and enableContinuationZones) or (effectiveModel == MODEL_ACC and accuracyBoundsAllowed())
-    if not modelAllowed
-        drawCandidateDiagnostic(demand, baseIdx, REJECT_MODEL_NOT_ALLOWED, effectiveModel)
-    else if isValidBase(baseIdx, demand)
+    if modelAllowed and isValidBase(baseIdx, demand)
         [top, bottom] = zoneBoundsForFinalModel(baseIdx, demand, legCandles, effectiveModel)
         bool boundsValid = not na(top) and not na(bottom) and top > bottom
         if not boundsValid
             duplicateSkipped := true
-            drawCandidateDiagnostic(demand, baseIdx, REJECT_INVALID_BOUNDS, effectiveModel)
         else if not confirmationCloseLeavesZone(confirmationBar, demand, top, bottom)
             duplicateSkipped := true
-            drawCandidateDiagnostic(demand, baseIdx, REJECT_CONFIRMATION_CLOSE_INSIDE, effectiveModel)
         else
             replaceNormalZoneForAcc(originBar, demand, effectiveModel)
             string duplicateReason = duplicateRejectReason(top, bottom, demand, originBar, effectiveModel, confirmationBar)
             if str.length(duplicateReason) > 0
                 duplicateSkipped := true
-                drawCandidateDiagnostic(demand, baseIdx, duplicateReason, effectiveModel)
             else
-                bool accVisual = isAccZoneModel(effectiveModel)
-                color zoneBgColor = accVisual ? (demand ? accDemandColor : accSupplyColor) : (demand ? demandColor : supplyColor)
-                color zoneBorderColor = accVisual ? (demand ? accDemandBorder : accSupplyBorder) : (demand ? demandBorder : supplyBorder)
-                box b = box.new(originBar, top, projectedRightBar(), bottom, xloc = xloc.bar_index, bgcolor = zoneBgColor, border_color = zoneBorderColor, border_width = accVisual ? 2 : 1)
                 RawZone z = RawZone.new()
                 z.id := zoneId
                 z.demand := demand
@@ -1060,7 +1113,7 @@ createZone(int baseIdx, bool demand, int zoneId, int legCandles, string model, i
                 z.liquidityLineSweepBar := na
                 z.zoneMitigationBar := na
                 z.zoneDisplayStopBar := na
-                z.zoneBox := b
+                z.zoneBox := na
                 z.liquidityLine := na
                 z.targetLine := na
                 z.liquidityValid := false
@@ -1070,9 +1123,14 @@ createZone(int baseIdx, bool demand, int zoneId, int legCandles, string model, i
                 z.liqLowTime := na
                 z.liqHighTime := na
                 z.liqSource := ""
+                z.liquidityDistanceFromZone := na
+                z.liquidityDecisionReason := ""
+                z.liquidityRejectedReason := ""
+                z.liquidityRejectedBar := na
+                z.liquidityRejectedPrice := na
+                z.liquidityCompareLabel := na
                 array.unshift(zones, z)
                 trimZones()
-                drawZoneDiagnostic(z, "RAW_CREATED", "")
                 sendEvent("ZONE_CREATED", z)
                 cleanupNestedSameSideZones(0)
                 created := true
@@ -1111,51 +1169,88 @@ liquidityLineSweptOnThisBar(RawZone z) =>
     float sweepTolerance = syminfo.mintick * equalLiquidityToleranceTicks
     not z.liquiditySwept and z.liquidityValid and not na(price) and not na(lineBar) and bar_index > lineBar and (z.demand ? low <= price + sweepTolerance : high >= price - sweepTolerance)
 
+liquidityProofReady(RawZone z) =>
+    z.liquidityValid and z.liquiditySwept and z.targetSwept
+
 targetLineSweptOnThisBar(RawZone z) =>
     float price = linkedTargetPrice(z)
     int lineBar = linkedTargetBar(z)
-    not z.targetSwept and z.liquidityValid and not na(price) and not na(lineBar) and bar_index > lineBar and (z.demand ? high >= price : low <= price)
+    not z.targetSwept and z.liquidityValid and z.liquiditySwept and not na(price) and not na(lineBar) and bar_index > lineBar and (z.demand ? high >= price : low <= price)
 
 zoneShowsLinkedLiquidity(RawZone z) =>
-    z.active and not na(z.zoneBox) and (z.liquidityLinked or (z.liquidityValid and not na(z.liquidityPrice) and not na(z.liquidityBarIndex)))
+    z.active and z.liquidityLinked
+
+zoneShowsDetectedLiquidity(RawZone z) =>
+    z.active and not na(z.liquidityPrice) and not na(z.liquidityBarIndex) and (not showOnlyStrategyValidLiquidity or z.liquidityValid)
+
+zoneBgColorFor(RawZone z) =>
+    bool accVisual = isAccZoneModel(z.model)
+    accVisual ? (z.demand ? accDemandColor : accSupplyColor) : (z.demand ? demandColor : supplyColor)
+
+zoneBorderColorFor(RawZone z) =>
+    bool accVisual = isAccZoneModel(z.model)
+    accVisual ? (z.demand ? accDemandBorder : accSupplyBorder) : (z.demand ? demandBorder : supplyBorder)
+
+updateZoneBox(RawZone z) =>
+    bool showZone = z.active
+    if showZone
+        if na(z.zoneBox)
+            z.zoneBox := box.new(z.originBar, z.top, zoneRightBar(z), z.bottom, xloc = xloc.bar_index, bgcolor = zoneBgColorFor(z), border_color = zoneBorderColorFor(z), border_width = isAccZoneModel(z.model) ? 2 : 1)
+        else
+            box.set_right(z.zoneBox, zoneRightBar(z))
+            box.set_bgcolor(z.zoneBox, zoneBgColorFor(z))
+            box.set_border_color(z.zoneBox, zoneBorderColorFor(z))
+    else
+        if not na(z.zoneBox)
+            box.delete(z.zoneBox)
+            z.zoneBox := na
+    true
 
 updateZoneLines(RawZone z) =>
-    bool showLinkedLines = plotLiq and zoneShowsLinkedLiquidity(z)
-    if not showLinkedLines
+    bool showLiquidityLine = plotLiq and (zoneShowsDetectedLiquidity(z) or zoneShowsLinkedLiquidity(z))
+    bool showTargetLine = plotLiq and zoneShowsLinkedLiquidity(z)
+    if not showLiquidityLine
         if not na(z.liquidityLine)
             line.delete(z.liquidityLine)
             z.liquidityLine := na
+    else
+        int x1 = linkedLiquidityBar(z)
+        x1 := na(x1) ? z.originBar : x1
+        float y = linkedLiquidityPrice(z)
+        y := na(y) ? z.liquidityPrice : y
+        if not na(y)
+            if na(z.liquidityLine)
+                z.liquidityLine := createLinkedLine(x1, y, liqColor)
+            else
+                line.set_x1(z.liquidityLine, x1)
+                line.set_x2(z.liquidityLine, liquidityLineRightBar(z))
+                line.set_y1(z.liquidityLine, y)
+                line.set_y2(z.liquidityLine, y)
+                line.set_extend(z.liquidityLine, extend.none)
+                line.set_color(z.liquidityLine, liqColor)
+                line.set_style(z.liquidityLine, line.style_dashed)
+                line.set_width(z.liquidityLine, 2)
+    if not showTargetLine
         if not na(z.targetLine)
             line.delete(z.targetLine)
             z.targetLine := na
     else
-        if not na(z.liquidityLine)
-            int x1 = linkedLiquidityBar(z)
-            x1 := na(x1) ? z.originBar : x1
-            float y = linkedLiquidityPrice(z)
-            y := na(y) ? z.liquidityPrice : y
-            line.set_x1(z.liquidityLine, x1)
-            line.set_x2(z.liquidityLine, liquidityLineRightBar(z))
-            if not na(y)
-                line.set_y1(z.liquidityLine, y)
-                line.set_y2(z.liquidityLine, y)
-            line.set_extend(z.liquidityLine, extend.none)
-            line.set_color(z.liquidityLine, liqColor)
-            line.set_style(z.liquidityLine, line.style_dashed)
-            line.set_width(z.liquidityLine, 2)
-        if not na(z.targetLine)
-            int tx1 = linkedTargetBar(z)
-            tx1 := na(tx1) ? z.originBar : tx1
-            float ty = linkedTargetPrice(z)
-            line.set_x1(z.targetLine, tx1)
-            line.set_x2(z.targetLine, sweptTargetLineRightBar(z))
-            if not na(ty)
+        int tx1 = linkedTargetBar(z)
+        tx1 := na(tx1) ? z.originBar : tx1
+        float ty = linkedTargetPrice(z)
+        if not na(ty)
+            if na(z.targetLine)
+                z.targetLine := createLinkedLine(tx1, ty, targetColor)
+            else
+                line.set_x1(z.targetLine, tx1)
+                line.set_x2(z.targetLine, sweptTargetLineRightBar(z))
                 line.set_y1(z.targetLine, ty)
                 line.set_y2(z.targetLine, ty)
-            line.set_extend(z.targetLine, extend.none)
-            line.set_color(z.targetLine, targetColor)
-            line.set_style(z.targetLine, line.style_dashed)
-            line.set_width(z.targetLine, 2)
+                line.set_extend(z.targetLine, extend.none)
+                line.set_color(z.targetLine, targetColor)
+                line.set_style(z.targetLine, line.style_dashed)
+                line.set_width(z.targetLine, 2)
+    updateLiquidityCompareLabel(z)
     true
 
 liqTolerance() =>
@@ -1195,6 +1290,73 @@ normalLiquidityHasTwoOppositeCandles(int pivotBar, bool demand) =>
         bool previousOpposite = demand ? isBearish(pivotOffset + 1) : isBullish(pivotOffset + 1)
         valid := pivotOpposite and previousOpposite
     valid
+
+referenceLiquidityDedupPrice() =>
+    float tickFallback = syminfo.mintick * math.max(equalLiquidityToleranceTicks, 1)
+    float atrCluster = not na(atr14) and atr14 > 0 ? atr14 * referenceLiquidityClusterAtrMultiplier : na
+    math.max(tickFallback, not na(atrCluster) ? atrCluster : tickFallback)
+
+referenceLiquidityEqualPrice() =>
+    float tickFallback = syminfo.mintick * math.max(equalLiquidityToleranceTicks, 1)
+    float atrEqual = not na(atr14) and atr14 > 0 ? atr14 * referenceLiquidityEqualAtrMultiplier : na
+    math.max(tickFallback, not na(atrEqual) ? atrEqual : tickFallback)
+
+referenceLiquidityLineExists(float price, bool demand) =>
+    bool exists = false
+    float tolPrice = referenceLiquidityDedupPrice()
+    int count = array.size(referenceLiquidityPrices)
+    if count > 0
+        for i = 0 to count - 1
+            bool sameSide = array.get(referenceLiquidityDemand, i) == demand
+            float existingPrice = array.get(referenceLiquidityPrices, i)
+            if sameSide and math.abs(existingPrice - price) <= tolPrice
+                exists := true
+                break
+    exists
+
+trimReferenceLiquidityLines() =>
+    while array.size(referenceLiquidityLines) > referenceLiquidityMaxLines
+        line oldestLine = array.shift(referenceLiquidityLines)
+        if not na(oldestLine)
+            line.delete(oldestLine)
+        array.shift(referenceLiquidityPrices)
+        array.shift(referenceLiquidityBars)
+        array.shift(referenceLiquidityDemand)
+        array.shift(referenceLiquiditySwept)
+    true
+
+recordReferenceLiquidityLine(float price, int x1, bool demand) =>
+    bool recorded = false
+    if not na(price) and not na(x1) and not referenceLiquidityLineExists(price, demand)
+        array.push(referenceLiquidityLines, na)
+        array.push(referenceLiquidityPrices, price)
+        array.push(referenceLiquidityBars, x1)
+        array.push(referenceLiquidityDemand, demand)
+        array.push(referenceLiquiditySwept, false)
+        trimReferenceLiquidityLines()
+        recorded := true
+    recorded
+
+updateReferenceLiquidityLines() =>
+    float tolPrice = syminfo.mintick * math.max(equalLiquidityToleranceTicks, 1)
+    int count = array.size(referenceLiquidityLines)
+    if count > 0
+        for i = 0 to count - 1
+            line liqLine = array.get(referenceLiquidityLines, i)
+            float price = array.get(referenceLiquidityPrices, i)
+            int originBar = array.get(referenceLiquidityBars, i)
+            bool demand = array.get(referenceLiquidityDemand, i)
+            bool swept = array.get(referenceLiquiditySwept, i)
+            if not swept and bar_index > originBar
+                bool sweptNow = demand ? low <= price + tolPrice : high >= price - tolPrice
+                if sweptNow
+                    if not na(liqLine)
+                        line.set_x2(liqLine, bar_index)
+                    array.set(referenceLiquiditySwept, i, true)
+                else
+                    if not na(liqLine)
+                        line.set_x2(liqLine, projectedRightBar())
+    true
 
 oneCandleLiquidityHasFakeout(int pivotBar, bool demand) =>
     int pivotOffset = bar_index - pivotBar
@@ -1262,6 +1424,46 @@ rdHighLiquidityAt(int offset) =>
     bool swingHigh = historicalPivotHighAt(offset) or historicalLocalHighAt(offset) or oneCandleLiquidity
     bool rdType = normalLiquidityHasTwoOppositeCandles(pivotBar, false) or oneCandleLiquidity or equalHighLiquidityAt(offset)
     swingHigh and (strictRdLiquidity ? rdType : true)
+
+referenceEqualLowLiquidityAt(int offset) =>
+    bool valid = false
+    if offset >= 0 and offset <= bar_index
+        float candidate = low[offset]
+        float tol = referenceLiquidityEqualPrice()
+        for step = 1 to equalLiquidityScanBars
+            bool olderEqual = offset + step <= bar_index and math.abs(candidate - low[offset + step]) <= tol
+            bool newerEqual = offset - step >= 0 and math.abs(candidate - low[offset - step]) <= tol
+            if olderEqual or newerEqual
+                valid := true
+                break
+    valid
+
+referenceEqualHighLiquidityAt(int offset) =>
+    bool valid = false
+    if offset >= 0 and offset <= bar_index
+        float candidate = high[offset]
+        float tol = referenceLiquidityEqualPrice()
+        for step = 1 to equalLiquidityScanBars
+            bool olderEqual = offset + step <= bar_index and math.abs(candidate - high[offset + step]) <= tol
+            bool newerEqual = offset - step >= 0 and math.abs(candidate - high[offset - step]) <= tol
+            if olderEqual or newerEqual
+                valid := true
+                break
+    valid
+
+referenceLowLiquidityAt(int offset) =>
+    rdLowLiquidityAt(offset) or (historicalLocalLowAt(offset) and referenceEqualLowLiquidityAt(offset))
+
+referenceHighLiquidityAt(int offset) =>
+    rdHighLiquidityAt(offset) or (historicalLocalHighAt(offset) and referenceEqualHighLiquidityAt(offset))
+
+if bar_index >= last_bar_index - runtimeLookbackBars and barstate.isconfirmed and isPrimaryFiveMinute
+    int referenceLiquidityPivotBar = bar_index - referenceLiquidityPivotLen
+    if referenceLowLiquidityAt(referenceLiquidityPivotLen)
+        recordReferenceLiquidityLine(low[referenceLiquidityPivotLen], referenceLiquidityPivotBar, true)
+    if referenceHighLiquidityAt(referenceLiquidityPivotLen)
+        recordReferenceLiquidityLine(high[referenceLiquidityPivotLen], referenceLiquidityPivotBar, false)
+    updateReferenceLiquidityLines()
 
 liquidityHasValidStructure(int pivotBar, bool demand) =>
     int pivotOffset = bar_index - pivotBar
@@ -1409,11 +1611,27 @@ findLocalSupplyLiquidity(float refPrice, float maxDistPrice, float sideTol, int 
 
 const string TOUCH_SWEEP_SOURCE = "ZONE_TOUCH_SWEEP"
 
+liquidityMaxDistancePrice() =>
+    float tickFallback = syminfo.mintick * math.max(equalLiquidityToleranceTicks, 1)
+    float pipCap = effective_liq_max_dist * pip_size
+    float atrCap = not na(atr14) and atr14 > 0 ? atr14 * liq_atr_distance_multiplier : na
+    not na(atrCap) ? math.max(tickFallback, math.min(pipCap, atrCap)) : math.max(tickFallback, pipCap)
+
+liquidityScanStartBar(RawZone z) =>
+    int anchorBar = not na(z.createdBar) ? z.createdBar : bar_index
+    math.max(0, anchorBar - displacementScanBars - formationLegScanBars)
+
+liquidityCandidateIsOwnOrigin(RawZone z, int candidateBar, float candidatePrice) =>
+    float tol = syminfo.mintick * math.max(equalLiquidityToleranceTicks, 1)
+    bool sameOriginBar = not na(z.originBar) and not na(candidateBar) and candidateBar == z.originBar
+    bool ownOriginEdge = not na(candidatePrice) and (z.demand ? math.abs(candidatePrice - z.bottom) <= tol : math.abs(candidatePrice - z.top) <= tol)
+    sameOriginBar and ownOriginEdge
+
 findDemandTouchLiquidity(RawZone z) =>
     float bestPrice = na
     int bestBar = na
     float tolPrice = syminfo.mintick * equalLiquidityToleranceTicks
-    float maxDistPrice = effective_liq_max_dist * pip_size
+    float maxDistPrice = liquidityMaxDistancePrice()
     int maxOff = math.min(liq_candle_count_max, math.max(1, bar_index - z.createdBar))
     if maxOff >= 1
         for off = 1 to maxOff
@@ -1432,7 +1650,7 @@ findSupplyTouchLiquidity(RawZone z) =>
     float bestPrice = na
     int bestBar = na
     float tolPrice = syminfo.mintick * equalLiquidityToleranceTicks
-    float maxDistPrice = effective_liq_max_dist * pip_size
+    float maxDistPrice = liquidityMaxDistancePrice()
     int maxOff = math.min(liq_candle_count_max, math.max(1, bar_index - z.createdBar))
     if maxOff >= 1
         for off = 1 to maxOff
@@ -1473,51 +1691,146 @@ getBarOfMinLow(int startBarAbs, int endBarAbs) =>
                     bestBar := bar_index - i
     bestBar
 
+majorLiquidityTarget(int targetBar, bool demand) =>
+    int targetOffset = bar_index - targetBar
+    not na(targetBar) and targetOffset >= 0 and (demand ? historicalPivotHighAt(targetOffset) : historicalPivotLowAt(targetOffset))
+
+countLevelBreaksAfter(float level, int afterBar, bool demand) =>
+    int breakCount = 0
+    if not na(level) and not na(afterBar) and bar_index > afterBar
+        float tol = liqTolerance()
+        int maxOff = math.min(MAX_LIQ_SCAN_BARS, bar_index - afterBar - 1)
+        if maxOff >= 0
+            for off = maxOff to 0
+                int candidateBar = bar_index - off
+                bool afterLevel = candidateBar > afterBar
+                bool breaksLevel = demand ? high[off] >= level - tol : low[off] <= level + tol
+                bool previousBreak = off + 1 <= bar_index ? (demand ? high[off + 1] >= level - tol : low[off + 1] <= level + tol) : false
+                if afterLevel and breaksLevel and not previousBreak
+                    breakCount += 1
+    breakCount
+
+secondLevelBreakBarAfter(float level, int afterBar, bool demand) =>
+    int secondBreakBar = na
+    int breakCount = 0
+    if not na(level) and not na(afterBar) and bar_index > afterBar
+        float tol = liqTolerance()
+        int maxOff = math.min(MAX_LIQ_SCAN_BARS, bar_index - afterBar - 1)
+        if maxOff >= 0
+            for off = maxOff to 0
+                int candidateBar = bar_index - off
+                bool afterLevel = candidateBar > afterBar
+                bool breaksLevel = demand ? high[off] >= level - tol : low[off] <= level + tol
+                bool previousBreak = off + 1 <= bar_index ? (demand ? high[off + 1] >= level - tol : low[off + 1] <= level + tol) : false
+                if afterLevel and breaksLevel and not previousBreak
+                    breakCount += 1
+                    if breakCount >= 2
+                        secondBreakBar := candidateBar
+                        break
+    secondBreakBar
+
+returnedToZoneAfterLevelBreak(RawZone z, bool demand) =>
+    int secondBreakBar = secondLevelBreakBarAfter(z.structureSweepLevel, z.structureSweepLevelBar, demand)
+    bool returned = false
+    if not na(secondBreakBar) and bar_index > secondBreakBar
+        int maxOff = math.min(MAX_LIQ_SCAN_BARS, bar_index - secondBreakBar - 1)
+        if maxOff >= 0
+            for off = 0 to maxOff
+                int candidateBar = bar_index - off
+                bool afterSecondBreak = candidateBar > secondBreakBar
+                bool overlapsZone = high[off] >= z.bottom and low[off] <= z.top
+                if afterSecondBreak and overlapsZone
+                    returned := true
+                    break
+    returned
+
+internalLiquidityProofReady(RawZone z, bool demand) =>
+    bool isMajorTarget = majorLiquidityTarget(z.structureSweepLevelBar, demand)
+    isMajorTarget or (countLevelBreaksAfter(z.structureSweepLevel, z.structureSweepLevelBar, demand) >= 2 and returnedToZoneAfterLevelBreak(z, demand))
+
 f_scan_demand_liquidity(RawZone z) =>
     RawZone out = z
-    if out.liquidityValid or out.liquiditySwept or (out.liqSource == TOUCH_SWEEP_SOURCE and not na(out.liquidityPrice))
+    if not out.active or not out.demand or out.liquidityValid or out.liquiditySwept or out.targetSwept
+        out
+    else if out.liqSource == TOUCH_SWEEP_SOURCE and not na(out.liquidityPrice)
         out
     else if na(out.createdBar) or bar_index <= out.createdBar
         out
     else
+        out := clearLiquidityDebugState(out)
         float bestLiqPrice = 1.0e10
         int bestLiqBar = na
         float bestDist = 1.0e10
-        bool bestLiqNearEdge = false
-        float zoneHeight = math.abs(out.top - out.bottom)
-        int liquidityScanStartBar = math.max(0, out.createdBar - displacementScanBars - formationLegScanBars)
-        int maxOff = math.min(MAX_LIQ_SCAN_BARS, bar_index - liquidityScanStartBar - pivotLen)
+        string bestSource = ""
+        float maxDistPrice = liquidityMaxDistancePrice()
+        int scanStartBar = liquidityScanStartBar(out)
+        int maxOff = math.min(MAX_LIQ_SCAN_BARS, bar_index - scanStartBar - pivotLen)
+        int referenceCount = array.size(referenceLiquidityPrices)
+
+        if referenceCount > 0
+            for refIdx = 0 to referenceCount - 1
+                float pLow = array.get(referenceLiquidityPrices, refIdx)
+                int pBar = array.get(referenceLiquidityBars, refIdx)
+                bool isDemandReference = array.get(referenceLiquidityDemand, refIdx)
+                bool isSweptReference = array.get(referenceLiquiditySwept, refIdx)
+                if isDemandReference and not isSweptReference and not na(pLow) and not na(pBar) and pBar >= scanStartBar and pBar <= bar_index
+                    bool isValidLocation = false
+                    float distFromZone = 0.0
+                    if use_inducement_linking
+                        isValidLocation := pLow < out.bottom
+                        distFromZone := out.bottom - pLow
+                    else
+                        isValidLocation := pLow < out.bottom
+                        distFromZone := out.bottom - pLow
+                    if isValidLocation
+                        bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
+                        if distOK
+                            bool isCloser = distFromZone < bestDist
+                            bool isSameDistance = distFromZone == bestDist
+                            bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
+                            if na(bestLiqBar) or isCloser or (isSameDistance and isMoreRecent)
+                                bestDist := distFromZone
+                                bestLiqPrice := pLow
+                                bestLiqBar := pBar
+                                bestSource := "REFERENCE"
+                            else
+                                out := recordRejectedLiquidityCandidate(out, pBar, pLow, "REFERENCE_NOT_CLOSEST")
+                        else
+                            out := recordRejectedLiquidityCandidate(out, pBar, pLow, "REFERENCE_TOO_FAR")
+                    else
+                        out := recordRejectedLiquidityCandidate(out, pBar, pLow, "REFERENCE_WRONG_SIDE")
 
         if maxOff >= 0
             for off = 0 to maxOff
                 float pLow = pLowSeries[off]
                 if not na(pLow)
                     int pBar = bar_index - off - pivotLen
-                    if pBar >= liquidityScanStartBar
+                    if pBar >= scanStartBar
                         bool isValidLocation = false
                         float distFromZone = 0.0
                         if use_inducement_linking
-                            isValidLocation := pLow >= out.top - (syminfo.mintick * equalLiquidityToleranceTicks)
-                            distFromZone := math.max(0.0, pLow - out.top)
+                            isValidLocation := pLow < out.bottom
+                            distFromZone := out.bottom - pLow
                         else
                             isValidLocation := pLow < out.bottom
                             distFromZone := out.bottom - pLow
                         if isValidLocation
-                            float maxDistPrice = effective_liq_max_dist * pip_size
                             bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
                             if distOK
                                 bool isCloser = distFromZone < bestDist
                                 bool isSameDistance = distFromZone == bestDist
                                 bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
-                                bool preferAwayFromEdge = use_inducement_linking and zoneHeight >= pip_size * 5.0
-                                bool isNearEdge = preferAwayFromEdge and distFromZone < pip_size * 2.0
-                                bool improvesEdgeQuality = bestLiqNearEdge and not isNearEdge
-                                bool sameEdgeQuality = bestLiqNearEdge == isNearEdge
-                                if na(bestLiqBar) or improvesEdgeQuality or (sameEdgeQuality and (isCloser or (isSameDistance and isMoreRecent)))
+                                if na(bestLiqBar) or isCloser or (isSameDistance and isMoreRecent)
                                     bestDist := distFromZone
                                     bestLiqPrice := pLow
                                     bestLiqBar := pBar
-                                    bestLiqNearEdge := isNearEdge
+                                    bestSource := "PIVOT"
+                                else
+                                    out := recordRejectedLiquidityCandidate(out, pBar, pLow, "NOT_CLOSEST")
+                            else
+                                out := recordRejectedLiquidityCandidate(out, pBar, pLow, "TOO_FAR")
+                        else
+                            out := recordRejectedLiquidityCandidate(out, pBar, pLow, "WRONG_SIDE")
 
         if na(bestLiqBar) and enableOneCandleLiquidity
             int localPivotCount = array.size(liqPvtLowPrices)
@@ -1525,31 +1838,32 @@ f_scan_demand_liquidity(RawZone z) =>
                 for pivotIdx = 0 to localPivotCount - 1
                     float pLow = array.get(liqPvtLowPrices, pivotIdx)
                     int pBar = array.get(liqPvtLowBars, pivotIdx)
-                    if not na(pLow) and not na(pBar) and pBar >= liquidityScanStartBar and pBar <= bar_index
+                    if not na(pLow) and not na(pBar) and pBar >= scanStartBar and pBar <= bar_index
                         bool isValidLocation = false
                         float distFromZone = 0.0
                         if use_inducement_linking
-                            isValidLocation := pLow >= out.top - (syminfo.mintick * equalLiquidityToleranceTicks)
-                            distFromZone := math.max(0.0, pLow - out.top)
+                            isValidLocation := pLow < out.bottom
+                            distFromZone := out.bottom - pLow
                         else
                             isValidLocation := pLow < out.bottom
                             distFromZone := out.bottom - pLow
                         if isValidLocation
-                            float maxDistPrice = effective_liq_max_dist * pip_size
                             bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
                             if distOK
                                 bool isCloser = distFromZone < bestDist
                                 bool isSameDistance = distFromZone == bestDist
                                 bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
-                                bool preferAwayFromEdge = use_inducement_linking and zoneHeight >= pip_size * 5.0
-                                bool isNearEdge = preferAwayFromEdge and distFromZone < pip_size * 2.0
-                                bool improvesEdgeQuality = bestLiqNearEdge and not isNearEdge
-                                bool sameEdgeQuality = bestLiqNearEdge == isNearEdge
-                                if na(bestLiqBar) or improvesEdgeQuality or (sameEdgeQuality and (isCloser or (isSameDistance and isMoreRecent)))
+                                if na(bestLiqBar) or isCloser or (isSameDistance and isMoreRecent)
                                     bestDist := distFromZone
                                     bestLiqPrice := pLow
                                     bestLiqBar := pBar
-                                    bestLiqNearEdge := isNearEdge
+                                    bestSource := "LOCAL"
+                                else
+                                    out := recordRejectedLiquidityCandidate(out, pBar, pLow, "LOCAL_NOT_CLOSEST")
+                            else
+                                out := recordRejectedLiquidityCandidate(out, pBar, pLow, "LOCAL_TOO_FAR")
+                        else
+                            out := recordRejectedLiquidityCandidate(out, pBar, pLow, "LOCAL_WRONG_SIDE")
 
         if not na(bestLiqBar) and bestLiqPrice < 1.0e10
             bool inductionChanged = na(out.liqLowPrice) or out.liqLowPrice != bestLiqPrice or na(out.liqLowBar) or out.liqLowBar != bestLiqBar
@@ -1579,6 +1893,8 @@ f_scan_demand_liquidity(RawZone z) =>
             if targetChanged
                 out.targetSwept := false
                 out.targetSweepBar := na
+            out.structureSweepLevel := out.liqHighPrice
+            out.structureSweepLevelBar := out.liqHighBar
 
             int demandLegStart = na
             int demandLegEnd = na
@@ -1593,9 +1909,9 @@ f_scan_demand_liquidity(RawZone z) =>
             bool hasStrongLeg = demandLegCount >= minLegCandles
             out.liquidityValid := hasStrongLeg
             out.inactiveReason := hasStrongLeg ? na : "WAITING_STRONG_LIQUIDITY"
-            out.liqSource := "MAKUCHAKU_PIVOT"
-            out.structureSweepLevel := out.liqHighPrice
-            out.structureSweepLevelBar := out.liqHighBar
+            out.liqSource := str.length(bestSource) > 0 ? bestSource : "PIVOT"
+            out.liquidityDistanceFromZone := bestDist
+            out.liquidityDecisionReason := bestSource == "REFERENCE" ? "SELECTED_REFERENCE_CLOSEST" : bestSource == "LOCAL" ? "SELECTED_LOCAL_FALLBACK" : "SELECTED_PIVOT_CLOSEST"
             int indOff = bar_index - bestLiqBar
             int tgtOff = na(out.liqHighBar) ? na : (bar_index - out.liqHighBar)
             out.liqLowTime := indOff >= 0 and indOff <= bar_index ? time[indOff] : na
@@ -1603,38 +1919,78 @@ f_scan_demand_liquidity(RawZone z) =>
         else
             out.liquidityValid := false
             out.inactiveReason := "WAITING_PIVOT"
+            out.liquidityDecisionReason := "WAITING_PIVOT"
         out
 
 f_scan_supply_liquidity(RawZone z) =>
     RawZone out = z
-    if out.liquidityValid or out.liquiditySwept or (out.liqSource == TOUCH_SWEEP_SOURCE and not na(out.liquidityPrice))
+    if not out.active or out.demand or out.liquidityValid or out.liquiditySwept or out.targetSwept
+        out
+    else if out.liqSource == TOUCH_SWEEP_SOURCE and not na(out.liquidityPrice)
         out
     else if na(out.createdBar) or bar_index <= out.createdBar
         out
     else
+        out := clearLiquidityDebugState(out)
         float bestLiqPrice = 0.0
         int bestLiqBar = na
         float bestDist = 1.0e10
-        int liquidityScanStartBar = math.max(0, out.createdBar - displacementScanBars - formationLegScanBars)
-        int maxOff = math.min(MAX_LIQ_SCAN_BARS, bar_index - liquidityScanStartBar - pivotLen)
+        string bestSource = ""
+        float maxDistPrice = liquidityMaxDistancePrice()
+        int scanStartBar = liquidityScanStartBar(out)
+        int maxOff = math.min(MAX_LIQ_SCAN_BARS, bar_index - scanStartBar - pivotLen)
+        int referenceCount = array.size(referenceLiquidityPrices)
+
+        if referenceCount > 0
+            for refIdx = 0 to referenceCount - 1
+                float pHigh = array.get(referenceLiquidityPrices, refIdx)
+                int pBar = array.get(referenceLiquidityBars, refIdx)
+                bool isDemandReference = array.get(referenceLiquidityDemand, refIdx)
+                bool isSweptReference = array.get(referenceLiquiditySwept, refIdx)
+                if not isDemandReference and not isSweptReference and not na(pHigh) and not na(pBar) and pBar >= scanStartBar and pBar <= bar_index
+                    bool isValidLocation = false
+                    float distFromZone = 0.0
+                    if use_inducement_linking
+                        isValidLocation := pHigh > out.top
+                        distFromZone := pHigh - out.top
+                    else
+                        isValidLocation := pHigh > out.top
+                        distFromZone := pHigh - out.top
+                    if isValidLocation
+                        bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
+                        if distOK
+                            float distFromZoneCheck = distFromZone
+                            bool isCloser = distFromZoneCheck < bestDist
+                            bool isSameDistance = distFromZoneCheck == bestDist
+                            bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
+                            if isCloser or (isSameDistance and isMoreRecent)
+                                bestDist := distFromZoneCheck
+                                bestLiqPrice := pHigh
+                                bestLiqBar := pBar
+                                bestSource := "REFERENCE"
+                            else
+                                out := recordRejectedLiquidityCandidate(out, pBar, pHigh, "REFERENCE_NOT_CLOSEST")
+                        else
+                            out := recordRejectedLiquidityCandidate(out, pBar, pHigh, "REFERENCE_TOO_FAR")
+                    else
+                        out := recordRejectedLiquidityCandidate(out, pBar, pHigh, "REFERENCE_WRONG_SIDE")
 
         if maxOff >= 0
             for off = 0 to maxOff
                 float pHigh = pHighSeries[off]
                 if not na(pHigh)
                     int pBar = bar_index - off - pivotLen
-                    if pBar >= liquidityScanStartBar
+                    if pBar >= scanStartBar
                         bool isValidLocation = false
                         float distFromZone = 0.0
                         if use_inducement_linking
-                            isValidLocation := pHigh <= out.bottom + (syminfo.mintick * equalLiquidityToleranceTicks)
-                            distFromZone := math.max(0.0, out.bottom - pHigh)
+                            isValidLocation := pHigh > out.top
+                            distFromZone := pHigh - out.top
                         else
                             isValidLocation := pHigh > out.top
                             distFromZone := pHigh - out.top
                         if isValidLocation
                             float distFromZoneCheck = distFromZone
-                            float maxDistPrice = effective_liq_max_dist * pip_size
                             bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZoneCheck <= maxDistPrice
                             if distOK
                                 bool isCloser = distFromZoneCheck < bestDist
@@ -1644,6 +2000,13 @@ f_scan_supply_liquidity(RawZone z) =>
                                     bestDist := distFromZoneCheck
                                     bestLiqPrice := pHigh
                                     bestLiqBar := pBar
+                                    bestSource := "PIVOT"
+                                else
+                                    out := recordRejectedLiquidityCandidate(out, pBar, pHigh, "NOT_CLOSEST")
+                            else
+                                out := recordRejectedLiquidityCandidate(out, pBar, pHigh, "TOO_FAR")
+                        else
+                            out := recordRejectedLiquidityCandidate(out, pBar, pHigh, "WRONG_SIDE")
 
         if na(bestLiqBar) and enableOneCandleLiquidity
             int localPivotCount = array.size(liqPvtHighPrices)
@@ -1651,17 +2014,16 @@ f_scan_supply_liquidity(RawZone z) =>
                 for pivotIdx = 0 to localPivotCount - 1
                     float pHigh = array.get(liqPvtHighPrices, pivotIdx)
                     int pBar = array.get(liqPvtHighBars, pivotIdx)
-                    if not na(pHigh) and not na(pBar) and pBar >= liquidityScanStartBar and pBar <= bar_index
+                    if not na(pHigh) and not na(pBar) and pBar >= scanStartBar and pBar <= bar_index
                         bool isValidLocation = false
                         float distFromZone = 0.0
                         if use_inducement_linking
-                            isValidLocation := pHigh <= out.bottom + (syminfo.mintick * equalLiquidityToleranceTicks)
-                            distFromZone := math.max(0.0, out.bottom - pHigh)
+                            isValidLocation := pHigh > out.top
+                            distFromZone := pHigh - out.top
                         else
                             isValidLocation := pHigh > out.top
                             distFromZone := pHigh - out.top
                         if isValidLocation
-                            float maxDistPrice = effective_liq_max_dist * pip_size
                             bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
                             if distOK
                                 float distFromZoneCheck = distFromZone
@@ -1672,6 +2034,13 @@ f_scan_supply_liquidity(RawZone z) =>
                                     bestDist := distFromZoneCheck
                                     bestLiqPrice := pHigh
                                     bestLiqBar := pBar
+                                    bestSource := "LOCAL"
+                                else
+                                    out := recordRejectedLiquidityCandidate(out, pBar, pHigh, "LOCAL_NOT_CLOSEST")
+                            else
+                                out := recordRejectedLiquidityCandidate(out, pBar, pHigh, "LOCAL_TOO_FAR")
+                        else
+                            out := recordRejectedLiquidityCandidate(out, pBar, pHigh, "LOCAL_WRONG_SIDE")
 
         if not na(bestLiqBar) and bestLiqPrice > 0.0
             bool inductionChanged = na(out.liqHighPrice) or out.liqHighPrice != bestLiqPrice or na(out.liqHighBar) or out.liqHighBar != bestLiqBar
@@ -1701,6 +2070,8 @@ f_scan_supply_liquidity(RawZone z) =>
             if targetChanged
                 out.targetSwept := false
                 out.targetSweepBar := na
+            out.structureSweepLevel := out.liqLowPrice
+            out.structureSweepLevelBar := out.liqLowBar
 
             int supplyLegStart = na
             int supplyLegEnd = na
@@ -1715,9 +2086,9 @@ f_scan_supply_liquidity(RawZone z) =>
             bool hasStrongLeg = supplyLegCount >= minLegCandles
             out.liquidityValid := hasStrongLeg
             out.inactiveReason := hasStrongLeg ? na : "WAITING_STRONG_LIQUIDITY"
-            out.liqSource := "MAKUCHAKU_PIVOT"
-            out.structureSweepLevel := out.liqLowPrice
-            out.structureSweepLevelBar := out.liqLowBar
+            out.liqSource := str.length(bestSource) > 0 ? bestSource : "PIVOT"
+            out.liquidityDistanceFromZone := bestDist
+            out.liquidityDecisionReason := bestSource == "REFERENCE" ? "SELECTED_REFERENCE_CLOSEST" : bestSource == "LOCAL" ? "SELECTED_LOCAL_FALLBACK" : "SELECTED_PIVOT_CLOSEST"
             int indOff = bar_index - bestLiqBar
             int tgtOff = na(out.liqLowBar) ? na : (bar_index - out.liqLowBar)
             out.liqHighTime := indOff >= 0 and indOff <= bar_index ? time[indOff] : na
@@ -1725,6 +2096,7 @@ f_scan_supply_liquidity(RawZone z) =>
         else
             out.liquidityValid := false
             out.inactiveReason := "WAITING_PIVOT"
+            out.liquidityDecisionReason := "WAITING_PIVOT"
         out
 
 clearStrategyLiquidityState(RawZone z, string reason) =>
@@ -1749,6 +2121,10 @@ clearStrategyLiquidityState(RawZone z, string reason) =>
     out.liqLowTime := na
     out.liqHighTime := na
     out.liqSource := na
+    out := clearLiquidityDebugState(out)
+    if not na(out.liquidityCompareLabel)
+        label.delete(out.liquidityCompareLabel)
+        out.liquidityCompareLabel := na
     out.inactiveReason := reason
     out := removeLiquidityLine(out)
     out := removeTargetLine(out)
@@ -1759,13 +2135,13 @@ strategyLiquidityWrongSide(RawZone z) =>
     if not na(z.liquidityPrice) and z.liqSource != TOUCH_SWEEP_SOURCE
         float sideTol = syminfo.mintick * equalLiquidityToleranceTicks
         if z.demand
-            isInvalid := use_inducement_linking ? z.liquidityPrice < z.top - sideTol : z.liquidityPrice > z.bottom + sideTol
+            isInvalid := use_inducement_linking ? z.liquidityPrice >= z.bottom : z.liquidityPrice > z.bottom + sideTol
         else
-            isInvalid := use_inducement_linking ? z.liquidityPrice > z.bottom + sideTol : z.liquidityPrice < z.top - sideTol
+            isInvalid := use_inducement_linking ? z.liquidityPrice <= z.top : z.liquidityPrice < z.top - sideTol
     isInvalid
 
 strategyLiquidityGhostData(RawZone z) =>
-    z.liquidityValid and not na(z.liquidityBarIndex) and z.liquidityBarIndex > bar_index
+    not na(z.liquidityBarIndex) and z.liquidityBarIndex > bar_index
 
 applyDemandTouchSweepLiquidity(RawZone z) =>
     RawZone out = z
@@ -1786,19 +2162,26 @@ applyDemandTouchSweepLiquidity(RawZone z) =>
             out.liqHighPrice := targetOff >= 0 and targetOff <= bar_index ? high[targetOff] : na
             out.structureSweepLevel := touchLiqPrice
             out.structureSweepLevelBar := touchLiqBar
-            out.liquidityValid := true
-            out.liquidityLinked := true
-            out.liquiditySwept := true
-            out.liquiditySweepBar := bar_index
-            out.liquidityLineSweepBar := bar_index
-            out.liquidityCandleCount := 1
-            out.legCandles := 1
-            out.inactiveReason := na
+            int demandLegStart = math.min(out.liqLowBar, out.liqHighBar)
+            int demandLegEnd = math.max(out.liqLowBar, out.liqHighBar)
+            int demandLegCount = countOppCandlesInLiquidityRange(demandLegStart, demandLegEnd, true, out.liqLowPrice, out.liqHighPrice)
+            int minLegCandles = enableOneCandleLiquidity ? 1 : 2
+            bool hasStrongLeg = demandLegCount >= minLegCandles
+            out.liquidityValid := hasStrongLeg
+            out.liquiditySwept := hasStrongLeg
+            out.liquiditySweepBar := hasStrongLeg ? bar_index : na
+            out.liquidityLineSweepBar := hasStrongLeg ? bar_index : na
+            out.liquidityCandleCount := demandLegCount
+            out.legCandles := demandLegCount
+            out.inactiveReason := hasStrongLeg ? na : "WAITING_STRONG_LIQUIDITY"
+            out.liquidityLinked := liquidityProofReady(out)
+            out.liquidityDistanceFromZone := liquidityDistanceFromZoneValue(out, touchLiqPrice)
+            out.liquidityDecisionReason := hasStrongLeg ? "SELECTED_TOUCH_SWEEP" : "WAITING_STRONG_TOUCH_SWEEP"
             int indOff = bar_index - touchLiqBar
             int tgtOff = na(out.liqHighBar) ? na : (bar_index - out.liqHighBar)
             out.liqLowTime := indOff >= 0 and indOff <= bar_index ? time[indOff] : na
             out.liqHighTime := not na(tgtOff) and tgtOff >= 0 and tgtOff <= bar_index ? time[tgtOff] : na
-            sweptNow := true
+            sweptNow := hasStrongLeg
     [out, sweptNow]
 
 applySupplyTouchSweepLiquidity(RawZone z) =>
@@ -1820,24 +2203,31 @@ applySupplyTouchSweepLiquidity(RawZone z) =>
             out.liqLowPrice := targetOff >= 0 and targetOff <= bar_index ? low[targetOff] : na
             out.structureSweepLevel := touchLiqPrice
             out.structureSweepLevelBar := touchLiqBar
-            out.liquidityValid := true
-            out.liquidityLinked := true
-            out.liquiditySwept := true
-            out.liquiditySweepBar := bar_index
-            out.liquidityLineSweepBar := bar_index
-            out.liquidityCandleCount := 1
-            out.legCandles := 1
-            out.inactiveReason := na
+            int supplyLegStart = math.min(out.liqLowBar, out.liqHighBar)
+            int supplyLegEnd = math.max(out.liqLowBar, out.liqHighBar)
+            int supplyLegCount = countOppCandlesInLiquidityRange(supplyLegStart, supplyLegEnd, false, out.liqLowPrice, out.liqHighPrice)
+            int minLegCandles = enableOneCandleLiquidity ? 1 : 2
+            bool hasStrongLeg = supplyLegCount >= minLegCandles
+            out.liquidityValid := hasStrongLeg
+            out.liquiditySwept := hasStrongLeg
+            out.liquiditySweepBar := hasStrongLeg ? bar_index : na
+            out.liquidityLineSweepBar := hasStrongLeg ? bar_index : na
+            out.liquidityCandleCount := supplyLegCount
+            out.legCandles := supplyLegCount
+            out.inactiveReason := hasStrongLeg ? na : "WAITING_STRONG_LIQUIDITY"
+            out.liquidityLinked := liquidityProofReady(out)
+            out.liquidityDistanceFromZone := liquidityDistanceFromZoneValue(out, touchLiqPrice)
+            out.liquidityDecisionReason := hasStrongLeg ? "SELECTED_TOUCH_SWEEP" : "WAITING_STRONG_TOUCH_SWEEP"
             int indOff = bar_index - touchLiqBar
             int tgtOff = na(out.liqLowBar) ? na : (bar_index - out.liqLowBar)
             out.liqHighTime := indOff >= 0 and indOff <= bar_index ? time[indOff] : na
             out.liqLowTime := not na(tgtOff) and tgtOff >= 0 and tgtOff <= bar_index ? time[tgtOff] : na
-            sweptNow := true
+            sweptNow := hasStrongLeg
     [out, sweptNow]
 
 linkLiquidityAndTargets(RawZone z, float pivotLow, int pivotLowBar, float pivotHigh, int pivotHighBar, float targetPivotHigh, int targetPivotHighBar, float targetPivotLow, int targetPivotLowBar) =>
     RawZone out = z
-    bool wasValid = z.liquidityValid
+    bool wasLinked = z.liquidityLinked
     bool linkedNow = false
     out := clearStaleLiquidityInsideNewerZone(out)
     if out.active
@@ -1846,32 +2236,15 @@ linkLiquidityAndTargets(RawZone z, float pivotLow, int pivotLowBar, float pivotH
         if strategyLiquidityGhostData(out)
             out := clearStrategyLiquidityState(out, "GHOST_LIQUIDITY_CLEARED")
 
+        RawZone demandScan = f_scan_demand_liquidity(out)
+        RawZone supplyScan = f_scan_supply_liquidity(out)
         bool hasTouchSweepLiq = out.liqSource == TOUCH_SWEEP_SOURCE and not na(out.liquidityPrice)
         if not out.liquidityValid and not hasTouchSweepLiq
-            if out.demand
-                out := f_scan_demand_liquidity(out)
-            else
-                out := f_scan_supply_liquidity(out)
+            out := out.demand ? demandScan : supplyScan
 
-        out.liquidityLinked := out.liquidityValid
+        out.liquidityLinked := liquidityProofReady(out)
 
-        if plotLiq and not na(out.liquidityPrice) and not na(out.liquidityBarIndex)
-            if na(out.liquidityLine)
-                out.liquidityLine := createLinkedLine(out.liquidityBarIndex, out.liquidityPrice, liqColor)
-            else
-                line.set_xy1(out.liquidityLine, out.liquidityBarIndex, out.liquidityPrice)
-                line.set_xy2(out.liquidityLine, liquidityLineRightBar(out), out.liquidityPrice)
-
-        float tgtPrice = out.demand ? out.liqHighPrice : out.liqLowPrice
-        int tgtBar = out.demand ? out.liqHighBar : out.liqLowBar
-        if plotLiq and not na(tgtPrice) and not na(tgtBar)
-            if na(out.targetLine)
-                out.targetLine := createLinkedLine(tgtBar, tgtPrice, targetColor)
-            else
-                line.set_xy1(out.targetLine, tgtBar, tgtPrice)
-                line.set_xy2(out.targetLine, sweptTargetLineRightBar(out), tgtPrice)
-
-        linkedNow := out.liquidityValid and not wasValid
+        linkedNow := out.liquidityLinked and not wasLinked
     [out, linkedNow]
 
 processZone(RawZone z) =>
@@ -1917,12 +2290,12 @@ processZone(RawZone z) =>
                 out.targetSweepBar := bar_index
                 targetSweptNow := true
 
-            bool liquiditySweptOnOrBeforeThisBar = out.liquiditySwept and not na(out.liquiditySweepBar) and out.liquiditySweepBar <= bar_index
-            bool closeInsideZoneInvalidates = canJudgeInvalidation and closeInsideZone and not liquiditySweptOnOrBeforeThisBar
-            bool returnedBeforeSweep = canJudgeInvalidation and overlapsZone and not liquiditySweptOnOrBeforeThisBar
-            bool closeBreakInvalidates = canJudgeInvalidation and close < out.bottom and not liquiditySweptOnOrBeforeThisBar
-            bool wickBreak = canJudgeInvalidation and invalidateOnWick and low < out.bottom and not liquiditySweptOnOrBeforeThisBar
-            bool mitigatedAfterValidSweep = liquiditySweptOnOrBeforeThisBar and mitigationTouch
+            bool proofReadyOnOrBeforeThisBar = liquidityProofReady(out) and not na(out.targetSweepBar) and out.targetSweepBar <= bar_index
+            bool closeInsideZoneInvalidates = canJudgeInvalidation and closeInsideZone and not proofReadyOnOrBeforeThisBar
+            bool returnedBeforeSweep = canJudgeInvalidation and overlapsZone and not proofReadyOnOrBeforeThisBar
+            bool closeBreakInvalidates = canJudgeInvalidation and close < out.bottom and not proofReadyOnOrBeforeThisBar
+            bool wickBreak = canJudgeInvalidation and invalidateOnWick and low < out.bottom and not proofReadyOnOrBeforeThisBar
+            bool mitigatedAfterValidSweep = proofReadyOnOrBeforeThisBar and mitigationTouch
             invalidateNow := closeInsideZoneInvalidates or closeBreakInvalidates or (not mitigatedAfterValidSweep and (expiredByAge or returnedBeforeSweep or wickBreak))
 
         else
@@ -1949,12 +2322,12 @@ processZone(RawZone z) =>
                 out.targetSweepBar := bar_index
                 targetSweptNow := true
 
-            bool liquiditySweptOnOrBeforeThisBar = out.liquiditySwept and not na(out.liquiditySweepBar) and out.liquiditySweepBar <= bar_index
-            bool closeInsideZoneInvalidates = canJudgeInvalidation and closeInsideZone and not liquiditySweptOnOrBeforeThisBar
-            bool returnedBeforeSweep = canJudgeInvalidation and overlapsZone and not liquiditySweptOnOrBeforeThisBar
-            bool closeBreakInvalidates = canJudgeInvalidation and close > out.top and not liquiditySweptOnOrBeforeThisBar
-            bool wickBreak = canJudgeInvalidation and invalidateOnWick and high > out.top and not liquiditySweptOnOrBeforeThisBar
-            bool mitigatedAfterValidSweep = liquiditySweptOnOrBeforeThisBar and mitigationTouch
+            bool proofReadyOnOrBeforeThisBar = liquidityProofReady(out) and not na(out.targetSweepBar) and out.targetSweepBar <= bar_index
+            bool closeInsideZoneInvalidates = canJudgeInvalidation and closeInsideZone and not proofReadyOnOrBeforeThisBar
+            bool returnedBeforeSweep = canJudgeInvalidation and overlapsZone and not proofReadyOnOrBeforeThisBar
+            bool closeBreakInvalidates = canJudgeInvalidation and close > out.top and not proofReadyOnOrBeforeThisBar
+            bool wickBreak = canJudgeInvalidation and invalidateOnWick and high > out.top and not proofReadyOnOrBeforeThisBar
+            bool mitigatedAfterValidSweep = proofReadyOnOrBeforeThisBar and mitigationTouch
             invalidateNow := closeInsideZoneInvalidates or closeBreakInvalidates or (not mitigatedAfterValidSweep and (expiredByAge or returnedBeforeSweep or wickBreak))
 
         if not invalidateNow
@@ -1968,14 +2341,13 @@ processZone(RawZone z) =>
             else if out.liquiditySwept
                 noInvalidationReason := INVALIDATION_LIQUIDITY_ALREADY_SWEPT
             out.lastInvalidationCheckReason := noInvalidationReason
-            drawRawDiagnostic(out.demand, bar_index, bar_index - out.originBar, time, out.top, out.bottom, "INVALIDATION_CHECK", out.lastInvalidationCheckReason)
 
         if not out.touched and overlapsZone and bar_index > out.originBar
             out.touched := true
             touchedNow := true
 
-        bool finalLiquiditySweptOnOrBeforeThisBar = out.liquiditySwept and not na(out.liquiditySweepBar) and out.liquiditySweepBar <= bar_index
-        bool finalMitigatedAfterValidSweep = finalLiquiditySweptOnOrBeforeThisBar and mitigationTouch
+        bool finalProofReadyOnOrBeforeThisBar = liquidityProofReady(out) and not na(out.targetSweepBar) and out.targetSweepBar <= bar_index
+        bool finalMitigatedAfterValidSweep = finalProofReadyOnOrBeforeThisBar and mitigationTouch
         if not invalidateNow and finalMitigatedAfterValidSweep
             out.active := false
             out.inactiveReason := "MITIGATED_AFTER_SWEEP"
@@ -1996,10 +2368,44 @@ processZone(RawZone z) =>
             out.liquidityLine := na
             out.targetLine := na
 
+    updateZoneBox(out)
     updateZoneLines(out)
     [out, liquiditySweptNow, targetSweptNow, touchedNow, invalidateNow]
 
-if barstate.isconfirmed and isPrimaryFiveMinute
+processExistingZones(bool canProcess, float pivotLowValue, int pivotLowBarValue, float pivotHighValue, int pivotHighBarValue, float targetPivotHighValue, int targetPivotHighBarValue, float targetPivotLowValue, int targetPivotLowBarValue) =>
+    if canProcess
+        int zoneCount = array.size(zones)
+        if zoneCount > 0
+            for i = zoneCount - 1 to 0
+                RawZone z = array.get(zones, i)
+                [linkedZone, linkedNow] = linkLiquidityAndTargets(z, pivotLowValue, pivotLowBarValue, pivotHighValue, pivotHighBarValue, targetPivotHighValue, targetPivotHighBarValue, targetPivotLowValue, targetPivotLowBarValue)
+                if linkedNow
+                    sendEvent("LIQUIDITY_LINKED", linkedZone)
+
+                [processedZone, liquiditySweptNow, targetSweptNow, touchedNow, invalidatedNow] = processZone(linkedZone)
+                if liquiditySweptNow
+                    sendEvent("LIQUIDITY_SWEPT", processedZone)
+                if targetSweptNow
+                    sendEvent("TARGET_SWEPT", processedZone)
+                if touchedNow
+                    sendEvent("ZONE_TOUCHED", processedZone)
+                if invalidatedNow
+                    sendEvent("ZONE_INVALIDATED", processedZone)
+                array.set(zones, i, processedZone)
+    true
+
+pivotLow = ta.pivotlow(low, pivotLen, pivotLen)
+pivotHigh = ta.pivothigh(high, pivotLen, pivotLen)
+targetPivotHigh = ta.pivothigh(high, 1, 1)
+targetPivotLow = ta.pivotlow(low, 1, 1)
+withinRuntimeWindow = bar_index >= last_bar_index - runtimeLookbackBars
+int pivotLowBar = bar_index - pivotLen
+int pivotHighBar = bar_index - pivotLen
+int targetPivotHighBar = bar_index - 1
+int targetPivotLowBar = bar_index - 1
+canProcessRuntime = withinRuntimeWindow and barstate.isconfirmed and isPrimaryFiveMinute
+
+if canProcessRuntime
     [demandValid, demandBaseIdx, demandConfirmationIdx, demandOriginBar, demandLegCandles, demandModel, demandTop, demandBottom, demandRejectReason] = resolveZoneCandidate(true, false)
     if demandValid
         int demandConfirmationBar = bar_index - demandConfirmationIdx
@@ -2007,7 +2413,7 @@ if barstate.isconfirmed and isPrimaryFiveMinute
         if demandCreated
             nextZoneId += 1
 
-    if accSuppressedSymbol()
+    if accSuppressedSymbol() and isBullish(0)
         int historicalDemandMaxBaseIdx = math.min(maxZoneAgeBars, bar_index - 1)
         bool historicalDemandCreatedAny = false
         if historicalDemandMaxBaseIdx > 0
@@ -2028,30 +2434,28 @@ if barstate.isconfirmed and isPrimaryFiveMinute
 
         int stackedDemandEventStartBar = currentEventConfirmationBar(true)
         int stackedDemandEventStartIdx = bar_index - stackedDemandEventStartBar
-        bool stackedDemandDirectional = isBullish(0)
-        if stackedDemandDirectional
-            int stackedDemandScanStart = math.max(stackedDemandEventStartIdx, 0)
-            bool stackedDemandFoundOriginCluster = false
-            int stackedDemandCreatedCount = 0
-            for stackedDemandScan = 1 to formationLegScanBars
-                int stackedDemandBaseIdx = stackedDemandScanStart + stackedDemandScan
-                if stackedDemandBaseIdx >= bar_index or stackedDemandCreatedCount >= 2
-                    break
+        int stackedDemandScanStart = math.max(stackedDemandEventStartIdx, 0)
+        bool stackedDemandFoundOriginCluster = false
+        int stackedDemandCreatedCount = 0
+        for stackedDemandScan = 1 to formationLegScanBars
+            int stackedDemandBaseIdx = stackedDemandScanStart + stackedDemandScan
+            if stackedDemandBaseIdx >= bar_index or stackedDemandCreatedCount >= 2
+                break
 
-                if isValidBase(stackedDemandBaseIdx, true)
-                    stackedDemandFoundOriginCluster := true
-                    [stackedDemandValid, stackedDemandConfirmationIdx, stackedDemandLegCandles, stackedDemandRejectReason] = resolveStandardZoneCandidateAt(stackedDemandEventStartIdx, stackedDemandBaseIdx, true, 0)
-                    bool notPrimaryDemand = not demandValid or stackedDemandBaseIdx != demandBaseIdx
-                    if stackedDemandValid and notPrimaryDemand
-                        int stackedDemandConfirmationBar = bar_index - stackedDemandConfirmationIdx
-                        [stackedDemandCreated, stackedDemandDuplicateSkipped] = createZone(stackedDemandBaseIdx, true, nextZoneId, stackedDemandLegCandles, MODEL_STANDARD, stackedDemandConfirmationBar)
-                        if stackedDemandCreated
-                            nextZoneId += 1
-                            stackedDemandCreatedCount += 1
-                else if stackedDemandFoundOriginCluster
-                    bool stackedDemandOlderDirectionalBoundary = isBullish(stackedDemandBaseIdx)
-                    if stackedDemandOlderDirectionalBoundary
-                        break
+            if isValidBase(stackedDemandBaseIdx, true)
+                stackedDemandFoundOriginCluster := true
+                [stackedDemandValid, stackedDemandConfirmationIdx, stackedDemandLegCandles, stackedDemandRejectReason] = resolveStandardZoneCandidateAt(stackedDemandEventStartIdx, stackedDemandBaseIdx, true, 0)
+                bool notPrimaryDemand = not demandValid or stackedDemandBaseIdx != demandBaseIdx
+                if stackedDemandValid and notPrimaryDemand
+                    int stackedDemandConfirmationBar = bar_index - stackedDemandConfirmationIdx
+                    [stackedDemandCreated, stackedDemandDuplicateSkipped] = createZone(stackedDemandBaseIdx, true, nextZoneId, stackedDemandLegCandles, MODEL_STANDARD, stackedDemandConfirmationBar)
+                    if stackedDemandCreated
+                        nextZoneId += 1
+                        stackedDemandCreatedCount += 1
+            else if stackedDemandFoundOriginCluster
+                bool stackedDemandOlderDirectionalBoundary = isBullish(stackedDemandBaseIdx)
+                if stackedDemandOlderDirectionalBoundary
+                    break
 
     [demandContValid, demandContBaseIdx, demandContConfirmationIdx, demandContOriginBar, demandContLegCandles, demandContModel, demandContTop, demandContBottom, demandContRejectReason] = resolveZoneCandidate(true, true)
     if demandContValid
@@ -2074,36 +2478,5 @@ if barstate.isconfirmed and isPrimaryFiveMinute
         if supplyContCreated
             nextZoneId += 1
 
-    float pivotLow = ta.pivotlow(low, pivotLen, pivotLen)
-    float pivotHigh = ta.pivothigh(high, pivotLen, pivotLen)
-    float targetPivotHigh = ta.pivothigh(high, 1, 1)
-    float targetPivotLow = ta.pivotlow(low, 1, 1)
-    int pivotLowBar = bar_index - pivotLen
-    int pivotHighBar = bar_index - pivotLen
-    int targetPivotHighBar = bar_index - 1
-    int targetPivotLowBar = bar_index - 1
-
-    int zoneCount = array.size(zones)
-    if zoneCount > 0
-        for i = zoneCount - 1 to 0
-            RawZone z = array.get(zones, i)
-            if rawMode == "Detection Only"
-                z.lastInvalidationCheckReason := INVALIDATION_RAW_MODE_DETECTION_ONLY
-                if not na(z.zoneBox)
-                    box.set_right(z.zoneBox, zoneRightBar(z))
-                array.set(zones, i, z)
-            else
-                [linkedZone, linkedNow] = linkLiquidityAndTargets(z, pivotLow, pivotLowBar, pivotHigh, pivotHighBar, targetPivotHigh, targetPivotHighBar, targetPivotLow, targetPivotLowBar)
-                if linkedNow
-                    sendEvent("LIQUIDITY_LINKED", linkedZone)
-
-                [processedZone, liquiditySweptNow, targetSweptNow, touchedNow, invalidatedNow] = processZone(linkedZone)
-                if liquiditySweptNow
-                    sendEvent("LIQUIDITY_SWEPT", processedZone)
-                if targetSweptNow
-                    sendEvent("TARGET_SWEPT", processedZone)
-                if touchedNow
-                    sendEvent("ZONE_TOUCHED", processedZone)
-                if invalidatedNow
-                    sendEvent("ZONE_INVALIDATED", processedZone)
-                array.set(zones, i, processedZone)
+processExistingZones(canProcessRuntime, pivotLow, pivotLowBar, pivotHigh, pivotHighBar, targetPivotHigh, targetPivotHighBar, targetPivotLow, targetPivotLowBar)
+liquidityDebugTable := updateLiquidityDebugTable(liquidityDebugTable)

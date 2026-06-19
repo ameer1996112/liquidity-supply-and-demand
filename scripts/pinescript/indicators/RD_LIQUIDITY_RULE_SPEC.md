@@ -52,11 +52,11 @@ Reference behavior:
    - Supply: the liquidity leg forms a high, then price must break the low that belongs to that liquidity leg before returning to the supply zone.
    - If this own-high/own-low break is missing, the zone remains invalid even if price reacts from the zone.
 
-7. Prefer at least two opposite-direction candles for valid liquidity.
+7. Prefer at least two opposite-direction candles for stronger liquidity, but allow one-candle liquidity when the strategy artifact does.
    - Source: `kxh_3__oAqg` 23:11-24:27; `LCydpj3CaHo` 15:00-17:24.
    - Demand liquidity is normally two or more bearish candles forming a proper low.
    - Supply liquidity is normally two or more bullish candles forming a proper high.
-   - One-candle liquidity is lower quality and should be rejected by default on 5m unless a debug/experimental setting explicitly allows it.
+   - One-candle liquidity is lower quality, but the current TradingView strategy artifact allows it and leaves stricter filtering to downstream validation.
 
 8. Internal liquidity must be stricter.
    - Source: `zglv2r9xXnE` 04:38-05:10.
@@ -78,7 +78,7 @@ Reference behavior:
     - Lines should be tied to the zone's accepted RD liquidity proof, not generic pivots.
 
 12. Invalid zones should not clutter the chart.
-    - Zones rejected by no liquidity, far liquidity, one-candle liquidity, missing own-level break, retap before valid sweep, or close-inside invalidation should be hidden unless debug mode explicitly requests rejected diagnostics.
+    - Zones rejected by no liquidity, far liquidity, missing own-level break, retap before valid sweep, or close-inside invalidation should be hidden unless debug mode explicitly requests rejected diagnostics.
 
 ## Implementation Implications
 
@@ -95,5 +95,5 @@ Reference behavior:
 - Keep `plotLiq` defaulted on so linked liquidity/target levels are visible during comparison.
 - Do not route liquidity through generic pivot-only helpers; a pivot is only a candidate after RD candle-structure, unswept, and distance checks pass.
 - Keep ACC concepts as internal bounds logic only; futures/metals must not show separate ACC colors.
-- Enforce two-candle liquidity as the default minimum.
+- Match the strategy artifact's one-candle-liquidity default while preserving liquidity candle counts for downstream filtering.
 - Enforce a volatility-relative liquidity distance cap sourced from the RD "too far" rule.
