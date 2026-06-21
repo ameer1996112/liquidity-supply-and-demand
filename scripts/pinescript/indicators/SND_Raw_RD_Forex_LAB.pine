@@ -976,10 +976,10 @@ cleanupNestedSameSideZones(int newIndexOrZoneId) =>
                         bool newInsideOther = zoneContained(newZone.top, newZone.bottom, otherZone.top, otherZone.bottom)
                         bool otherInsideNew = zoneContained(otherZone.top, otherZone.bottom, newZone.top, newZone.bottom)
                         bool nearbySameLeg = math.abs(newZone.originBar - otherZone.originBar) <= formationLegScanBars
-                        bool nestedSameLeg = nearbySameLeg and (newInsideOther or otherInsideNew)
-                        bool heavyOverlap = nearbySameLeg and zoneOverlapPct(newZone.top, newZone.bottom, otherZone.top, otherZone.bottom) >= 0.95
-                        if nestedSameLeg or heavyOverlap
-                            bool keepNew = preferFirstZone(newZone, otherZone)
+                        bool nestedConflict = (newInsideOther or otherInsideNew) and sameModelFamily(newZone.model, otherZone.model)
+                        bool heavyOverlap = nearbySameLeg and zoneOverlapPct(newZone.top, newZone.bottom, otherZone.top, otherZone.bottom) >= 0.65
+                        if nestedConflict or heavyOverlap
+                            bool keepNew = nestedConflict ? zoneSize(newZone.top, newZone.bottom) < zoneSize(otherZone.top, otherZone.bottom) : preferFirstZone(newZone, otherZone)
                             if keepNew
                                 otherZone := deactivateNestedZone(otherZone, cleanupRemovalReason(otherZone))
                                 array.set(zones, i, otherZone)
