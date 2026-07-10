@@ -1,5 +1,7 @@
 # Bugs
 
+- 2026-06-21 | `scripts/pinescript/indicators/SND_Raw_RD_Forex*.pine` | Accepted parent zones such as the 16:05 XAU supply could be skipped when same-family containment cleanup preferred the existing/child zone after the broader historical parent was created | Limited tighter-zone replacement to nearby same-leg conflicts; outside the same leg, containment cleanup now preserves the enclosing parent zone whether it is new or existing; regression risk is limited to nested same-family cleanup ordering
+
 - 2026-06-21 | `scripts/pinescript/indicators/SND_Raw_RD_Forex*.pine` | A broad same-family supply zone could still remain over the correct tighter zone when the contained candidate origins were more than `formationLegScanBars` apart, because containment cleanup was incorrectly gated by same-leg proximity | Changed containment cleanup to compare same-family nested zones regardless of origin distance while keeping heavy-overlap cleanup gated to nearby same-leg zones; regression risk is limited to fully contained same-family zones
 
 - 2026-06-21 | `scripts/pinescript/indicators/SND_Raw_RD_Forex*.pine` | Nested same-leg supply zones with different origins could still keep the broad incorrect outer zone because the tighter-zone preference was limited to exact same-origin nested candidates | Generalized nested cleanup so any same-leg contained/nested conflict keeps the tighter zone; heavy-overlap-only conflicts still use the newer-origin preference; regression risk is limited to nested same-side same-leg zones

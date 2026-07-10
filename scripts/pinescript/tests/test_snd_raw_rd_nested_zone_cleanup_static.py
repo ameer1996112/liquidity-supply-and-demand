@@ -24,8 +24,10 @@ def test_nested_zone_cleanup_only_dedupes_same_formation_leg() -> None:
 
         assert "bool nearbySameLeg = math.abs(newZone.originBar - otherZone.originBar) <= formationLegScanBars" in cleanup
         assert "bool nestedConflict = (newInsideOther or otherInsideNew) and sameModelFamily(newZone.model, otherZone.model)" in cleanup
+        assert "bool nestedSameLeg = nestedConflict and nearbySameLeg" in cleanup
+        assert "bool newIsParent = otherInsideNew" in cleanup
         assert "bool heavyOverlap = nearbySameLeg and zoneOverlapPct(newZone.top, newZone.bottom, otherZone.top, otherZone.bottom) >= 0.65" in cleanup
-        assert "bool keepNew = nestedConflict ? zoneSize(newZone.top, newZone.bottom) < zoneSize(otherZone.top, otherZone.bottom) : preferFirstZone(newZone, otherZone)" in cleanup
+        assert "bool keepNew = nestedConflict ? (nestedSameLeg ? zoneSize(newZone.top, newZone.bottom) < zoneSize(otherZone.top, otherZone.bottom) : newIsParent) : preferFirstZone(newZone, otherZone)" in cleanup
         assert "sameOriginNested" not in cleanup
         assert "adjacentSameLegOrigin" not in cleanup
         assert "if nestedConflict or heavyOverlap" in cleanup
