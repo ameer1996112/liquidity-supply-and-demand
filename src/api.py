@@ -36,7 +36,7 @@ from config import get_settings
 from config.logging_config import configure_logging, get_logger
 from src.adapters.redis_queue import get_redis
 from src.core.transport import get_transport
-from src.core.signal import validate_webhook_payload
+from src.core.signal import validate_rd_forex_debug_payload, validate_webhook_payload
 from src.services.webhook_strategy_context import (
     StrategyContextError,
     build_received_signal_row,
@@ -506,6 +506,31 @@ def _validate_webhook_payload(data: dict[str, Any]) -> dict[str, Any]:
         ) from e
 
 
+def _validate_rd_forex_debug_payload(data: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return validate_rd_forex_debug_payload(data)
+    except ValidationError as e:
+        raise RequestValidationError(errors=e.errors()) from e
+    except ValueError as e:
+        raise RequestValidationError(
+            errors=[{"type": "value_error", "loc": ("body",), "msg": str(e)}]
+        ) from e
+
+
+def _reject_unvalidated_rd_forex_execution(payload: dict[str, Any]) -> None:
+    strategy = str(payload.get("strategy_id") or "").strip().lower()
+    version = str(payload.get("strategy_version") or "").strip().upper()
+    event = str(payload.get("event_type") or payload.get("action") or "").strip().upper()
+    is_rd_forex = strategy in {"rd_forex", "rd_forex_zone_detector"} or version.startswith("LAB_PHASE0")
+    if not is_rd_forex:
+        return
+    settings = get_settings()
+    if event != "TRADE_ELIGIBLE_EXECUTABLE":
+        raise HTTPException(status_code=400, detail="RD Forex lifecycle/debug event must use /webhook/rd-forex/debug")
+    if not settings.rd_forex_executable_enabled:
+        raise HTTPException(status_code=403, detail="RD Forex executable alerts are disabled until validation gates pass")
+
+
 async def get_webhook_payload(
     request: Request,
     x_webhook_secret: str | None = Header(None),
@@ -523,6 +548,26 @@ async def get_webhook_payload(
     if not isinstance(data, dict):
         raise RequestValidationError(errors=[{"type": "value_error", "loc": ("body",), "msg": "Body must be a JSON object"}])
     return _validate_webhook_payload(data)
+
+
+@app.post("/webhook/rd-forex/debug")
+async def rd_forex_debug_webhook(
+    request: Request,
+    x_webhook_secret: str | None = Header(None),
+):
+    """Receive RD Forex LAB lifecycle/debug events without queuing or execution."""
+    validate_webhook_secret(request, x_webhook_secret)
+    raw = await request.body()
+    data = parse_body(raw)
+    payload = _validate_rd_forex_debug_payload(data)
+    logger.info(
+        "RD Forex debug event accepted: event=%s run_id=%s symbol=%s zone_id=%s",
+        payload.get("event"),
+        payload.get("run_id"),
+        payload.get("symbol"),
+        payload.get("zone_id"),
+    )
+    return JSONResponse(status_code=202, content={"status": "accepted", "queued": False})
 
 
 @app.get("/health")
@@ -809,6 +854,8 @@ async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhoo
     # The webhook endpoint is only reachable with the correct webhook secret, so
     # defaulting to LIVE here is safe — manual callers who want PAPER must send
     # `force_paper: true` in the payload body.
+
+    _reject_unvalidated_rd_forex_execution(payload)
 
     user_agent = request.headers.get("User-Agent", "")
     is_tradingview = "TradingView" in user_agent  # kept for logging only

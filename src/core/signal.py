@@ -121,12 +121,57 @@ class EntryWebhookPayload(BaseModel):
     setup_strengths: list[str] | None = Field(default=None, description="Top backend setup scoring strengths")
     setup_weaknesses: list[str] | None = Field(default=None, description="Top backend setup scoring weaknesses")
 
-
     @model_validator(mode="after")
     def side_must_be_buy_or_sell(self) -> "EntryWebhookPayload":
         if str(self.side).lower() not in ("buy", "sell"):
             raise ValueError("side must be 'buy' or 'sell'")
         return self
+
+    @model_validator(mode="after")
+    def rd_forex_lifecycle_events_are_not_executable(self) -> "EntryWebhookPayload":
+        event = str(self.event_type or self.action or "").strip().upper()
+        strategy = str(self.strategy_id or "").strip().lower()
+        version = str(self.strategy_version or "").strip().upper()
+        is_rd_forex = strategy in {"rd_forex", "rd_forex_zone_detector"} or version.startswith("LAB_PHASE0")
+        if is_rd_forex and event != "TRADE_ELIGIBLE_EXECUTABLE":
+            raise ValueError("RD Forex lifecycle/debug events are not executable webhook payloads")
+        return self
+
+
+class RdForexDebugEventPayload(BaseModel):
+    """Non-execution RD Forex LAB lifecycle/debug event schema."""
+
+    model_config = {"extra": "allow"}
+
+    event: Literal[
+        "ZONE_CANDIDATE",
+        "ZONE_CONFIRMED_NON_EXECUTABLE",
+        "LIQUIDITY_LINKED",
+        "ZONE_TOUCHED",
+        "ZONE_INVALIDATED",
+        "LIQUIDITY_SWEPT",
+        "TARGET_SWEPT",
+    ]
+    run_id: str = Field(..., min_length=1)
+    symbol: str = Field(..., min_length=1)
+    timeframe: str = Field(..., min_length=1)
+    zone_id: int
+    model: str = Field(..., min_length=1)
+    zone_type: Literal["demand", "supply"]
+    origin_bar: int
+    origin_time: int | None = None
+    detection_bar: int | None = None
+    detection_time: int | None = None
+    confirmation_bar: int | None = None
+    top: float
+    bottom: float
+    active: bool | None = None
+    liquidity_price: float | None = None
+    liquidity_bar_index: int | None = None
+    liquidity_swept: bool | None = None
+    target_swept: bool | None = None
+    touched: bool | None = None
+    invalidation_reason: str | None = None
 
 
 def validate_webhook_payload(data: dict[str, Any]) -> dict[str, Any]:
@@ -146,4 +191,12 @@ def validate_webhook_payload(data: dict[str, Any]) -> dict[str, Any]:
         ExitWebhookPayload.model_validate(data)
     else:
         EntryWebhookPayload.model_validate(data)
+    return data
+
+
+def validate_rd_forex_debug_payload(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate a non-executable RD Forex LAB debug/lifecycle event."""
+    if not data or not isinstance(data, dict):
+        raise ValueError("Empty or invalid body")
+    RdForexDebugEventPayload.model_validate(data)
     return data

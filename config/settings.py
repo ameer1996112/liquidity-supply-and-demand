@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     jira_task_type_id: str = Field(default="10003", validation_alias="JIRA_TASK_TYPE_ID")
     paper_trading_enabled: bool = False
     paper_auto_execute: bool = True
+    rd_forex_executable_enabled: bool = Field(
+        default=False,
+        description="Allow RD Forex executable TradingView alerts after LAB validation gates pass.",
+        validation_alias=AliasChoices("RD_FOREX_EXECUTABLE_ENABLED", "rd_forex_executable_enabled"),
+    )
 
     # cTrader Open API (Spotware) OAuth + Open API proxy auth
     ctrader_client_id: str = Field(default="", validation_alias=AliasChoices("CTRADER_CLIENT_ID", "CTRADER_OPENAPI_CLIENT_ID"))

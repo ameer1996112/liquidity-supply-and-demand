@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 from pydantic import ValidationError
 
-from src.core.signal import EntryWebhookPayload
+from src.core.signal import EntryWebhookPayload, validate_rd_forex_debug_payload, validate_webhook_payload
 from src.core.transport import (
     InMemoryTransport,
     RedisTransport,
@@ -279,6 +279,57 @@ class EntryWebhookPayloadValidationTests(unittest.TestCase):
         self.assertEqual(payload.max_entry_delay_seconds, 300)
         self.assertEqual(payload.entry_poll_interval_seconds, 1.0)
         self.assertEqual(payload.max_spread_pips, 1.5)
+
+    def test_rd_forex_lifecycle_event_is_not_executable(self):
+        with self.assertRaises(ValueError):
+            validate_webhook_payload(
+                {
+                    "strategy_id": "rd_forex_zone_detector",
+                    "strategy_version": "LAB_PHASE0_NON_EXECUTABLE",
+                    "event_type": "ZONE_CONFIRMED_NON_EXECUTABLE",
+                    "symbol": "EURUSD",
+                    "side": "buy",
+                    "entry": 1.10,
+                    "sl": 1.09,
+                    "tp": 1.12,
+                    "size": 1.0,
+                }
+            )
+
+    def test_rd_forex_debug_payload_accepts_non_execution_event(self):
+        payload = {
+            "event": "ZONE_CONFIRMED_NON_EXECUTABLE",
+            "run_id": "OANDA:EURUSD-5-123",
+            "symbol": "EURUSD",
+            "timeframe": "5",
+            "zone_id": 1,
+            "model": "ACC_STANDARD",
+            "zone_type": "demand",
+            "origin_bar": 100,
+            "confirmation_bar": 104,
+            "top": 1.101,
+            "bottom": 1.099,
+        }
+
+        self.assertIs(validate_rd_forex_debug_payload(payload), payload)
+
+    def test_rd_forex_debug_payload_rejects_executable_event(self):
+        with self.assertRaises(ValidationError):
+            validate_rd_forex_debug_payload(
+                {
+                    "event": "TRADE_ELIGIBLE_EXECUTABLE",
+                    "run_id": "OANDA:EURUSD-5-123",
+                    "symbol": "EURUSD",
+                    "timeframe": "5",
+                    "zone_id": 1,
+                    "model": "ACC_STANDARD",
+                    "zone_type": "demand",
+                    "origin_bar": 100,
+                    "confirmation_bar": 104,
+                    "top": 1.101,
+                    "bottom": 1.099,
+                }
+            )
 
 
 if __name__ == "__main__":

@@ -98,7 +98,10 @@ def test_supply_inducement_uses_retracement_high_liquidity() -> None:
         assert "if not out.active or out.demand or ((out.liquidityValid or out.targetSwept) and not retracementRescanAllowed) or out.liquiditySwept" in source
         assert "if use_inducement_linking and enableOneCandleLiquidity" in source
         assert "bool bestIsRetracement = bestSource == \"RETRACEMENT\"" in source
-        assert "sameSide and (not bestIsRetracement or isCloser or (isSameDistance and isMoreRecent))" in source
+        if path.name.endswith("_LAB.pine"):
+            assert "sameSide and (not bestIsRetracement or isCloser or (isSameDistance and isEarlierPivot))" in source
+        else:
+            assert "sameSide and (not bestIsRetracement or isCloser or (isSameDistance and isMoreRecent))" in source
         assert "bestSource := \"RETRACEMENT\"" in source
 
 

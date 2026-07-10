@@ -43,3 +43,72 @@ Prior findings are largely addressed. The revised plan explicitly covers dedicat
 Remaining non-blocking tightening: the liquidity tie-break wording says “prefer closest qualifying candidate, then earliest pivot, then smallest price distance,” where “closest” and “smallest price distance” may overlap unless “closest” is defined as nearest in time or nearest to the zone edge. This will be made explicit during implementation; it does not block the plan because Phase 0 and fixture comparison catch divergence.
 
 VERDICT: APPROVED
+
+## Act 3 — Build Report (Codex, 2026-07-11)
+
+Implemented Phase 0 safety boundary and the first LAB detector alignment pass.
+
+Changed:
+- `scripts/pinescript/indicators/SND_Raw_RD_Forex_LAB.pine`
+  - Disabled continuation-zone creation for the core normal/accuracy validation phase.
+  - Removed metal/index accuracy suppression by making accuracy bounds available for all symbols.
+  - Changed directional candle checks so dojis do not confirm zones.
+  - Replaced ATR/body displacement hard gates with strict closed-bar confirmation beyond the full origin boundary or selected accuracy boundary.
+  - Renamed official confirmation lifecycle event to `ZONE_CONFIRMED_NON_EXECUTABLE`.
+  - Expanded debug payload fields with `run_id`, strategy/version, feed/timeframe, model, detection/confirmation fields, liquidity, tap, and invalidation fields.
+  - Kept Pine `alert()` fail-closed: only `TRADE_ELIGIBLE_EXECUTABLE` can call `alert()`. LAB currently emits no executable event.
+  - Moved touch marking to confirmation/invalidation window so formation/departure wicks do not count as return taps.
+  - Implemented the reviewed liquidity tie-break interpretation as closest to the zone edge, then earliest pivot, then price distance. In code this is represented by `bestDist` first and `isEarlierPivot` on equal distance.
+- `src/core/signal.py`
+  - Added non-execution RD Forex debug schema.
+  - Rejected RD Forex lifecycle/debug events from executable webhook validation.
+- `src/api.py`
+  - Added `/webhook/rd-forex/debug`, which validates lifecycle/debug events and does not persist or enqueue them.
+  - Added fail-closed `/webhook` gate for RD Forex executable alerts.
+- `config/settings.py`
+  - Added `RD_FOREX_EXECUTABLE_ENABLED`, default `false`.
+- `scripts/pinescript/tests/test_snd_raw_rd_demand_liquidity_near_edge_static.py`
+  - Kept baseline/PROD old ranking assertions and added LAB-specific earliest-pivot tie-break assertions.
+- `scripts/pinescript/tests/test_snd_raw_rd_origin_high_reference_fallback_static.py`
+  - Updated retracement tie-break assertion for LAB only.
+- `tests/test_signal_transport.py`
+  - Added schema coverage for executable rejection and debug payload acceptance.
+
+Validation:
+- Jira ticket creation attempted with `node scripts/jira/jira-sync.js --no-branch "Implement RD Forex LAB zone detection validation gates"` and failed because Atlassian returned `Jira 404: {"errorMessage":"Site temporarily unavailable","errorCode":"OTHER"}`.
+- `source ./venv/bin/activate && PYTHONPATH=. pytest -q tests/test_signal_transport.py scripts/pinescript/tests` passed: `50 passed in 0.43s`.
+- `source ./venv/bin/activate && python -m py_compile src/core/signal.py src/api.py config/settings.py` passed.
+- `git diff --check` passed.
+- Required `PYTHONPATH=. pytest -q` was run with system Python and failed during collection because `playwright` was not installed and `scripts.optimizer.optimizer` called `sys.exit(1)`.
+- Required full-suite command was rerun through `./venv`; it progressed past 60% with several failures already printed, then produced no further output for repeated polls and was terminated to avoid leaving a background test run. Full-suite pass/fail remains unresolved in this environment.
+
+Deviations / limitations:
+- No visual parity claim is made. Protected-reference screenshots/fixtures and comparator artifacts were not provided in this repo state.
+- No production promotion was made; baseline and PROD were compared at the header/shape level and left unchanged.
+- Pine cannot be compiled locally here; validation is static tests plus review.
+- LAB debug events are schema-ready but not persisted to JSONL/CSV by the API yet; the endpoint is non-execution and log-only.
+- Candidate/rejected events remain visual/internal in this slice; confirmed/liquidity/touch/invalidation payload shape is prepared, but `sendEvent()` suppresses all non-executable alerts to keep fail-closed behavior.
+- Object peak counts were not measured because TradingView runtime/replay execution was not available.
+
+### Fix Round 1 (Codex, 2026-07-11)
+
+Addressed verification findings without redesigning the approved plan:
+- `SND_Raw_RD_Forex_LAB.pine` now sends only allowlisted non-executable debug events through TradingView `alert()`: `ZONE_CANDIDATE`, `ZONE_CONFIRMED_NON_EXECUTABLE`, `LIQUIDITY_LINKED`, `LIQUIDITY_SWEPT`, `TARGET_SWEPT`, `ZONE_TOUCHED`, and `ZONE_INVALIDATED`.
+- LAB no longer contains or emits `TRADE_ELIGIBLE_EXECUTABLE`; executable routing remains backend-gated by `/webhook`, schema validation, and `RD_FOREX_EXECUTABLE_ENABLED`.
+- `ZONE_CONFIRMED_NON_EXECUTABLE` is only alerted when `confirmationBar == bar_index`; historical/backfilled zones may still render but do not emit a current confirmation debug event.
+- Added focused Pine static tests for the debug-event allowlist, no LAB executable event, and current-bar confirmation alert guard.
+- Added backend schema coverage proving debug payloads reject `TRADE_ELIGIBLE_EXECUTABLE`.
+
+Proof:
+- `source ./venv/bin/activate && PYTHONPATH=. pytest -q tests/test_signal_transport.py scripts/pinescript/tests`
+  - `53 passed in 0.50s`
+- `source ./venv/bin/activate && python -m py_compile src/core/signal.py src/api.py config/settings.py`
+  - passed with no output
+- `git diff --check`
+  - passed with no output
+
+### Claude's verdict
+
+Independent review completed. The focused Pine/backend suite passes (`53 passed in 0.50s`), the webhook-ingress proof passes (`30 passed in 4.05s`), Python compilation passes, and `git diff --check` passes. The fix closes the material debug-stream gap: LAB emits only allowlisted non-executable lifecycle events, the executable event is absent from LAB, and historical confirmation alerts are limited to the current confirmation bar.
+
+The full `PYTHONPATH=. pytest -q` suite remains unresolved: it reproduced multiple failures and stopped yielding output before the bounded run was terminated. TradingView compilation, protected-reference visual parity, the JSONL/CSV comparator artifacts, and object-peak measurements remain unverified. This build is therefore an implemented and tested alignment slice, not approval for PROD promotion or live execution.

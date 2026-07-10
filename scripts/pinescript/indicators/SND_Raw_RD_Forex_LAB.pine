@@ -18,7 +18,7 @@ const bool plotLiq = true
 const bool invalidateOnWick = true
 const string rawMode = "Lifecycle"
 const bool showInactiveZones = false
-const bool enableContinuationZones = true
+const bool enableContinuationZones = false
 const float maxZoneAgeHours = 26.0
 const bool useAccuracyBounds = true
 const bool rejectFormationRetouch = true
@@ -262,20 +262,19 @@ sweptTargetLineRightBar(RawZone z) =>
     z.targetSwept and not na(z.targetSweepBar) ? z.targetSweepBar + 1 : projectedRightBar()
 
 accSuppressedSymbol() =>
-    string tickerUpper = str.upper(syminfo.ticker)
-    str.contains(tickerUpper, "XAU") or str.contains(tickerUpper, "XAG") or str.contains(tickerUpper, "XPT") or str.contains(tickerUpper, "XPD")
+    false
 
 accuracyBoundsAllowed() =>
-    useAccuracyBounds and not accSuppressedSymbol()
+    useAccuracyBounds
 
 formationRetouchRejectAllowed() =>
-    rejectFormationRetouch and not accSuppressedSymbol()
+    rejectFormationRetouch
 
 isBullish(int offset) =>
-    close[offset] >= open[offset]
+    close[offset] > open[offset]
 
 isBearish(int offset) =>
-    close[offset] <= open[offset]
+    close[offset] < open[offset]
 
 baseNestedInsidePriorSameSide(int offset, bool demand) =>
     bool nested = false
@@ -499,8 +498,8 @@ demandOriginHighReferenceLiquidity(RawZone z) =>
                 bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or dist <= maxDistPrice
                 bool isCloser = dist < bestDist
                 bool isSameDistance = dist == bestDist
-                bool isMoreRecent = na(bestBar) or refBar > bestBar
-                if distOK and (na(bestBar) or isCloser or (isSameDistance and isMoreRecent))
+                bool isEarlierPivot = na(bestBar) or refBar < bestBar
+                if distOK and (na(bestBar) or isCloser or (isSameDistance and isEarlierPivot))
                     bestDist := dist
                     bestPrice := refPrice
                     bestBar := refBar
@@ -670,31 +669,18 @@ isContinuationZone(int baseIdx, bool demand) =>
 displacement_leg_confirmed(int displacementIdx, int baseIdx, bool demand) =>
     bool confirmed = false
     if displacementIdx >= 0 and baseIdx >= 0 and displacementIdx <= bar_index and baseIdx <= bar_index
-        float baseBody = math.abs(close[baseIdx] - open[baseIdx])
-        float displacementBody = math.abs(close[displacementIdx] - open[displacementIdx])
         bool directionalCandle = demand ? isBullish(displacementIdx) : isBearish(displacementIdx)
-        bool breaksOrigin = demand ? (close[displacementIdx] > high[baseIdx] or high[displacementIdx] > high[baseIdx]) : (close[displacementIdx] < low[baseIdx] or low[displacementIdx] < low[baseIdx])
-        float closeExtension = demand ? close[displacementIdx] - high[baseIdx] : low[baseIdx] - close[displacementIdx]
-        float wickExtension = demand ? high[displacementIdx] - high[baseIdx] : low[baseIdx] - low[displacementIdx]
-        bool extensionOk = closeExtension >= atr14 * 0.10 or wickExtension >= atr14 * 0.20
-        bool bodyAtrOk = displacementBody >= atr14 * 0.20
-        bool bodyVsBaseOk = baseBody <= syminfo.mintick ? true : displacementBody >= baseBody * 0.50
-        confirmed := directionalCandle and breaksOrigin and extensionOk and bodyAtrOk and bodyVsBaseOk
+        bool closeBreaksOrigin = demand ? close[displacementIdx] > high[baseIdx] : close[displacementIdx] < low[baseIdx]
+        confirmed := directionalCandle and closeBreaksOrigin
     confirmed
 
 acc_displacement_leg_confirmed(int displacementIdx, int baseIdx, bool demand, int legCandles) =>
     bool confirmed = false
     if displacementIdx >= 0 and baseIdx >= 0 and displacementIdx <= bar_index and baseIdx <= bar_index and isValidAccModel(baseIdx, demand, legCandles)
         [accTop, accBottom] = accPrecisionBounds(baseIdx, demand)
-        float baseBody = math.abs(close[baseIdx] - open[baseIdx])
-        float displacementBody = math.abs(close[displacementIdx] - open[displacementIdx])
         bool directionalCandle = demand ? isBullish(displacementIdx) : isBearish(displacementIdx)
         bool closesBeyondAccBody = demand ? close[displacementIdx] > accTop : close[displacementIdx] < accBottom
-        float closeExtension = demand ? close[displacementIdx] - accTop : accBottom - close[displacementIdx]
-        bool extensionOk = closeExtension >= syminfo.mintick * 0.5
-        bool bodyAtrOk = displacementBody >= atr14 * 0.20
-        bool bodyVsBaseOk = baseBody <= syminfo.mintick ? true : displacementBody >= baseBody * 0.50
-        confirmed := directionalCandle and closesBeyondAccBody and extensionOk and bodyAtrOk and bodyVsBaseOk
+        confirmed := directionalCandle and closesBeyondAccBody
     confirmed
 
 formation_leg_retouches_zone_after_leave(int baseIdx, bool demand, int startOffset) =>
@@ -770,13 +756,22 @@ findDisplacementBase(bool demand, int startOffset, int maxLegBars) =>
 payload(string eventName, RawZone z) =>
     "{" +
      "\"event\":\"" + eventName + "\"," +
+     "\"run_id\":\"" + syminfo.tickerid + "-" + timeframe.period + "-" + str.tostring(time_close) + "\"," +
+     "\"strategy_id\":\"rd_forex_zone_detector\"," +
+     "\"strategy_version\":\"LAB_PHASE0_NON_EXECUTABLE\"," +
      "\"symbol\":\"" + syminfo.ticker + "\"," +
+     "\"feed\":\"" + syminfo.tickerid + "\"," +
+     "\"timeframe\":\"" + timeframe.period + "\"," +
      "\"time\":" + str.tostring(time_close) + "," +
      "\"bar_index\":" + str.tostring(bar_index) + "," +
      "\"zone_id\":" + str.tostring(z.id) + "," +
+     "\"model\":\"" + z.model + "\"," +
      "\"zone_type\":\"" + (z.demand ? "demand" : "supply") + "\"," +
      "\"origin_bar\":" + str.tostring(z.originBar) + "," +
      "\"origin_time\":" + str.tostring(z.originTime) + "," +
+     "\"detection_bar\":" + str.tostring(z.createdBar) + "," +
+     "\"detection_time\":" + str.tostring(time_close) + "," +
+     "\"confirmation_bar\":" + intNum(z.confirmationBar) + "," +
      "\"top\":" + num(z.top) + "," +
      "\"bottom\":" + num(z.bottom) + "," +
      "\"liquidity_price\":" + num(z.liquidityPrice) + "," +
@@ -792,11 +787,18 @@ payload(string eventName, RawZone z) =>
      "\"target_sweep_bar\":" + intNum(z.targetSweepBar) + "," +
      "\"liquidity_swept\":" + boolText(z.liquiditySwept) + "," +
      "\"target_swept\":" + boolText(z.targetSwept) + "," +
+     "\"touched\":" + boolText(z.touched) + "," +
+     "\"invalidation_start_bar\":" + intNum(z.invalidationStartBar) + "," +
+     "\"invalidation_reason\":\"" + z.inactiveReason + "\"," +
      "\"active\":" + boolText(z.active) +
      "}"
 
+isLabDebugEvent(string eventName) =>
+    eventName == "ZONE_CANDIDATE" or eventName == "ZONE_CONFIRMED_NON_EXECUTABLE" or eventName == "LIQUIDITY_LINKED" or eventName == "LIQUIDITY_SWEPT" or eventName == "TARGET_SWEPT" or eventName == "ZONE_TOUCHED" or eventName == "ZONE_INVALIDATED"
+
 sendEvent(string eventName, RawZone z) =>
-    alert(payload(eventName, z), alert.freq_once_per_bar_close)
+    if isLabDebugEvent(eventName)
+        alert(payload(eventName, z), alert.freq_once_per_bar_close)
 
 sameBounds(float topA, float bottomA, float topB, float bottomB) =>
     math.abs(topA - topB) <= syminfo.mintick * 0.5 and math.abs(bottomA - bottomB) <= syminfo.mintick * 0.5
@@ -1313,7 +1315,8 @@ createZone(int baseIdx, bool demand, int zoneId, int legCandles, string model, i
                 z.liquidityCompareLabel := na
                 array.unshift(zones, z)
                 trimZones()
-                sendEvent("ZONE_CREATED", z)
+                if confirmationBar == bar_index
+                    sendEvent("ZONE_CONFIRMED_NON_EXECUTABLE", z)
                 cleanupNestedSameSideZones(0)
                 created := true
     [created, duplicateSkipped]
@@ -1987,12 +1990,12 @@ f_scan_demand_liquidity(RawZone z) =>
                         if distOK
                             bool isCloser = distFromZone < bestDist
                             bool isSameDistance = distFromZone == bestDist
-                            bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
+                            bool isEarlierPivot = na(bestLiqBar) or pBar < bestLiqBar
                             bool preferAwayFromEdge = use_inducement_linking and zoneHeight >= pip_size * 5.0
                             bool isNearEdge = preferAwayFromEdge and distFromZone < pip_size * 2.0
                             bool improvesEdgeQuality = bestLiqNearEdge and not isNearEdge
                             bool sameEdgeQuality = bestLiqNearEdge == isNearEdge
-                            if na(bestLiqBar) or improvesEdgeQuality or (sameEdgeQuality and (isCloser or (isSameDistance and isMoreRecent)))
+                            if na(bestLiqBar) or improvesEdgeQuality or (sameEdgeQuality and (isCloser or (isSameDistance and isEarlierPivot)))
                                 bestDist := distFromZone
                                 bestLiqPrice := pLow
                                 bestLiqBar := pBar
@@ -2026,12 +2029,12 @@ f_scan_demand_liquidity(RawZone z) =>
                             if distOK
                                 bool isCloser = distFromZone < bestDist
                                 bool isSameDistance = distFromZone == bestDist
-                                bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
+                                bool isEarlierPivot = na(bestLiqBar) or pBar < bestLiqBar
                                 bool preferAwayFromEdge = use_inducement_linking and zoneHeight >= pip_size * 5.0
                                 bool isNearEdge = preferAwayFromEdge and distFromZone < pip_size * 2.0
                                 bool improvesEdgeQuality = bestLiqNearEdge and not isNearEdge
                                 bool sameEdgeQuality = bestLiqNearEdge == isNearEdge
-                                if na(bestLiqBar) or improvesEdgeQuality or (sameEdgeQuality and (isCloser or (isSameDistance and isMoreRecent)))
+                                if na(bestLiqBar) or improvesEdgeQuality or (sameEdgeQuality and (isCloser or (isSameDistance and isEarlierPivot)))
                                     bestDist := distFromZone
                                     bestLiqPrice := pLow
                                     bestLiqBar := pBar
@@ -2064,12 +2067,12 @@ f_scan_demand_liquidity(RawZone z) =>
                             if distOK
                                 bool isCloser = distFromZone < bestDist
                                 bool isSameDistance = distFromZone == bestDist
-                                bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
+                                bool isEarlierPivot = na(bestLiqBar) or pBar < bestLiqBar
                                 bool preferAwayFromEdge = use_inducement_linking and zoneHeight >= pip_size * 5.0
                                 bool isNearEdge = preferAwayFromEdge and distFromZone < pip_size * 2.0
                                 bool improvesEdgeQuality = bestLiqNearEdge and not isNearEdge
                                 bool sameEdgeQuality = bestLiqNearEdge == isNearEdge
-                                if na(bestLiqBar) or improvesEdgeQuality or (sameEdgeQuality and (isCloser or (isSameDistance and isMoreRecent)))
+                                if na(bestLiqBar) or improvesEdgeQuality or (sameEdgeQuality and (isCloser or (isSameDistance and isEarlierPivot)))
                                     bestDist := distFromZone
                                     bestLiqPrice := pLow
                                     bestLiqBar := pBar
@@ -2199,10 +2202,10 @@ f_scan_supply_liquidity(RawZone z) =>
                             float distFromZoneCheck = distFromZone
                             bool isCloser = distFromZoneCheck < bestDist
                             bool isSameDistance = distFromZoneCheck == bestDist
-                            bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
+                            bool isEarlierPivot = na(bestLiqBar) or pBar < bestLiqBar
                             bool improvesSide = use_inducement_linking and candidateBelowTop and not bestLiqBelowTop
                             bool sameSide = not use_inducement_linking or candidateBelowTop == bestLiqBelowTop
-                            if na(bestLiqBar) or improvesSide or (sameSide and (isCloser or (isSameDistance and isMoreRecent)))
+                            if na(bestLiqBar) or improvesSide or (sameSide and (isCloser or (isSameDistance and isEarlierPivot)))
                                 bestDist := distFromZoneCheck
                                 bestLiqPrice := pHigh
                                 bestLiqBar := pBar
@@ -2239,10 +2242,10 @@ f_scan_supply_liquidity(RawZone z) =>
                             if distOK
                                 bool isCloser = distFromZoneCheck < bestDist
                                 bool isSameDistance = distFromZoneCheck == bestDist
-                                bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
+                                bool isEarlierPivot = na(bestLiqBar) or pBar < bestLiqBar
                                 bool improvesSide = use_inducement_linking and candidateBelowTop and not bestLiqBelowTop
                                 bool sameSide = not use_inducement_linking or candidateBelowTop == bestLiqBelowTop
-                                if na(bestLiqBar) or improvesSide or (sameSide and (isCloser or (isSameDistance and isMoreRecent)))
+                                if na(bestLiqBar) or improvesSide or (sameSide and (isCloser or (isSameDistance and isEarlierPivot)))
                                     bestDist := distFromZoneCheck
                                     bestLiqPrice := pHigh
                                     bestLiqBar := pBar
@@ -2278,10 +2281,10 @@ f_scan_supply_liquidity(RawZone z) =>
                                 float distFromZoneCheck = distFromZone
                                 bool isCloser = distFromZoneCheck < bestDist
                                 bool isSameDistance = distFromZoneCheck == bestDist
-                                bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
+                                bool isEarlierPivot = na(bestLiqBar) or pBar < bestLiqBar
                                 bool improvesSide = use_inducement_linking and candidateBelowTop and not bestLiqBelowTop
                                 bool sameSide = not use_inducement_linking or candidateBelowTop == bestLiqBelowTop
-                                if na(bestLiqBar) or improvesSide or (sameSide and (isCloser or (isSameDistance and isMoreRecent)))
+                                if na(bestLiqBar) or improvesSide or (sameSide and (isCloser or (isSameDistance and isEarlierPivot)))
                                     bestDist := distFromZoneCheck
                                     bestLiqPrice := pHigh
                                     bestLiqBar := pBar
@@ -2307,10 +2310,10 @@ f_scan_supply_liquidity(RawZone z) =>
                             bool bestIsRetracement = bestSource == "RETRACEMENT"
                             bool isCloser = distFromZone < bestDist
                             bool isSameDistance = distFromZone == bestDist
-                            bool isMoreRecent = na(bestLiqBar) or pBar > bestLiqBar
+                            bool isEarlierPivot = na(bestLiqBar) or pBar < bestLiqBar
                             bool improvesSide = candidateBelowTop and not bestLiqBelowTop
                             bool sameSide = candidateBelowTop == bestLiqBelowTop
-                            if na(bestLiqBar) or improvesSide or (sameSide and (not bestIsRetracement or isCloser or (isSameDistance and isMoreRecent)))
+                            if na(bestLiqBar) or improvesSide or (sameSide and (not bestIsRetracement or isCloser or (isSameDistance and isEarlierPivot)))
                                 bestDist := distFromZone
                                 bestLiqPrice := pHigh
                                 bestLiqBar := pBar
@@ -2622,7 +2625,7 @@ processZone(RawZone z) =>
                 noInvalidationReason := INVALIDATION_LIQUIDITY_ALREADY_SWEPT
             out.lastInvalidationCheckReason := noInvalidationReason
 
-        if not out.touched and overlapsZone and bar_index > out.originBar
+        if not out.touched and overlapsZone and afterConfirmation
             out.touched := true
             touchedNow := true
 
