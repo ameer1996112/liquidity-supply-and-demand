@@ -1,0 +1,24 @@
+[
+  {
+    "symbol": "EURUSD",
+    "feed": "OANDA",
+    "timeframe": "5",
+    "zone_id": "reference-label-id",
+    "model": "ACC_STANDARD",
+    "zone_type": "demand",
+    "origin_time": 0,
+    "detection_time": 0,
+    "confirmation_time": 0,
+    "top": 1.101,
+    "bottom": 1.099,
+    "liquidity_price": 1.0985,
+    "liquidity_bar_index": 0,
+    "liquidity_swept": false,
+    "target_swept": false,
+    "touched": false,
+    "evidence": {
+      "screenshot": "required-real-reference-screenshot-path",
+      "notes": "schema example only; not a protected-reference label"
+    }
+  }
+]

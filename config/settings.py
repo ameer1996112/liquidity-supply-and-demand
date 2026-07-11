@@ -67,6 +67,11 @@ class Settings(BaseSettings):
         description="Allow RD Forex executable TradingView alerts after LAB validation gates pass.",
         validation_alias=AliasChoices("RD_FOREX_EXECUTABLE_ENABLED", "rd_forex_executable_enabled"),
     )
+    rd_forex_debug_artifact_dir: str = Field(
+        default="scripts/pinescript/validation/artifacts",
+        description="Directory for retained non-execution RD Forex LAB JSONL/CSV debug event exports.",
+        validation_alias=AliasChoices("RD_FOREX_DEBUG_ARTIFACT_DIR", "rd_forex_debug_artifact_dir"),
+    )
 
     # cTrader Open API (Spotware) OAuth + Open API proxy auth
     ctrader_client_id: str = Field(default="", validation_alias=AliasChoices("CTRADER_CLIENT_ID", "CTRADER_OPENAPI_CLIENT_ID"))

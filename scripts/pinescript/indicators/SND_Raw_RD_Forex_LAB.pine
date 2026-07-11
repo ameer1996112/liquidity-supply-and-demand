@@ -33,6 +33,9 @@ const int referenceLiquidityPivotLen = 2
 const float referenceLiquidityClusterAtrMultiplier = 0.25
 const float referenceLiquidityEqualAtrMultiplier = 0.03
 const int runtimeLookbackBars = 900
+// Liquidity tie-break semantics: closest qualifying candidate by price distance
+// to the zone edge, then earliest pivot bar on equal distance. Future bars and
+// already-consumed levels are never valid liquidity candidates.
 showOnlyStrategyValidLiquidity = input.bool(true, "Only Draw Strategy-Valid Liquidity", group = "Liquidity Compare")
 showLiquidityCompareLabels = input.bool(false, "Liquidity Compare Labels", group = "Liquidity Compare")
 showRejectedLiquidityCandidates = input.bool(false, "Show Rejected Liquidity Candidates", group = "Liquidity Compare")

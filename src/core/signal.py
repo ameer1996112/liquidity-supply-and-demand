@@ -154,7 +154,11 @@ class RdForexDebugEventPayload(BaseModel):
     ]
     run_id: str = Field(..., min_length=1)
     symbol: str = Field(..., min_length=1)
+    feed: str | None = None
     timeframe: str = Field(..., min_length=1)
+    replay_session: str | None = None
+    replay_start_time: int | None = None
+    replay_end_time: int | None = None
     zone_id: int
     model: str = Field(..., min_length=1)
     zone_type: Literal["demand", "supply"]
@@ -163,6 +167,7 @@ class RdForexDebugEventPayload(BaseModel):
     detection_bar: int | None = None
     detection_time: int | None = None
     confirmation_bar: int | None = None
+    confirmation_time: int | None = None
     top: float
     bottom: float
     active: bool | None = None

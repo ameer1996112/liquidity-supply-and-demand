@@ -107,8 +107,30 @@ Proof:
 - `git diff --check`
   - passed with no output
 
+### Claude's verdict — comparator and artifact continuation
+
+Independent verification completed. The continuation slice passes `61` focused tests, `3` webhook-ingress tests, Python compilation, and `git diff --check`. The debug endpoint now persists validated non-executable LAB events to per-run JSONL and CSV artifacts, and the comparator preserves duplicate-event multiplicity while reporting missing, extra, boundary, timestamp, lifecycle, repaint, and fixture-key discrepancies.
+
+The full `PYTHONPATH=. pytest -q` suite remains unresolved from the prior bounded run, and no new full-suite pass is claimed. TradingView compilation, protected-reference visual parity, real labeled fixture coverage, and runtime object-peak measurements remain unverified. The checked-in fixture is schema-only; this slice is therefore validation infrastructure and a tested safety boundary, not evidence that zone detection is 100% accurate or approval for PROD promotion/live execution.
+
 ### Claude's verdict
 
 Independent review completed. The focused Pine/backend suite passes (`53 passed in 0.50s`), the webhook-ingress proof passes (`30 passed in 4.05s`), Python compilation passes, and `git diff --check` passes. The fix closes the material debug-stream gap: LAB emits only allowlisted non-executable lifecycle events, the executable event is absent from LAB, and historical confirmation alerts are limited to the current confirmation bar.
 
 The full `PYTHONPATH=. pytest -q` suite remains unresolved: it reproduced multiple failures and stopped yielding output before the bounded run was terminated. TradingView compilation, protected-reference visual parity, the JSONL/CSV comparator artifacts, and object-peak measurements remain unverified. This build is therefore an implemented and tested alignment slice, not approval for PROD promotion or live execution.
+
+### Fix Round 2 (Codex, 2026-07-11)
+
+Addressed the comparator multiplicity verification finding:
+- `scripts/pinescript/validation/rd_forex_compare.py` no longer collapses fixture or actual rows into one row per key. It groups rows by deterministic comparison key, matches rows in input order within each key, reports unmatched expected rows as missing, and reports unmatched confirmed actual rows as extra.
+- Duplicate fixture keys now produce a deterministic `duplicate_fixture_key` fixture error instead of silently overwriting an earlier reference row.
+- Duplicate actual confirmed events beyond the fixture count are preserved as extra events and summarized in `duplicate_actuals`.
+- `tests/test_rd_forex_debug_validation.py` now includes regressions proving duplicate actual confirmed events are reported as extras and duplicate fixture keys are diagnosed.
+
+Proof:
+- `source ./venv/bin/activate && PYTHONPATH=. pytest -q tests/test_rd_forex_debug_validation.py tests/test_signal_transport.py scripts/pinescript/tests`
+  - `61 passed in 0.42s`
+- `source ./venv/bin/activate && python -m py_compile src/api.py src/core/signal.py config/settings.py src/services/rd_forex_debug_collector.py scripts/pinescript/validation/rd_forex_compare.py tests/test_rd_forex_debug_validation.py`
+  - passed with no output
+- `git diff --check`
+  - passed with no output

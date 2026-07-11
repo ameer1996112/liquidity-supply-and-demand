@@ -9,6 +9,7 @@ import os
 import re
 import time
 import uuid
+import asyncio
 from typing import Any
 
 from contextlib import asynccontextmanager
@@ -37,6 +38,7 @@ from config.logging_config import configure_logging, get_logger
 from src.adapters.redis_queue import get_redis
 from src.core.transport import get_transport
 from src.core.signal import validate_rd_forex_debug_payload, validate_webhook_payload
+from src.services.rd_forex_debug_collector import append_debug_event
 from src.services.webhook_strategy_context import (
     StrategyContextError,
     build_received_signal_row,
@@ -560,14 +562,16 @@ async def rd_forex_debug_webhook(
     raw = await request.body()
     data = parse_body(raw)
     payload = _validate_rd_forex_debug_payload(data)
+    artifacts = await asyncio.to_thread(append_debug_event, payload)
     logger.info(
-        "RD Forex debug event accepted: event=%s run_id=%s symbol=%s zone_id=%s",
+        "RD Forex debug event accepted: event=%s run_id=%s symbol=%s zone_id=%s jsonl=%s",
         payload.get("event"),
         payload.get("run_id"),
         payload.get("symbol"),
         payload.get("zone_id"),
+        artifacts["jsonl_path"],
     )
-    return JSONResponse(status_code=202, content={"status": "accepted", "queued": False})
+    return JSONResponse(status_code=202, content={"status": "accepted", "queued": False, "artifacts": artifacts})
 
 
 @app.get("/health")
