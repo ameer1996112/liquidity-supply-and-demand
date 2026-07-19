@@ -26,6 +26,7 @@ const string REJECT_ONE_CANDLE_LIQUIDITY = "REJECT_ONE_CANDLE_LIQUIDITY"
 const string WAIT_LIQUIDITY_OWN_EXTREME = "WAIT_LIQUIDITY_OWN_EXTREME"
 const string LIQUIDITY_OWN_EXTREME_TAKEN = "LIQUIDITY_OWN_EXTREME_TAKEN"
 const string EXPIRE_ZONE_NOT_FRESH = "EXPIRE_ZONE_NOT_FRESH"
+const string EXPIRE_OPPOSITE_ZONE_RETRACE = "EXPIRE_OPPOSITE_ZONE_RETRACE"
 
 maxZones = input.int(120, "Maximum zones", minval = 10, maxval = 200, group = "Display")
 projectionBars = input.int(120, "Fresh-zone projection bars", minval = 1, maxval = 500, group = "Display")
@@ -85,6 +86,7 @@ type RawZone
     array<float> liquidityAnchors
     array<float> liquidityExtremes
     array<bool> liquidityTaken
+    int routeBlockerId
     box zoneBox
     label debugLabel
 
@@ -179,6 +181,7 @@ buildConfirmedZone(Candidate candidate, bool demand, int zoneId, string formatio
     zone.liquidityAnchors := array.new<float>()
     zone.liquidityExtremes := array.new<float>()
     zone.liquidityTaken := array.new<bool>()
+    zone.routeBlockerId := na
     zone.zoneBox := na
     zone.debugLabel := na
     zone
@@ -250,7 +253,8 @@ diagnosticPayload(string eventName, RawZone zone) =>
      "\"eligibility_reason\":\"" + zone.eligibilityReason + "\"," +
      "\"liquidity_anchor\":" + (na(zone.liquidityAnchor) ? "null" : str.tostring(zone.liquidityAnchor, format.mintick)) + "," +
      "\"liquidity_extreme\":" + (na(zone.liquidityExtreme) ? "null" : str.tostring(zone.liquidityExtreme, format.mintick)) + "," +
-     "\"liquidity_primary_index\":" + (na(zone.liquidityPrimaryIndex) ? "null" : str.tostring(zone.liquidityPrimaryIndex)) + "}"
+     "\"liquidity_primary_index\":" + (na(zone.liquidityPrimaryIndex) ? "null" : str.tostring(zone.liquidityPrimaryIndex)) + "," +
+     "\"route_blocker_zone_id\":" + (na(zone.routeBlockerId) ? "null" : str.tostring(zone.routeBlockerId)) + "}"
 
 extendLiquidityRun(RawZone zone) =>
     if zone.liquidityRunCount == 0
@@ -278,7 +282,9 @@ completeLiquidityRun(RawZone zone) =>
 
 updateZoneEligibility(RawZone zone) =>
     bool becameEligible = false
-    if zone.state != STATE_FRESH
+    if zone.eligibilityState == ELIGIBILITY_EXPIRED
+        becameEligible := false
+    else if zone.state != STATE_FRESH
         if zone.eligibilityState != ELIGIBILITY_ELIGIBLE
             zone.eligibilityState := ELIGIBILITY_EXPIRED
             zone.eligibilityBar := bar_index
@@ -330,6 +336,24 @@ updateZoneEligibility(RawZone zone) =>
                 zone.eligibilityReason := WAIT_LIQUIDITY_OWN_EXTREME
     becameEligible
 
+routeBlockerId(RawZone target, array<RawZone> allZones) =>
+    int blockerId = na
+    float blockerDistance = na
+    bool routeIsArmed = target.state == STATE_FRESH and target.eligibilityState == ELIGIBILITY_ELIGIBLE and not na(target.eligibilityBar) and bar_index > target.eligibilityBar
+    int candidateCount = array.size(allZones)
+    if routeIsArmed and candidateCount > 0
+        for candidateIndex = 0 to candidateCount - 1
+            RawZone candidate = array.get(allZones, candidateIndex)
+            bool oppositeDirection = candidate.demand != target.demand
+            bool tappedNow = candidate.state == STATE_TAPPED and candidate.stateBar == bar_index
+            bool inFront = target.demand ? candidate.bottom > target.top : candidate.top < target.bottom
+            if oppositeDirection and tappedNow and inFront
+                float distance = target.demand ? candidate.bottom - target.top : target.bottom - candidate.top
+                if na(blockerId) or distance < blockerDistance
+                    blockerId := candidate.id
+                    blockerDistance := distance
+    blockerId
+
 deleteZone(RawZone zone) =>
     if not na(zone.zoneBox)
         box.delete(zone.zoneBox)
@@ -366,11 +390,26 @@ if barstate.isconfirmed and isFiveMinute
                     lastDecision := zone.reason
                     if emitDiagnostics
                         alert(diagnosticPayload(invalidated ? "ZONE_INVALIDATED_NON_EXECUTABLE" : "ZONE_TAPPED_NON_EXECUTABLE", zone), alert.freq_once_per_bar_close)
-            bool becameEligible = updateZoneEligibility(zone)
-            if becameEligible
-                lastDecision := LIQUIDITY_OWN_EXTREME_TAKEN
+            array.set(zones, index, zone)
+
+        for index = 0 to zoneCount - 1
+            RawZone zone = array.get(zones, index)
+            int blockerId = routeBlockerId(zone, zones)
+            if not na(blockerId)
+                zone.eligibilityState := ELIGIBILITY_EXPIRED
+                zone.eligibilityBar := bar_index
+                zone.eligibilityTime := time_close
+                zone.eligibilityReason := EXPIRE_OPPOSITE_ZONE_RETRACE
+                zone.routeBlockerId := blockerId
+                lastDecision := EXPIRE_OPPOSITE_ZONE_RETRACE
                 if emitDiagnostics
-                    alert(diagnosticPayload("ZONE_ELIGIBLE_NON_EXECUTABLE", zone), alert.freq_once_per_bar_close)
+                    alert(diagnosticPayload("ZONE_ROUTE_EXPIRED_NON_EXECUTABLE", zone), alert.freq_once_per_bar_close)
+            else
+                bool becameEligible = updateZoneEligibility(zone)
+                if becameEligible
+                    lastDecision := LIQUIDITY_OWN_EXTREME_TAKEN
+                    if emitDiagnostics
+                        alert(diagnosticPayload("ZONE_ELIGIBLE_NON_EXECUTABLE", zone), alert.freq_once_per_bar_close)
             array.set(zones, index, zone)
 
     int direction = candleDirection(0)

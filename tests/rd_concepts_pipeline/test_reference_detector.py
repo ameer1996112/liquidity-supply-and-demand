@@ -263,3 +263,85 @@ def test_supply_primary_uses_highest_completed_liquidity_swing() -> None:
 
     assert zone.eligibility_state is EligibilityState.ELIGIBLE
     assert zone.eligibility_index == 9
+
+
+def test_demand_setup_expires_after_tapping_intervening_supply_zone() -> None:
+    rows = [
+        *load_cases()[0]["bars"],
+        {"time": "t3", "open": 10.5, "high": 10.6, "low": 10.3, "close": 10.4},
+        {"time": "t4", "open": 10.4, "high": 10.45, "low": 10.15, "close": 10.2},
+        {"time": "t5", "open": 10.2, "high": 10.61, "low": 10.1, "close": 10.55},
+        {"time": "t6", "open": 10.55, "high": 10.58, "low": 10.0, "close": 10.05},
+        {"time": "t7", "open": 10.0, "high": 10.2, "low": 9.95, "close": 10.1},
+        {"time": "t8", "open": 10.1, "high": 10.15, "low": 9.95, "close": 10.0},
+    ]
+
+    result = detect_zones([Bar.from_mapping(row) for row in rows])
+    target = next(zone for zone in result.zones if zone.origin_index == 1)
+    blocker = next(
+        zone
+        for zone in result.zones
+        if zone.direction is Direction.SUPPLY and zone.confirmation_index == 6
+    )
+
+    assert target.state is ZoneState.CONFIRMED_FRESH
+    assert blocker.state is ZoneState.TAPPED
+    assert blocker.state_index == 7
+    assert target.eligibility_state is EligibilityState.EXPIRED
+    assert target.eligibility_index == 7
+    assert target.eligibility_reason == "EXPIRE_OPPOSITE_ZONE_RETRACE"
+    assert target.route_blocker_zone_id == blocker.zone_id
+
+
+def test_supply_setup_expires_after_tapping_intervening_demand_zone() -> None:
+    rows = [
+        {"time": "t0", "open": 10.4, "high": 10.5, "low": 10.1, "close": 10.2},
+        {"time": "t1", "open": 10.2, "high": 10.6, "low": 10.15, "close": 10.5},
+        {"time": "t2", "open": 10.5, "high": 10.55, "low": 9.9, "close": 10.0},
+        {"time": "t3", "open": 9.9, "high": 10.05, "low": 9.7, "close": 10.0},
+        {"time": "t4", "open": 10.0, "high": 10.1, "low": 9.8, "close": 10.05},
+        {"time": "t5", "open": 10.05, "high": 10.1, "low": 9.65, "close": 9.7},
+        {"time": "t6", "open": 9.7, "high": 10.12, "low": 9.68, "close": 10.11},
+        {"time": "t7", "open": 10.11, "high": 10.14, "low": 10.0, "close": 10.05},
+    ]
+
+    result = detect_zones([Bar.from_mapping(row) for row in rows])
+    target = next(zone for zone in result.zones if zone.origin_index == 1)
+    blocker = next(
+        zone
+        for zone in result.zones
+        if zone.direction is Direction.DEMAND and zone.confirmation_index == 6
+    )
+
+    assert target.state is ZoneState.CONFIRMED_FRESH
+    assert blocker.state is ZoneState.TAPPED
+    assert blocker.state_index == 7
+    assert target.eligibility_state is EligibilityState.EXPIRED
+    assert target.eligibility_index == 7
+    assert target.eligibility_reason == "EXPIRE_OPPOSITE_ZONE_RETRACE"
+    assert target.route_blocker_zone_id == blocker.zone_id
+
+
+def test_invalidated_opposite_zone_does_not_block_eligible_route() -> None:
+    rows = [
+        *load_cases()[0]["bars"],
+        {"time": "t3", "open": 10.5, "high": 10.6, "low": 10.3, "close": 10.4},
+        {"time": "t4", "open": 10.4, "high": 10.45, "low": 10.15, "close": 10.2},
+        {"time": "t5", "open": 10.2, "high": 10.61, "low": 10.1, "close": 10.55},
+        {"time": "t6", "open": 10.55, "high": 10.58, "low": 10.0, "close": 10.05},
+        {"time": "t7", "open": 10.05, "high": 10.72, "low": 9.95, "close": 10.7},
+    ]
+
+    result = detect_zones([Bar.from_mapping(row) for row in rows])
+    target = next(zone for zone in result.zones if zone.origin_index == 1)
+    opposite = next(
+        zone
+        for zone in result.zones
+        if zone.direction is Direction.SUPPLY and zone.confirmation_index == 6
+    )
+
+    assert opposite.state is ZoneState.INVALIDATED
+    assert target.state is ZoneState.CONFIRMED_FRESH
+    assert target.eligibility_state is EligibilityState.ELIGIBLE
+    assert target.eligibility_reason == "LIQUIDITY_OWN_EXTREME_TAKEN"
+    assert target.route_blocker_zone_id is None

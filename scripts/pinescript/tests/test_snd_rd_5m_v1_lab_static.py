@@ -113,3 +113,21 @@ def test_closest_completed_liquidity_is_the_primary_candidate() -> None:
     assert "zone.eligibilityState := nextEligibility" in text
     assert "bool primaryChanged = na(previousPrimaryIndex)" in text
     assert "if primaryChanged or stateChanged" in text
+
+
+def test_opposite_zone_route_blocker_expires_only_strategy_eligibility() -> None:
+    text = source()
+    assert 'EXPIRE_OPPOSITE_ZONE_RETRACE = "EXPIRE_OPPOSITE_ZONE_RETRACE"' in text
+    assert "int routeBlockerId" in text
+    assert "routeBlockerId(RawZone target, array<RawZone> allZones) =>" in text
+    assert "candidate.state == STATE_TAPPED and candidate.stateBar == bar_index" in text
+    assert "candidate.bottom > target.top" in text
+    assert "candidate.top < target.bottom" in text
+    assert "zone.eligibilityState := ELIGIBILITY_EXPIRED" in text
+    assert "zone.eligibilityReason := EXPIRE_OPPOSITE_ZONE_RETRACE" in text
+    assert "zone.routeBlockerId := blockerId" in text
+
+    visible_body = text.split("zoneVisible(RawZone zone) =>", 1)[1].split(
+        "zoneColor(RawZone zone) =>", 1
+    )[0]
+    assert "routeBlocker" not in visible_body

@@ -28,24 +28,32 @@ def load_rule_ids() -> set[str]:
     }
 
 
+def all_decisions(matrix: dict) -> list[dict]:
+    return [
+        *matrix["decisions"],
+        *matrix["eligibility_decisions"],
+        *matrix["entry_route_decisions"],
+    ]
+
+
 def test_decision_matrix_is_complete_and_resolved() -> None:
     matrix = load_matrix()
     decisions = matrix["decisions"]
     eligibility = matrix["eligibility_decisions"]
-    decision_ids = [
-        decision["decision_id"] for decision in [*decisions, *eligibility]
-    ]
+    entry_route = matrix["entry_route_decisions"]
+    matrix_decisions = all_decisions(matrix)
+    decision_ids = [decision["decision_id"] for decision in matrix_decisions]
 
-    assert matrix["version"] == 2
+    assert matrix["version"] == 3
     assert matrix["timeframe"] == "5m"
     assert matrix["runtime_contract"] == "closed_bar_deterministic"
     assert len(decision_ids) == len(set(decision_ids))
-    assert all(decision["rule_ids"] for decision in [*decisions, *eligibility])
+    assert all(decision["rule_ids"] for decision in matrix_decisions)
     assert all(len(decision["implementations"]) == 2 for decision in decisions)
     assert all(
         decision["implementation_status"] == "IMPLEMENTED"
         and len(decision["implementations"]) == 2
-        for decision in eligibility
+        for decision in [*eligibility, *entry_route]
     )
     assert all(conflict["status"] == "RESOLVED" for conflict in matrix["conflicts"])
 
@@ -54,10 +62,7 @@ def test_decision_matrix_references_existing_rules() -> None:
     known_rule_ids = load_rule_ids()
     referenced_rule_ids = {
         rule_id
-        for decision in [
-            *load_matrix()["decisions"],
-            *load_matrix()["eligibility_decisions"],
-        ]
+        for decision in all_decisions(load_matrix())
         for rule_id in decision["rule_ids"]
     }
 
@@ -74,10 +79,7 @@ def test_every_pine_reason_code_has_a_rule_mapping() -> None:
     )
     mapped_reason_codes = {
         decision["reason_code"]
-        for decision in [
-            *load_matrix()["decisions"],
-            *load_matrix()["eligibility_decisions"],
-        ]
+        for decision in all_decisions(load_matrix())
         if decision["reason_code"] is not None
     }
 
@@ -88,10 +90,7 @@ def test_reference_detector_reason_codes_match_pine_contract() -> None:
     reference_source = REFERENCE_PATH.read_text(encoding="utf-8")
     mapped_reason_codes = {
         decision["reason_code"]
-        for decision in [
-            *load_matrix()["decisions"],
-            *load_matrix()["eligibility_decisions"],
-        ]
+        for decision in all_decisions(load_matrix())
         if decision["reason_code"] is not None
     }
     emitted_reason_codes = set(

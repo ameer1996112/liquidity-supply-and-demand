@@ -97,6 +97,7 @@ class Zone:
     liquidity_anchor: Decimal | None = None
     liquidity_extreme: Decimal | None = None
     liquidity_formed_index: int | None = None
+    route_blocker_zone_id: str | None = None
 
     def to_mapping(self) -> dict[str, Any]:
         return {
@@ -129,6 +130,7 @@ class Zone:
                 else None
             ),
             "liquidity_formed_index": self.liquidity_formed_index,
+            "route_blocker_zone_id": self.route_blocker_zone_id,
         }
 
 
@@ -356,6 +358,8 @@ class RawZoneDetector:
 
     def _update_zone_eligibility(self, index: int, bar: Bar) -> None:
         for zone in self._zones:
+            if zone.eligibility_state is EligibilityState.EXPIRED:
+                continue
             if zone.state is not ZoneState.CONFIRMED_FRESH:
                 if zone.eligibility_state is not EligibilityState.ELIGIBLE:
                     zone.eligibility_state = EligibilityState.EXPIRED
@@ -364,6 +368,15 @@ class RawZoneDetector:
                     zone.eligibility_reason = "EXPIRE_ZONE_NOT_FRESH"
                 continue
             if index <= zone.confirmation_index:
+                continue
+
+            route_blocker = self._route_blocker(zone, index)
+            if route_blocker is not None:
+                zone.eligibility_state = EligibilityState.EXPIRED
+                zone.eligibility_index = index
+                zone.eligibility_time = bar.time
+                zone.eligibility_reason = "EXPIRE_OPPOSITE_ZONE_RETRACE"
+                zone.route_blocker_zone_id = route_blocker.zone_id
                 continue
 
             tracker = self._liquidity_trackers.setdefault(
@@ -466,6 +479,30 @@ class RawZoneDetector:
         tracker.run_count = 0
         tracker.run_anchor = None
         tracker.run_near_extreme = None
+
+    def _route_blocker(self, zone: Zone, index: int) -> Zone | None:
+        if zone.eligibility_state is not EligibilityState.ELIGIBLE:
+            return None
+        if zone.eligibility_index is None or index <= zone.eligibility_index:
+            return None
+
+        blockers = [
+            candidate
+            for candidate in self._zones
+            if candidate.direction is not zone.direction
+            and candidate.state is ZoneState.TAPPED
+            and candidate.state_index == index
+            and (
+                candidate.bottom > zone.top
+                if zone.direction is Direction.DEMAND
+                else candidate.top < zone.bottom
+            )
+        ]
+        if not blockers:
+            return None
+        if zone.direction is Direction.DEMAND:
+            return min(blockers, key=lambda candidate: candidate.bottom - zone.top)
+        return min(blockers, key=lambda candidate: zone.bottom - candidate.top)
 
     @staticmethod
     def _primary_liquidity(

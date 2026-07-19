@@ -53,8 +53,29 @@ def test_initial_rule_catalog_is_valid_and_contains_zone_contracts() -> None:
         "RD5M-LIQUIDITY-TAKE-OWN-EXTREME",
         "RD5M-LIQUIDITY-PRIMARY-CLOSEST-TO-ZONE",
         "RD5M-LIQUIDITY-ONE-CANDLE-EXCEPTION",
+        "RD5M-ENTRY-REJECT-OPPOSITE-ZONE-RETRACE",
     } <= set(rule_ids)
     assert validate_rule_catalog(records) == []
+
+
+def test_entry_route_matrix_preserves_raw_zones_and_expires_blocked_setup() -> None:
+    matrix = json.loads(
+        (REFERENCE / "rd_5m_decision_matrix.json").read_text(encoding="utf-8")
+    )
+
+    assert matrix["entry_route_contract"] == {
+        "stage": "post_liquidity_eligibility_pre_first_tap",
+        "raw_zone_visibility_unchanged": True,
+        "implementation_status": "IMPLEMENTED",
+        "default_policy": "fail_closed",
+    }
+    decision = next(
+        item
+        for item in matrix["entry_route_decisions"]
+        if item["decision_id"] == "expire_opposite_zone_retrace"
+    )
+    assert decision["reason_code"] == "EXPIRE_OPPOSITE_ZONE_RETRACE"
+    assert "RD5M-ENTRY-REJECT-OPPOSITE-ZONE-RETRACE" in decision["rule_ids"]
 
 
 def test_first_manual_case_has_exact_ohlc_and_positive_release_coverage() -> None:

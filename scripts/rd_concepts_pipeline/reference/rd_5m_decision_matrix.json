@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "timeframe": "5m",
   "market_scope": ["all"],
   "runtime_contract": "closed_bar_deterministic",
@@ -179,6 +179,23 @@
       "implementations": ["reference_detector.RawZoneDetector._update_zone_eligibility", "SND_RD_5M_V1_LAB.updateZoneEligibility"]
     }
   ],
+  "entry_route_contract": {
+    "stage": "post_liquidity_eligibility_pre_first_tap",
+    "raw_zone_visibility_unchanged": true,
+    "implementation_status": "IMPLEMENTED",
+    "default_policy": "fail_closed"
+  },
+  "entry_route_decisions": [
+    {
+      "decision_id": "expire_opposite_zone_retrace",
+      "condition": "After a target becomes liquidity-eligible and while it remains fresh, a later closed bar taps a confirmed opposite-direction raw zone located fully in front of the target.",
+      "outcome": "Expire strategy eligibility for the target while leaving both raw zones and their lifecycle states visible.",
+      "reason_code": "EXPIRE_OPPOSITE_ZONE_RETRACE",
+      "rule_ids": ["RD5M-ENTRY-REJECT-OPPOSITE-ZONE-RETRACE", "RD5M-ZONE-UNTAPPED", "RD5M-DETECTOR-CLOSED-5M"],
+      "implementation_status": "IMPLEMENTED",
+      "implementations": ["reference_detector.RawZoneDetector._route_blocker", "SND_RD_5M_V1_LAB.routeBlockerId"]
+    }
+  ],
   "conflicts": [
     {
       "conflict_id": "accuracy_body_vs_legacy_wick_segment",
@@ -204,6 +221,11 @@
       "conflict_id": "older_valid_liquidity_vs_new_closer_unswept_liquidity",
       "status": "RESOLVED",
       "resolution": "The spatially closest completed swing is the primary gate. Older swept swings remain supporting confidence but cannot override a closer unswept primary."
+    },
+    {
+      "conflict_id": "allowed_slight_retracement_vs_opposite_zone_route_blocker",
+      "status": "RESOLVED",
+      "resolution": "A slight retracement alone does not expire an eligible setup. Expiration requires the objective later tap of a confirmed opposite-direction raw zone fully in front of the target; an opposite zone closed beyond its distal boundary is invalidated and is not this blocker."
     }
   ]
 }
