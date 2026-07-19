@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "timeframe": "5m",
   "market_scope": ["all"],
   "runtime_contract": "closed_bar_deterministic",
@@ -194,6 +194,69 @@
       "rule_ids": ["RD5M-ENTRY-REJECT-OPPOSITE-ZONE-RETRACE", "RD5M-ZONE-UNTAPPED", "RD5M-DETECTOR-CLOSED-5M"],
       "implementation_status": "IMPLEMENTED",
       "implementations": ["reference_detector.RawZoneDetector._route_blocker", "SND_RD_5M_V1_LAB.routeBlockerId"]
+    }
+  ],
+  "setup_contract": {
+    "stage": "post_liquidity_eligibility_first_target_return",
+    "raw_zone_visibility_unchanged": true,
+    "executable": false,
+    "implementation_status": "IMPLEMENTED",
+    "default_policy": "fail_closed"
+  },
+  "setup_decisions": [
+    {
+      "decision_id": "arm_setup_after_liquidity",
+      "condition": "The raw target remains fresh when its primary liquidity candidate takes its own extreme on a closed five-minute bar.",
+      "outcome": "Arm a non-executable setup handoff while continuing to wait for the target's first return.",
+      "reason_code": "ARM_SETUP_AFTER_LIQUIDITY",
+      "rule_ids": ["RD5M-ENTRY-FIRST-RETURN-AFTER-LIQUIDITY", "RD5M-LIQUIDITY-TAKE-OWN-EXTREME", "RD5M-ZONE-UNTAPPED", "RD5M-DETECTOR-CLOSED-5M"],
+      "implementation_status": "IMPLEMENTED",
+      "implementations": ["reference_detector.RawZoneDetector._update_setup_state", "SND_RD_5M_V1_LAB.updateSetupState"]
+    },
+    {
+      "decision_id": "pause_armed_setup_for_closer_unswept_liquidity",
+      "condition": "A closer completed primary liquidity candidate appears after a setup was armed but has not yet taken its own extreme.",
+      "outcome": "Return the setup handoff to waiting; do not reject it unless another terminal rule applies.",
+      "reason_code": "WAIT_SETUP_ELIGIBILITY",
+      "rule_ids": ["RD5M-LIQUIDITY-PRIMARY-CLOSEST-TO-ZONE", "RD5M-LIQUIDITY-TAKE-OWN-EXTREME"],
+      "implementation_status": "IMPLEMENTED",
+      "implementations": ["reference_detector.RawZoneDetector._update_setup_state", "SND_RD_5M_V1_LAB.updateSetupState"]
+    },
+    {
+      "decision_id": "trigger_first_valid_target_return",
+      "condition": "A later closed five-minute bar first overlaps an armed target and does not close beyond its distal boundary.",
+      "outcome": "Mark the diagnostic setup handoff triggered without placing an order.",
+      "reason_code": "TRIGGER_FIRST_FRESH_TAP_AFTER_LIQUIDITY",
+      "rule_ids": ["RD5M-ENTRY-FIRST-RETURN-AFTER-LIQUIDITY", "RD5M-ZONE-INVALIDATION-CLOSE", "RD5M-DETECTOR-CLOSED-5M"],
+      "implementation_status": "IMPLEMENTED",
+      "implementations": ["reference_detector.RawZoneDetector._update_setup_state", "SND_RD_5M_V1_LAB.updateSetupState"]
+    },
+    {
+      "decision_id": "reject_target_tap_without_eligibility",
+      "condition": "The target's first overlap occurs before qualifying liquidity has taken its own extreme, including an overlap on the same five-minute bar as the liquidity sweep.",
+      "outcome": "Reject the diagnostic setup handoff because closed-bar OHLC cannot prove liquidity was taken first.",
+      "reason_code": "REJECT_TARGET_TAP_WITHOUT_ELIGIBILITY",
+      "rule_ids": ["RD5M-ENTRY-FIRST-RETURN-AFTER-LIQUIDITY", "RD5M-LIQUIDITY-TAKE-OWN-EXTREME", "RD5M-DETECTOR-CLOSED-5M"],
+      "implementation_status": "IMPLEMENTED",
+      "implementations": ["reference_detector.RawZoneDetector._update_setup_state", "SND_RD_5M_V1_LAB.updateSetupState"]
+    },
+    {
+      "decision_id": "reject_target_invalidation_on_return",
+      "condition": "The target's first overlap closes beyond its distal boundary.",
+      "outcome": "Reject the diagnostic setup handoff instead of treating the invalidated zone as a trigger.",
+      "reason_code": "REJECT_TARGET_INVALIDATED_ON_RETURN",
+      "rule_ids": ["RD5M-ENTRY-FIRST-RETURN-AFTER-LIQUIDITY", "RD5M-ZONE-INVALIDATION-CLOSE", "RD5M-DETECTOR-CLOSED-5M"],
+      "implementation_status": "IMPLEMENTED",
+      "implementations": ["reference_detector.RawZoneDetector._update_setup_state", "SND_RD_5M_V1_LAB.updateSetupState"]
+    },
+    {
+      "decision_id": "reject_ambiguous_same_bar_route",
+      "condition": "An armed target and a confirmed opposite zone fully in front of it are both first tapped on the same closed five-minute bar.",
+      "outcome": "Reject the diagnostic setup handoff because five-minute OHLC cannot prove the route ordering.",
+      "reason_code": "REJECT_AMBIGUOUS_SAME_BAR_ROUTE",
+      "rule_ids": ["RD5M-ENTRY-REJECT-OPPOSITE-ZONE-RETRACE", "RD5M-ENTRY-FIRST-RETURN-AFTER-LIQUIDITY", "RD5M-DETECTOR-CLOSED-5M"],
+      "implementation_status": "IMPLEMENTED",
+      "implementations": ["reference_detector.RawZoneDetector._same_bar_route_blocker", "SND_RD_5M_V1_LAB.sameBarRouteBlockerId"]
     }
   ],
   "conflicts": [

@@ -15,6 +15,10 @@ const string STATE_INVALIDATED = "INVALIDATED"
 const string ELIGIBILITY_WAITING = "WAITING_FOR_LIQUIDITY"
 const string ELIGIBILITY_ELIGIBLE = "ELIGIBLE"
 const string ELIGIBILITY_EXPIRED = "EXPIRED"
+const string SETUP_WAITING = "WAITING_FOR_ELIGIBILITY"
+const string SETUP_ARMED = "ARMED"
+const string SETUP_TRIGGERED = "TRIGGERED"
+const string SETUP_REJECTED = "REJECTED"
 
 const string CONFIRM_CLOSE_BEYOND_ORIGIN = "CONFIRM_CLOSE_BEYOND_ORIGIN"
 const string REJECT_FORMATION_INTERRUPTED = "REJECT_FORMATION_INTERRUPTED"
@@ -27,6 +31,12 @@ const string WAIT_LIQUIDITY_OWN_EXTREME = "WAIT_LIQUIDITY_OWN_EXTREME"
 const string LIQUIDITY_OWN_EXTREME_TAKEN = "LIQUIDITY_OWN_EXTREME_TAKEN"
 const string EXPIRE_ZONE_NOT_FRESH = "EXPIRE_ZONE_NOT_FRESH"
 const string EXPIRE_OPPOSITE_ZONE_RETRACE = "EXPIRE_OPPOSITE_ZONE_RETRACE"
+const string WAIT_SETUP_ELIGIBILITY = "WAIT_SETUP_ELIGIBILITY"
+const string ARM_SETUP_AFTER_LIQUIDITY = "ARM_SETUP_AFTER_LIQUIDITY"
+const string TRIGGER_FIRST_FRESH_TAP_AFTER_LIQUIDITY = "TRIGGER_FIRST_FRESH_TAP_AFTER_LIQUIDITY"
+const string REJECT_TARGET_TAP_WITHOUT_ELIGIBILITY = "REJECT_TARGET_TAP_WITHOUT_ELIGIBILITY"
+const string REJECT_TARGET_INVALIDATED_ON_RETURN = "REJECT_TARGET_INVALIDATED_ON_RETURN"
+const string REJECT_AMBIGUOUS_SAME_BAR_ROUTE = "REJECT_AMBIGUOUS_SAME_BAR_ROUTE"
 
 maxZones = input.int(120, "Maximum zones", minval = 10, maxval = 200, group = "Display")
 projectionBars = input.int(120, "Fresh-zone projection bars", minval = 1, maxval = 500, group = "Display")
@@ -87,6 +97,10 @@ type RawZone
     array<float> liquidityExtremes
     array<bool> liquidityTaken
     int routeBlockerId
+    string setupState
+    int setupBar
+    int setupTime
+    string setupReason
     box zoneBox
     label debugLabel
 
@@ -182,6 +196,10 @@ buildConfirmedZone(Candidate candidate, bool demand, int zoneId, string formatio
     zone.liquidityExtremes := array.new<float>()
     zone.liquidityTaken := array.new<bool>()
     zone.routeBlockerId := na
+    zone.setupState := SETUP_WAITING
+    zone.setupBar := na
+    zone.setupTime := na
+    zone.setupReason := WAIT_SETUP_ELIGIBILITY
     zone.zoneBox := na
     zone.debugLabel := na
     zone
@@ -201,7 +219,7 @@ zoneRightBar(RawZone zone) =>
 
 zoneText(RawZone zone) =>
     string side = zone.demand ? "D" : "S"
-    "Z" + str.tostring(zone.id) + " " + side + " " + zone.formation + " " + zone.geometry + "\n" + zone.state + " " + zone.reason + "\n" + zone.eligibilityState + " " + zone.eligibilityReason
+    "Z" + str.tostring(zone.id) + " " + side + " " + zone.formation + " " + zone.geometry + "\n" + zone.state + " " + zone.reason + "\n" + zone.eligibilityState + " " + zone.eligibilityReason + "\n" + zone.setupState + " " + zone.setupReason
 
 updateZoneDrawing(RawZone zone) =>
     bool visible = zoneVisible(zone)
@@ -254,7 +272,10 @@ diagnosticPayload(string eventName, RawZone zone) =>
      "\"liquidity_anchor\":" + (na(zone.liquidityAnchor) ? "null" : str.tostring(zone.liquidityAnchor, format.mintick)) + "," +
      "\"liquidity_extreme\":" + (na(zone.liquidityExtreme) ? "null" : str.tostring(zone.liquidityExtreme, format.mintick)) + "," +
      "\"liquidity_primary_index\":" + (na(zone.liquidityPrimaryIndex) ? "null" : str.tostring(zone.liquidityPrimaryIndex)) + "," +
-     "\"route_blocker_zone_id\":" + (na(zone.routeBlockerId) ? "null" : str.tostring(zone.routeBlockerId)) + "}"
+     "\"route_blocker_zone_id\":" + (na(zone.routeBlockerId) ? "null" : str.tostring(zone.routeBlockerId)) + "," +
+     "\"setup_state\":\"" + zone.setupState + "\"," +
+     "\"setup_reason\":\"" + zone.setupReason + "\"," +
+     "\"setup_time\":" + (na(zone.setupTime) ? "null" : str.tostring(zone.setupTime)) + "}"
 
 extendLiquidityRun(RawZone zone) =>
     if zone.liquidityRunCount == 0
@@ -354,6 +375,66 @@ routeBlockerId(RawZone target, array<RawZone> allZones) =>
                     blockerDistance := distance
     blockerId
 
+sameBarRouteBlockerId(RawZone target, array<RawZone> allZones) =>
+    int blockerId = na
+    float blockerDistance = na
+    bool targetTappedNow = target.state == STATE_TAPPED and target.stateBar == bar_index
+    bool routeWasArmed = target.eligibilityState == ELIGIBILITY_ELIGIBLE and not na(target.eligibilityBar) and bar_index > target.eligibilityBar
+    int candidateCount = array.size(allZones)
+    if targetTappedNow and routeWasArmed and candidateCount > 0
+        for candidateIndex = 0 to candidateCount - 1
+            RawZone candidate = array.get(allZones, candidateIndex)
+            bool oppositeDirection = candidate.demand != target.demand
+            bool tappedNow = candidate.state == STATE_TAPPED and candidate.stateBar == bar_index
+            bool inFront = target.demand ? candidate.bottom > target.top : candidate.top < target.bottom
+            if oppositeDirection and tappedNow and inFront
+                float distance = target.demand ? candidate.bottom - target.top : target.bottom - candidate.top
+                if na(blockerId) or distance < blockerDistance
+                    blockerId := candidate.id
+                    blockerDistance := distance
+    blockerId
+
+transitionSetup(RawZone zone, string nextState, string nextReason) =>
+    zone.setupState := nextState
+    zone.setupBar := bar_index
+    zone.setupTime := time_close
+    zone.setupReason := nextReason
+
+updateSetupState(RawZone zone, array<RawZone> allZones) =>
+    string eventName = ""
+    bool terminal = zone.setupState == SETUP_TRIGGERED or zone.setupState == SETUP_REJECTED
+    if not terminal
+        if zone.state == STATE_INVALIDATED
+            transitionSetup(zone, SETUP_REJECTED, REJECT_TARGET_INVALIDATED_ON_RETURN)
+            eventName := "SETUP_REJECTED_NON_EXECUTABLE"
+        else if zone.state == STATE_TAPPED
+            int blockerId = sameBarRouteBlockerId(zone, allZones)
+            if not na(blockerId)
+                zone.eligibilityState := ELIGIBILITY_EXPIRED
+                zone.eligibilityBar := bar_index
+                zone.eligibilityTime := time_close
+                zone.eligibilityReason := EXPIRE_OPPOSITE_ZONE_RETRACE
+                zone.routeBlockerId := blockerId
+                transitionSetup(zone, SETUP_REJECTED, REJECT_AMBIGUOUS_SAME_BAR_ROUTE)
+                eventName := "SETUP_REJECTED_NON_EXECUTABLE"
+            else if zone.eligibilityState == ELIGIBILITY_ELIGIBLE
+                transitionSetup(zone, SETUP_TRIGGERED, TRIGGER_FIRST_FRESH_TAP_AFTER_LIQUIDITY)
+                eventName := "SETUP_TRIGGERED_NON_EXECUTABLE"
+            else
+                transitionSetup(zone, SETUP_REJECTED, REJECT_TARGET_TAP_WITHOUT_ELIGIBILITY)
+                eventName := "SETUP_REJECTED_NON_EXECUTABLE"
+        else if zone.eligibilityState == ELIGIBILITY_EXPIRED
+            transitionSetup(zone, SETUP_REJECTED, zone.eligibilityReason)
+            eventName := "SETUP_REJECTED_NON_EXECUTABLE"
+        else if zone.eligibilityState == ELIGIBILITY_ELIGIBLE
+            if zone.setupState != SETUP_ARMED
+                transitionSetup(zone, SETUP_ARMED, ARM_SETUP_AFTER_LIQUIDITY)
+                eventName := "SETUP_ARMED_NON_EXECUTABLE"
+        else if zone.setupState == SETUP_ARMED
+            transitionSetup(zone, SETUP_WAITING, WAIT_SETUP_ELIGIBILITY)
+            eventName := "SETUP_WAITING_NON_EXECUTABLE"
+    eventName
+
 deleteZone(RawZone zone) =>
     if not na(zone.zoneBox)
         box.delete(zone.zoneBox)
@@ -410,6 +491,15 @@ if barstate.isconfirmed and isFiveMinute
                     lastDecision := LIQUIDITY_OWN_EXTREME_TAKEN
                     if emitDiagnostics
                         alert(diagnosticPayload("ZONE_ELIGIBLE_NON_EXECUTABLE", zone), alert.freq_once_per_bar_close)
+            array.set(zones, index, zone)
+
+        for index = 0 to zoneCount - 1
+            RawZone zone = array.get(zones, index)
+            string setupEvent = updateSetupState(zone, zones)
+            if str.length(setupEvent) > 0
+                lastDecision := zone.setupReason
+                if emitDiagnostics
+                    alert(diagnosticPayload(setupEvent, zone), alert.freq_once_per_bar_close)
             array.set(zones, index, zone)
 
     int direction = candleDirection(0)

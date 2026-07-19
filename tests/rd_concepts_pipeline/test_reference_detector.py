@@ -8,6 +8,7 @@ from scripts.rd_concepts_pipeline.reference_detector import (
     EligibilityState,
     Geometry,
     RawZoneDetector,
+    SetupState,
     ZoneState,
     detect_zones,
 )
@@ -129,6 +130,8 @@ def test_demand_zone_becomes_eligible_after_two_bearish_candles_take_own_high() 
     assert zone.eligibility_index == 5
     assert zone.liquidity_anchor == Decimal("10.6")
     assert zone.eligibility_reason == "LIQUIDITY_OWN_EXTREME_TAKEN"
+    assert zone.setup_state is SetupState.ARMED
+    assert zone.setup_reason == "ARM_SETUP_AFTER_LIQUIDITY"
 
 
 def test_supply_zone_becomes_eligible_after_two_bullish_candles_take_own_low() -> None:
@@ -147,6 +150,7 @@ def test_supply_zone_becomes_eligible_after_two_bullish_candles_take_own_low() -
     assert zone.eligibility_state is EligibilityState.ELIGIBLE
     assert zone.eligibility_index == 5
     assert zone.liquidity_anchor == Decimal("9.7")
+    assert zone.setup_state is SetupState.ARMED
 
 
 def test_one_candle_liquidity_fails_closed_without_hiding_raw_zone() -> None:
@@ -184,6 +188,8 @@ def test_zone_tapped_before_liquidity_confirmation_expires_eligibility() -> None
     assert zone.eligibility_state is EligibilityState.EXPIRED
     assert zone.eligibility_index == 5
     assert zone.eligibility_reason == "EXPIRE_ZONE_NOT_FRESH"
+    assert zone.setup_state is SetupState.REJECTED
+    assert zone.setup_reason == "REJECT_TARGET_TAP_WITHOUT_ELIGIBILITY"
 
 
 def test_closer_unswept_liquidity_replaces_older_eligible_primary() -> None:
@@ -213,12 +219,15 @@ def test_closer_unswept_liquidity_replaces_older_eligible_primary() -> None:
     assert zone.eligibility_reason == "WAIT_LIQUIDITY_OWN_EXTREME"
     assert zone.liquidity_anchor == Decimal("10.61")
     assert zone.liquidity_extreme == Decimal("10.0")
+    assert zone.setup_state is SetupState.WAITING_FOR_ELIGIBILITY
+    assert zone.setup_reason == "WAIT_SETUP_ELIGIBILITY"
 
     detector.update(Bar.from_mapping(rows[9]))
 
     assert zone.eligibility_state is EligibilityState.ELIGIBLE
     assert zone.eligibility_index == 9
     assert zone.liquidity_anchor == Decimal("10.61")
+    assert zone.setup_state is SetupState.ARMED
 
     detector.update(
         Bar.from_mapping(
@@ -291,6 +300,8 @@ def test_demand_setup_expires_after_tapping_intervening_supply_zone() -> None:
     assert target.eligibility_index == 7
     assert target.eligibility_reason == "EXPIRE_OPPOSITE_ZONE_RETRACE"
     assert target.route_blocker_zone_id == blocker.zone_id
+    assert target.setup_state is SetupState.REJECTED
+    assert target.setup_reason == "EXPIRE_OPPOSITE_ZONE_RETRACE"
 
 
 def test_supply_setup_expires_after_tapping_intervening_demand_zone() -> None:
@@ -320,6 +331,7 @@ def test_supply_setup_expires_after_tapping_intervening_demand_zone() -> None:
     assert target.eligibility_index == 7
     assert target.eligibility_reason == "EXPIRE_OPPOSITE_ZONE_RETRACE"
     assert target.route_blocker_zone_id == blocker.zone_id
+    assert target.setup_state is SetupState.REJECTED
 
 
 def test_invalidated_opposite_zone_does_not_block_eligible_route() -> None:
@@ -345,3 +357,88 @@ def test_invalidated_opposite_zone_does_not_block_eligible_route() -> None:
     assert target.eligibility_state is EligibilityState.ELIGIBLE
     assert target.eligibility_reason == "LIQUIDITY_OWN_EXTREME_TAKEN"
     assert target.route_blocker_zone_id is None
+    assert target.setup_state is SetupState.ARMED
+
+
+def test_demand_setup_triggers_on_first_valid_return_after_liquidity() -> None:
+    rows = [
+        *load_cases()[0]["bars"],
+        {"time": "t3", "open": 10.5, "high": 10.6, "low": 10.3, "close": 10.4},
+        {"time": "t4", "open": 10.4, "high": 10.45, "low": 10.15, "close": 10.2},
+        {"time": "t5", "open": 10.2, "high": 10.61, "low": 10.1, "close": 10.55},
+        {"time": "t6", "open": 10.55, "high": 10.6, "low": 9.8, "close": 9.95},
+    ]
+
+    zone = detect_zones([Bar.from_mapping(row) for row in rows]).zones[0]
+
+    assert zone.state is ZoneState.TAPPED
+    assert zone.setup_state is SetupState.TRIGGERED
+    assert zone.setup_index == 6
+    assert zone.setup_time == "t6"
+    assert zone.setup_reason == "TRIGGER_FIRST_FRESH_TAP_AFTER_LIQUIDITY"
+
+
+def test_supply_setup_triggers_on_first_valid_return_after_liquidity() -> None:
+    rows = [
+        {"time": "t0", "open": 10.4, "high": 10.5, "low": 10.1, "close": 10.2},
+        {"time": "t1", "open": 10.2, "high": 10.6, "low": 10.15, "close": 10.5},
+        {"time": "t2", "open": 10.5, "high": 10.55, "low": 9.9, "close": 10.0},
+        {"time": "t3", "open": 9.9, "high": 10.05, "low": 9.7, "close": 10.0},
+        {"time": "t4", "open": 10.0, "high": 10.1, "low": 9.8, "close": 10.05},
+        {"time": "t5", "open": 10.05, "high": 10.1, "low": 9.65, "close": 9.7},
+        {"time": "t6", "open": 9.7, "high": 10.2, "low": 9.65, "close": 10.1},
+    ]
+
+    zone = next(
+        zone
+        for zone in detect_zones([Bar.from_mapping(row) for row in rows]).zones
+        if zone.origin_index == 1
+    )
+
+    assert zone.state is ZoneState.TAPPED
+    assert zone.setup_state is SetupState.TRIGGERED
+    assert zone.setup_index == 6
+    assert zone.setup_reason == "TRIGGER_FIRST_FRESH_TAP_AFTER_LIQUIDITY"
+
+
+def test_armed_setup_rejects_when_return_closes_beyond_target_distal() -> None:
+    rows = [
+        *load_cases()[0]["bars"],
+        {"time": "t3", "open": 10.5, "high": 10.6, "low": 10.3, "close": 10.4},
+        {"time": "t4", "open": 10.4, "high": 10.45, "low": 10.15, "close": 10.2},
+        {"time": "t5", "open": 10.2, "high": 10.61, "low": 10.1, "close": 10.55},
+        {"time": "t6", "open": 10.55, "high": 10.6, "low": 9.2, "close": 9.3},
+    ]
+
+    zone = detect_zones([Bar.from_mapping(row) for row in rows]).zones[0]
+
+    assert zone.state is ZoneState.INVALIDATED
+    assert zone.setup_state is SetupState.REJECTED
+    assert zone.setup_index == 6
+    assert zone.setup_reason == "REJECT_TARGET_INVALIDATED_ON_RETURN"
+
+
+def test_same_bar_target_and_opposite_zone_taps_fail_closed() -> None:
+    rows = [
+        *load_cases()[0]["bars"],
+        {"time": "t3", "open": 10.5, "high": 10.6, "low": 10.3, "close": 10.4},
+        {"time": "t4", "open": 10.4, "high": 10.45, "low": 10.15, "close": 10.2},
+        {"time": "t5", "open": 10.2, "high": 10.61, "low": 10.1, "close": 10.55},
+        {"time": "t6", "open": 10.55, "high": 10.58, "low": 10.0, "close": 10.05},
+        {"time": "t7", "open": 10.05, "high": 10.2, "low": 9.8, "close": 10.1},
+    ]
+
+    result = detect_zones([Bar.from_mapping(row) for row in rows])
+    target = next(zone for zone in result.zones if zone.origin_index == 1)
+    blocker = next(
+        zone
+        for zone in result.zones
+        if zone.direction is Direction.SUPPLY and zone.confirmation_index == 6
+    )
+
+    assert target.state is ZoneState.TAPPED
+    assert blocker.state is ZoneState.TAPPED
+    assert target.eligibility_state is EligibilityState.EXPIRED
+    assert target.route_blocker_zone_id == blocker.zone_id
+    assert target.setup_state is SetupState.REJECTED
+    assert target.setup_reason == "REJECT_AMBIGUOUS_SAME_BAR_ROUTE"

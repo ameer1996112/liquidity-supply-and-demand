@@ -131,3 +131,46 @@ def test_opposite_zone_route_blocker_expires_only_strategy_eligibility() -> None
         "zoneColor(RawZone zone) =>", 1
     )[0]
     assert "routeBlocker" not in visible_body
+
+
+def test_setup_handoff_tracks_first_valid_return_without_executing() -> None:
+    text = source()
+    assert 'SETUP_WAITING = "WAITING_FOR_ELIGIBILITY"' in text
+    assert 'SETUP_ARMED = "ARMED"' in text
+    assert 'SETUP_TRIGGERED = "TRIGGERED"' in text
+    assert 'SETUP_REJECTED = "REJECTED"' in text
+    assert "updateSetupState(RawZone zone, array<RawZone> allZones) =>" in text
+    assert "transitionSetup(zone, SETUP_ARMED, ARM_SETUP_AFTER_LIQUIDITY)" in text
+    assert (
+        "transitionSetup(zone, SETUP_TRIGGERED, "
+        "TRIGGER_FIRST_FRESH_TAP_AFTER_LIQUIDITY)" in text
+    )
+    assert (
+        "transitionSetup(zone, SETUP_REJECTED, "
+        "REJECT_TARGET_TAP_WITHOUT_ELIGIBILITY)" in text
+    )
+    assert (
+        "transitionSetup(zone, SETUP_REJECTED, "
+        "REJECT_TARGET_INVALIDATED_ON_RETURN)" in text
+    )
+    assert '"\\\"setup_state\\\":\\\"" + zone.setupState' in text
+    assert '"\\\"setup_reason\\\":\\\"" + zone.setupReason' in text
+    assert "strategy(" not in text
+    assert "strategy." not in text
+
+
+def test_same_bar_route_ambiguity_fails_closed() -> None:
+    text = source()
+    assert "sameBarRouteBlockerId(RawZone target, array<RawZone> allZones) =>" in text
+    assert "target.state == STATE_TAPPED and target.stateBar == bar_index" in text
+    assert "bar_index > target.eligibilityBar" in text
+    assert "zone.eligibilityState := ELIGIBILITY_EXPIRED" in text
+    assert "REJECT_AMBIGUOUS_SAME_BAR_ROUTE" in text
+
+
+def test_setup_state_does_not_control_raw_zone_visibility() -> None:
+    text = source()
+    visible_body = text.split("zoneVisible(RawZone zone) =>", 1)[1].split(
+        "zoneColor(RawZone zone) =>", 1
+    )[0]
+    assert "setup" not in visible_body.lower()

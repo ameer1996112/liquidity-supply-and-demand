@@ -33,6 +33,13 @@ class EligibilityState(str, Enum):
     EXPIRED = "EXPIRED"
 
 
+class SetupState(str, Enum):
+    WAITING_FOR_ELIGIBILITY = "WAITING_FOR_ELIGIBILITY"
+    ARMED = "ARMED"
+    TRIGGERED = "TRIGGERED"
+    REJECTED = "REJECTED"
+
+
 @dataclass(frozen=True)
 class Bar:
     time: str
@@ -98,6 +105,10 @@ class Zone:
     liquidity_extreme: Decimal | None = None
     liquidity_formed_index: int | None = None
     route_blocker_zone_id: str | None = None
+    setup_state: SetupState = SetupState.WAITING_FOR_ELIGIBILITY
+    setup_index: int | None = None
+    setup_time: str | None = None
+    setup_reason: str = "WAIT_SETUP_ELIGIBILITY"
 
     def to_mapping(self) -> dict[str, Any]:
         return {
@@ -131,6 +142,10 @@ class Zone:
             ),
             "liquidity_formed_index": self.liquidity_formed_index,
             "route_blocker_zone_id": self.route_blocker_zone_id,
+            "setup_state": self.setup_state.value,
+            "setup_index": self.setup_index,
+            "setup_time": self.setup_time,
+            "setup_reason": self.setup_reason,
         }
 
 
@@ -202,6 +217,7 @@ class RawZoneDetector:
         self._bars.append(bar)
         self._update_zone_lifecycle(index, bar)
         self._update_zone_eligibility(index, bar)
+        self._update_setup_state(index, bar)
 
         if bar.bullish:
             self._advance_candidate(self._demand_candidate, index)
@@ -427,6 +443,93 @@ class RawZoneDetector:
                 zone.eligibility_state = next_state
                 zone.eligibility_reason = "LIQUIDITY_OWN_EXTREME_TAKEN"
 
+    def _update_setup_state(self, index: int, bar: Bar) -> None:
+        for zone in self._zones:
+            if zone.setup_state in (SetupState.TRIGGERED, SetupState.REJECTED):
+                continue
+
+            if zone.state is ZoneState.INVALIDATED:
+                self._transition_setup(
+                    zone,
+                    SetupState.REJECTED,
+                    index,
+                    bar.time,
+                    "REJECT_TARGET_INVALIDATED_ON_RETURN",
+                )
+                continue
+
+            if zone.state is ZoneState.TAPPED:
+                blocker = self._same_bar_route_blocker(zone, index)
+                if blocker is not None:
+                    zone.eligibility_state = EligibilityState.EXPIRED
+                    zone.eligibility_index = index
+                    zone.eligibility_time = bar.time
+                    zone.eligibility_reason = "EXPIRE_OPPOSITE_ZONE_RETRACE"
+                    zone.route_blocker_zone_id = blocker.zone_id
+                    self._transition_setup(
+                        zone,
+                        SetupState.REJECTED,
+                        index,
+                        bar.time,
+                        "REJECT_AMBIGUOUS_SAME_BAR_ROUTE",
+                    )
+                elif zone.eligibility_state is EligibilityState.ELIGIBLE:
+                    self._transition_setup(
+                        zone,
+                        SetupState.TRIGGERED,
+                        index,
+                        bar.time,
+                        "TRIGGER_FIRST_FRESH_TAP_AFTER_LIQUIDITY",
+                    )
+                else:
+                    self._transition_setup(
+                        zone,
+                        SetupState.REJECTED,
+                        index,
+                        bar.time,
+                        "REJECT_TARGET_TAP_WITHOUT_ELIGIBILITY",
+                    )
+                continue
+
+            if zone.eligibility_state is EligibilityState.EXPIRED:
+                self._transition_setup(
+                    zone,
+                    SetupState.REJECTED,
+                    index,
+                    bar.time,
+                    zone.eligibility_reason,
+                )
+            elif zone.eligibility_state is EligibilityState.ELIGIBLE:
+                if zone.setup_state is not SetupState.ARMED:
+                    self._transition_setup(
+                        zone,
+                        SetupState.ARMED,
+                        index,
+                        bar.time,
+                        "ARM_SETUP_AFTER_LIQUIDITY",
+                    )
+            elif zone.setup_state is SetupState.ARMED:
+                self._transition_setup(
+                    zone,
+                    SetupState.WAITING_FOR_ELIGIBILITY,
+                    index,
+                    bar.time,
+                    "WAIT_SETUP_ELIGIBILITY",
+                )
+
+    @staticmethod
+    def _transition_setup(
+        zone: Zone,
+        state: SetupState,
+        index: int,
+        time: str,
+        reason: str,
+    ) -> None:
+        zone.setup_state = state
+        zone.setup_index = index
+        zone.setup_time = time
+        zone.setup_reason = reason
+
     def _extend_liquidity_run(
         self,
         zone: Zone,
@@ -485,6 +588,22 @@ class RawZoneDetector:
             return None
         if zone.eligibility_index is None or index <= zone.eligibility_index:
             return None
+
+        return self._opposite_tapped_route_blocker(zone, index)
+
+    def _same_bar_route_blocker(self, zone: Zone, index: int) -> Zone | None:
+        if zone.eligibility_state is not EligibilityState.ELIGIBLE:
+            return None
+        if zone.eligibility_index is None or index <= zone.eligibility_index:
+            return None
+        if zone.state is not ZoneState.TAPPED or zone.state_index != index:
+            return None
+
+        return self._opposite_tapped_route_blocker(zone, index)
+
+    def _opposite_tapped_route_blocker(
+        self, zone: Zone, index: int
+    ) -> Zone | None:
 
         blockers = [
             candidate

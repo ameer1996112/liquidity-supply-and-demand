@@ -225,6 +225,29 @@ State meanings:
 
 Each transition stores the deciding bar and exactly one reason code.
 
+### Non-Executable Setup Handoff
+
+Liquidity eligibility and raw-zone lifecycle feed a separate setup state machine:
+
+```text
+WAITING_FOR_ELIGIBILITY
+  -> ARMED
+  -> TRIGGERED
+
+WAITING_FOR_ELIGIBILITY | ARMED
+  -> REJECTED
+
+ARMED
+  -> WAITING_FOR_ELIGIBILITY (when a closer primary liquidity swing is unswept)
+```
+
+- `ARMED` means qualifying liquidity took its own extreme while the target was still fresh.
+- `TRIGGERED` means the first later closed five-minute bar tapped the armed target without invalidating it.
+- `REJECTED` covers a target tap before eligibility, target invalidation on return, an expired route, or unresolved same-bar route ordering.
+- This state is diagnostic only. It neither chooses an entry model nor emits an executable order.
+- A liquidity sweep and target tap on the same five-minute bar fails closed because OHLC cannot prove event order. A simultaneous target and intervening opposite-zone tap also fails closed.
+- Setup state never controls raw-zone visibility.
+
 ## Determinism and Latency
 
 - The production decision clock is the closed five-minute bar unless a later phase explicitly implements an approved intrabar flip-entry model.

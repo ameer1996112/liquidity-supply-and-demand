@@ -33,6 +33,7 @@ def all_decisions(matrix: dict) -> list[dict]:
         *matrix["decisions"],
         *matrix["eligibility_decisions"],
         *matrix["entry_route_decisions"],
+        *matrix["setup_decisions"],
     ]
 
 
@@ -41,10 +42,11 @@ def test_decision_matrix_is_complete_and_resolved() -> None:
     decisions = matrix["decisions"]
     eligibility = matrix["eligibility_decisions"]
     entry_route = matrix["entry_route_decisions"]
+    setup = matrix["setup_decisions"]
     matrix_decisions = all_decisions(matrix)
     decision_ids = [decision["decision_id"] for decision in matrix_decisions]
 
-    assert matrix["version"] == 3
+    assert matrix["version"] == 4
     assert matrix["timeframe"] == "5m"
     assert matrix["runtime_contract"] == "closed_bar_deterministic"
     assert len(decision_ids) == len(set(decision_ids))
@@ -53,7 +55,7 @@ def test_decision_matrix_is_complete_and_resolved() -> None:
     assert all(
         decision["implementation_status"] == "IMPLEMENTED"
         and len(decision["implementations"]) == 2
-        for decision in [*eligibility, *entry_route]
+        for decision in [*eligibility, *entry_route, *setup]
     )
     assert all(conflict["status"] == "RESOLVED" for conflict in matrix["conflicts"])
 
@@ -73,7 +75,7 @@ def test_every_pine_reason_code_has_a_rule_mapping() -> None:
     pine_source = PINE_PATH.read_text(encoding="utf-8")
     pine_reason_codes = set(
         re.findall(
-            r'const string (?:CONFIRM|REJECT|TAP|INVALIDATE|WAIT|LIQUIDITY|EXPIRE)_[A-Z_]+ = "([A-Z_]+)"',
+            r'const string (?:CONFIRM|REJECT|TAP|INVALIDATE|WAIT|LIQUIDITY|EXPIRE|ARM|TRIGGER)_[A-Z_]+ = "([A-Z_]+)"',
             pine_source,
         )
     )
@@ -95,7 +97,7 @@ def test_reference_detector_reason_codes_match_pine_contract() -> None:
     }
     emitted_reason_codes = set(
         re.findall(
-            r'"((?:CONFIRM|REJECT|TAP|INVALIDATE|WAIT|LIQUIDITY|EXPIRE)_[A-Z_]+)"',
+            r'"((?:CONFIRM|REJECT|TAP|INVALIDATE|WAIT|LIQUIDITY|EXPIRE|ARM|TRIGGER)_[A-Z_]+)"',
             reference_source,
         )
     )
@@ -123,4 +125,27 @@ def test_liquidity_eligibility_does_not_hide_raw_zones() -> None:
         rule_id
         for item in eligibility
         for rule_id in item["rule_ids"]
+    }
+
+
+def test_setup_handoff_is_non_executable_and_fail_closed() -> None:
+    matrix = load_matrix()
+
+    assert matrix["setup_contract"] == {
+        "stage": "post_liquidity_eligibility_first_target_return",
+        "raw_zone_visibility_unchanged": True,
+        "executable": False,
+        "implementation_status": "IMPLEMENTED",
+        "default_policy": "fail_closed",
+    }
+    assert {
+        "ARM_SETUP_AFTER_LIQUIDITY",
+        "TRIGGER_FIRST_FRESH_TAP_AFTER_LIQUIDITY",
+        "REJECT_TARGET_TAP_WITHOUT_ELIGIBILITY",
+        "REJECT_TARGET_INVALIDATED_ON_RETURN",
+        "REJECT_AMBIGUOUS_SAME_BAR_ROUTE",
+    } <= {
+        item["reason_code"]
+        for item in matrix["setup_decisions"]
+        if item["reason_code"] is not None
     }
