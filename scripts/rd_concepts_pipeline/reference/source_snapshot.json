@@ -1,0 +1,43 @@
+{
+  "captured_at": "2026-07-19",
+  "immutable": true,
+  "sources": [
+    {
+      "source_id": "rd_forex",
+      "name": "RD Forex",
+      "channel_url": "https://www.youtube.com/@RD_Forex",
+      "video_count": 55
+    },
+    {
+      "source_id": "arger_fx",
+      "name": "Arger FX",
+      "channel_url": "https://www.youtube.com/@argerfx",
+      "video_count": 33
+    },
+    {
+      "source_id": "mangoe",
+      "name": "Mangoe",
+      "channel_url": "https://www.youtube.com/@_mangoe",
+      "video_count": 123
+    },
+    {
+      "source_id": "rt_futures",
+      "name": "RT Futures",
+      "channel_url": "https://www.youtube.com/@RTFutures",
+      "video_count": 21
+    },
+    {
+      "source_id": "charney_fx",
+      "name": "CharneyFX",
+      "channel_url": "https://www.youtube.com/@CharneyFX",
+      "video_count": 79
+    },
+    {
+      "source_id": "trirex",
+      "name": "Trirex",
+      "channel_url": "https://www.youtube.com/@quentintrirex",
+      "video_count": 81
+    }
+  ],
+  "total_videos": 392
+}

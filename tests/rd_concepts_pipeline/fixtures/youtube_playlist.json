@@ -1,0 +1,18 @@
+{
+  "id": "uploads",
+  "title": "RD Forex - Videos",
+  "entries": [
+    {
+      "id": "course1",
+      "title": "FULL course for LIQUIDITY supply and demand",
+      "url": "https://www.youtube.com/watch?v=course1",
+      "upload_date": "20260102"
+    },
+    {
+      "id": "mindset1",
+      "title": "A Year From Now You'll Wish You Started",
+      "url": "mindset1",
+      "upload_date": "20260101"
+    }
+  ]
+}

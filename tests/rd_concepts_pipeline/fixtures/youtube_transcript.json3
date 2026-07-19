@@ -1,0 +1,19 @@
+{
+  "events": [
+    {
+      "tStartMs": 223000,
+      "dDurationMs": 2000,
+      "segs": [{"utf8": "Never close in the zone."}]
+    },
+    {
+      "tStartMs": 225000,
+      "dDurationMs": 2500,
+      "segs": [{"utf8": " Liquidity must take out its own high."}]
+    },
+    {
+      "tStartMs": 227500,
+      "dDurationMs": 1000,
+      "segs": [{"utf8": "\n"}]
+    }
+  ]
+}

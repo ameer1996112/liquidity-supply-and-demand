@@ -1,10 +1,12 @@
 # RD Concepts Pipeline
 
-Offline Discord research data lake for RD Concepts strategy analysis. The pipeline collects configured Discord channel history, parses research signals and images, extracts strategy concepts, and builds local knowledge-base artifacts for review in Streamlit.
+Offline Discord and YouTube research data lake for RD Concepts strategy analysis. The pipeline collects configured Discord history, inventories the six approved YouTube channels, caches timestamped English subtitles, extracts candidate evidence spans, and validates versioned five-minute strategy rules and benchmark cases.
 
 ## Safety
 
 This pipeline is research-only. It does not execute trades, call MetaApi, import the worker, or modify live bot state. It writes local research files under `data/rd_concepts` by default.
+
+Full transcripts remain under ignored `data/rd_concepts`; they are never committed as rule definitions. Versioned rules contain paraphrases, source IDs, and exact evidence timestamps. The protected indicator is comparison evidence, not a source of executable rules.
 
 Do not put trading execution logic in this package. Keep it separate from `src/logic.py`, `src/worker.py`, broker adapters, and live account services.
 
@@ -40,6 +42,45 @@ python scripts/rd_concepts_pipeline/list_channels.py
 Fill channel IDs in `scripts/rd_concepts_pipeline/config.py`. Channels still set to `PASTE_ID` or another incomplete value are skipped until they are filled in.
 
 ## Run
+
+### YouTube Evidence
+
+Inventory all six approved channels without downloading video media:
+
+```bash
+python scripts/rd_concepts_pipeline/youtube_sync.py inventory
+```
+
+Cache timestamped English subtitles for rule and edge-evidence videos:
+
+```bash
+python scripts/rd_concepts_pipeline/youtube_sync.py transcripts
+```
+
+Extract local candidate evidence spans:
+
+```bash
+python scripts/rd_concepts_pipeline/youtube_sync.py evidence
+```
+
+Run all YouTube stages:
+
+```bash
+python scripts/rd_concepts_pipeline/youtube_sync.py all
+```
+
+Use `--source rd_forex` to limit a run, `--refresh` to replace cached subtitles, and `--include-operations` to include automation/performance videos. Without the latter flag, transcript collection is limited to `RULE_SOURCE` and `EDGE_EVIDENCE`.
+
+Video title classification has four research classes:
+
+- `RULE_SOURCE`: courses, guides, checklists, and direct strategy definitions.
+- `EDGE_EVIDENCE`: backtests, breakdowns, skipped trades, losses, and missed setups.
+- `OPERATIONS_EVIDENCE`: bots, automation, portfolios, and drawdown reports.
+- `NON_RULE`: videos that do not supply strategy evidence.
+
+Rule authority is manual rulings first, latest applicable RD Forex rules second, Arger/Mangoe/RT corroboration third, Charney filters fourth, Trirex operations evidence fifth, and protected-indicator comparison last. Unresolved conflicts fail closed and cannot become executable rules.
+
+### Discord Research
 
 Dry-run the scraper without writing downloaded data:
 
@@ -83,6 +124,12 @@ Run the complete offline pipeline:
 scripts/rd_concepts_pipeline/run_all.sh
 ```
 
+The shell entrypoint remains Discord-only by default. Include the YouTube sync explicitly:
+
+```bash
+RD_INCLUDE_YOUTUBE=1 scripts/rd_concepts_pipeline/run_all.sh
+```
+
 ## Outputs
 
 Default outputs are written under `data/rd_concepts`:
@@ -95,5 +142,11 @@ Default outputs are written under `data/rd_concepts`:
 - Extracted rules: `processed/rules.jsonl`
 - Extracted concepts: `processed/concepts.json`
 - Knowledge base: `processed/knowledge_base.json`
+- YouTube inventory: `youtube/inventory.jsonl`
+- Timestamped transcript cache: `youtube/transcripts/*.json3`
+- Candidate evidence spans: `youtube/evidence_candidates.jsonl`
+- YouTube sync manifest: `youtube/manifest.json`
+
+Committed validation inputs live under `scripts/rd_concepts_pipeline/reference`. `rd_5m_rules.jsonl` is checked for evidence, status, precedence, supersession, and unresolved conflicts. `rd_5m_cases.jsonl` distinguishes `PROVISIONAL` observations from `APPROVED` exact-OHLC release fixtures.
 
 These files are local research artifacts only. They are not read by the live trading worker and do not change bot state.

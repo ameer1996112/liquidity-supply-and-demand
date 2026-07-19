@@ -1,0 +1,36 @@
+{
+  "case_id": "USDJPY-5M-FORMATION-WICK-001",
+  "symbol": "USDJPY",
+  "feed": "VANTAGE",
+  "timeframe": "5m",
+  "label_status": "APPROVED",
+  "rules": ["RD5M-ZONE-FORMATION-WICK-DEMAND"],
+  "bars": [
+    {
+      "time": "2026-07-19T08:00:00Z",
+      "open": 162.290,
+      "high": 162.296,
+      "low": 162.270,
+      "close": 162.275
+    },
+    {
+      "time": "2026-07-19T08:05:00Z",
+      "open": 162.274,
+      "high": 162.310,
+      "low": 162.264,
+      "close": 162.305
+    }
+  ],
+  "expected_zones": [
+    {
+      "direction": "DEMAND",
+      "formation": "CONTINUATION",
+      "geometry": "STANDARD",
+      "origin_time": "2026-07-19T08:00:00Z",
+      "confirmation_time": "2026-07-19T08:05:00Z",
+      "top": 162.296,
+      "bottom": 162.264
+    }
+  ],
+  "expected_rejections": []
+}

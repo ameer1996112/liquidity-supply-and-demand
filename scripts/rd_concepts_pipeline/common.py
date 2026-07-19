@@ -70,6 +70,29 @@ def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
             handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
 
 
+def atomic_write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
+    ensure_dir(path.parent)
+    temporary = path.with_name(f"{path.name}.tmp")
+    try:
+        write_jsonl(temporary, rows)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    ensure_dir(path.parent)
+    temporary = path.with_name(f"{path.name}.tmp")
+    try:
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 

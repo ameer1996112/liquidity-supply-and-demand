@@ -8,4 +8,8 @@ python scripts/rd_concepts_pipeline/parser.py
 python scripts/rd_concepts_pipeline/rules_extractor.py
 python scripts/rd_concepts_pipeline/knowledge_base.py
 
+if [[ "${RD_INCLUDE_YOUTUBE:-0}" == "1" ]]; then
+    python scripts/rd_concepts_pipeline/youtube_sync.py all
+fi
+
 echo "RD Concepts data lake complete. Run: streamlit run scripts/rd_concepts_pipeline/dashboard.py"

@@ -1,6 +1,8 @@
 from pathlib import Path
 
 from scripts.rd_concepts_pipeline.common import (
+    atomic_write_json,
+    atomic_write_jsonl,
     detect_session,
     extract_setup_tags,
     redact,
@@ -26,6 +28,21 @@ def test_jsonl_round_trip(tmp_path: Path) -> None:
     write_jsonl(path, rows)
 
     assert list(read_jsonl(path)) == rows
+
+
+def test_atomic_writes_replace_existing_files(tmp_path: Path) -> None:
+    jsonl_path = tmp_path / "rows.jsonl"
+    json_path = tmp_path / "manifest.json"
+    jsonl_path.write_text("stale\n", encoding="utf-8")
+    json_path.write_text("stale\n", encoding="utf-8")
+
+    atomic_write_jsonl(jsonl_path, [{"id": "fresh"}])
+    atomic_write_json(json_path, {"status": "fresh"})
+
+    assert list(read_jsonl(jsonl_path)) == [{"id": "fresh"}]
+    assert '"status": "fresh"' in json_path.read_text(encoding="utf-8")
+    assert not (tmp_path / "rows.jsonl.tmp").exists()
+    assert not (tmp_path / "manifest.json.tmp").exists()
 
 
 def test_detect_session_london_from_utc_timestamp() -> None:
