@@ -113,6 +113,16 @@ class Rejection:
     decision_time: str
     reason: str
 
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "direction": self.direction.value,
+            "origin_index": self.origin_index,
+            "origin_time": self.origin_time,
+            "decision_index": self.decision_index,
+            "rejection_time": self.decision_time,
+            "reason": self.reason,
+        }
+
 
 @dataclass
 class _Candidate:

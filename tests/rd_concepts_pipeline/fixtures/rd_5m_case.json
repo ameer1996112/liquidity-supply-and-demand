@@ -7,6 +7,13 @@
   "rules": ["RD5M-ZONE-FORMATION-WICK-DEMAND"],
   "bars": [
     {
+      "time": "2026-07-19T07:55:00Z",
+      "open": 162.280,
+      "high": 162.300,
+      "low": 162.275,
+      "close": 162.290
+    },
+    {
       "time": "2026-07-19T08:00:00Z",
       "open": 162.290,
       "high": 162.296,

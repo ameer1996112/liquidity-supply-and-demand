@@ -150,3 +150,28 @@ Default outputs are written under `data/rd_concepts`:
 Committed validation inputs live under `scripts/rd_concepts_pipeline/reference`. `rd_5m_rules.jsonl` is checked for evidence, status, precedence, supersession, and unresolved conflicts. `rd_5m_cases.jsonl` distinguishes `PROVISIONAL` observations from `APPROVED` exact-OHLC release fixtures.
 
 These files are local research artifacts only. They are not read by the live trading worker and do not change bot state.
+
+## Detector Benchmark
+
+Run the deterministic reference detector against the committed case catalog:
+
+```bash
+PYTHONPATH=. ./venv/bin/python -m scripts.rd_concepts_pipeline.benchmark_cases
+```
+
+Use `--price-tolerance` only when the approved label defines a feed-specific rounding tolerance:
+
+```bash
+PYTHONPATH=. ./venv/bin/python -m scripts.rd_concepts_pipeline.benchmark_cases \
+  --price-tolerance 0.001
+```
+
+The report pairs zones by direction, origin bar time, and confirmation bar time. It separately reports missing zones, unexpected zones, classification or bound mismatches, lifecycle mismatches, and labeled rejection mismatches. Drawing order and local zone IDs do not affect matching.
+
+Statuses are strict:
+
+- `PASSED` means every `APPROVED` case matched within the explicit tolerance.
+- `FAILED` means at least one approved label disagreed with the detector.
+- `NO_APPROVED_CASES` means the catalog contains only provisional evidence and cannot support an accuracy result.
+
+`PROVISIONAL` screenshots never count as passing labels. Promote one to `APPROVED` only after exact 5-minute OHLC, feed, symbol, bar timestamps, expected geometry, and applicable rule IDs have been recorded and manually reviewed. A passing finite corpus proves agreement with that corpus; it is not a claim of universal or future trading accuracy.
