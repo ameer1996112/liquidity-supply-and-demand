@@ -76,3 +76,25 @@ def test_object_budgets_stay_below_tradingview_limits() -> None:
         assert match is not None
         assert int(match.group(1)) <= 300
     assert 'maxZones = input.int(120, "Maximum zones", minval = 10, maxval = 200' in text
+
+
+def test_liquidity_eligibility_matches_reference_detector_contract() -> None:
+    text = source()
+    assert 'ELIGIBILITY_WAITING = "WAITING_FOR_LIQUIDITY"' in text
+    assert 'ELIGIBILITY_ELIGIBLE = "ELIGIBLE"' in text
+    assert 'ELIGIBILITY_EXPIRED = "EXPIRED"' in text
+    assert "zone.liquidityRunCount >= 2" in text
+    assert "math.max(high[1], high)" in text
+    assert "math.min(low[1], low)" in text
+    assert "high > candidateAnchor" in text
+    assert "low < candidateAnchor" in text
+    assert "zone.eligibilityReason := EXPIRE_ZONE_NOT_FRESH" in text
+
+
+def test_liquidity_eligibility_never_hides_raw_zones() -> None:
+    text = source()
+    visible_body = text.split("zoneVisible(RawZone zone) =>", 1)[1].split(
+        "zoneColor(RawZone zone) =>", 1
+    )[0]
+    assert "zone.state" in visible_body
+    assert "eligibility" not in visible_body.lower()

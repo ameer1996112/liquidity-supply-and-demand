@@ -12,12 +12,20 @@ const string GEOMETRY_ACCURACY = "ACCURACY"
 const string STATE_FRESH = "CONFIRMED_FRESH"
 const string STATE_TAPPED = "TAPPED"
 const string STATE_INVALIDATED = "INVALIDATED"
+const string ELIGIBILITY_WAITING = "WAITING_FOR_LIQUIDITY"
+const string ELIGIBILITY_ELIGIBLE = "ELIGIBLE"
+const string ELIGIBILITY_EXPIRED = "EXPIRED"
 
 const string CONFIRM_CLOSE_BEYOND_ORIGIN = "CONFIRM_CLOSE_BEYOND_ORIGIN"
 const string REJECT_FORMATION_INTERRUPTED = "REJECT_FORMATION_INTERRUPTED"
 const string REJECT_UNKNOWN_APPROACH = "REJECT_UNKNOWN_APPROACH"
 const string TAP_POST_CONFIRM_OVERLAP = "TAP_POST_CONFIRM_OVERLAP"
 const string INVALIDATE_CLOSE_BEYOND_DISTAL = "INVALIDATE_CLOSE_BEYOND_DISTAL"
+const string WAIT_MINIMUM_LIQUIDITY_CANDLES = "WAIT_MINIMUM_LIQUIDITY_CANDLES"
+const string REJECT_ONE_CANDLE_LIQUIDITY = "REJECT_ONE_CANDLE_LIQUIDITY"
+const string WAIT_LIQUIDITY_OWN_EXTREME = "WAIT_LIQUIDITY_OWN_EXTREME"
+const string LIQUIDITY_OWN_EXTREME_TAKEN = "LIQUIDITY_OWN_EXTREME_TAKEN"
+const string EXPIRE_ZONE_NOT_FRESH = "EXPIRE_ZONE_NOT_FRESH"
 
 maxZones = input.int(120, "Maximum zones", minval = 10, maxval = 200, group = "Display")
 projectionBars = input.int(120, "Fresh-zone projection bars", minval = 1, maxval = 500, group = "Display")
@@ -64,6 +72,14 @@ type RawZone
     int stateBar
     int stateTime
     string reason
+    string eligibilityState
+    int eligibilityBar
+    int eligibilityTime
+    string eligibilityReason
+    float liquidityAnchor
+    int liquidityRunCount
+    float liquidityRunAnchor
+    array<float> liquidityAnchors
     box zoneBox
     label debugLabel
 
@@ -145,6 +161,14 @@ buildConfirmedZone(Candidate candidate, bool demand, int zoneId, string formatio
     zone.stateBar := na
     zone.stateTime := na
     zone.reason := CONFIRM_CLOSE_BEYOND_ORIGIN
+    zone.eligibilityState := ELIGIBILITY_WAITING
+    zone.eligibilityBar := na
+    zone.eligibilityTime := na
+    zone.eligibilityReason := WAIT_MINIMUM_LIQUIDITY_CANDLES
+    zone.liquidityAnchor := na
+    zone.liquidityRunCount := 0
+    zone.liquidityRunAnchor := na
+    zone.liquidityAnchors := array.new<float>()
     zone.zoneBox := na
     zone.debugLabel := na
     zone
@@ -164,7 +188,7 @@ zoneRightBar(RawZone zone) =>
 
 zoneText(RawZone zone) =>
     string side = zone.demand ? "D" : "S"
-    "Z" + str.tostring(zone.id) + " " + side + " " + zone.formation + " " + zone.geometry + "\n" + zone.state + " " + zone.reason
+    "Z" + str.tostring(zone.id) + " " + side + " " + zone.formation + " " + zone.geometry + "\n" + zone.state + " " + zone.reason + "\n" + zone.eligibilityState + " " + zone.eligibilityReason
 
 updateZoneDrawing(RawZone zone) =>
     bool visible = zoneVisible(zone)
@@ -211,7 +235,59 @@ diagnosticPayload(string eventName, RawZone zone) =>
      "\"top\":" + str.tostring(zone.top, format.mintick) + "," +
      "\"bottom\":" + str.tostring(zone.bottom, format.mintick) + "," +
      "\"state\":\"" + zone.state + "\"," +
-     "\"reason\":\"" + zone.reason + "\"}"
+     "\"reason\":\"" + zone.reason + "\"," +
+     "\"eligibility_state\":\"" + zone.eligibilityState + "\"," +
+     "\"eligibility_reason\":\"" + zone.eligibilityReason + "\"," +
+     "\"liquidity_anchor\":" + (na(zone.liquidityAnchor) ? "null" : str.tostring(zone.liquidityAnchor, format.mintick)) + "}"
+
+extendLiquidityRun(RawZone zone) =>
+    if zone.liquidityRunCount == 0
+        zone.liquidityRunAnchor := zone.demand ? math.max(high[1], high) : math.min(low[1], low)
+    else
+        zone.liquidityRunAnchor := zone.demand ? math.max(zone.liquidityRunAnchor, high) : math.min(zone.liquidityRunAnchor, low)
+    zone.liquidityRunCount += 1
+    zone.eligibilityReason := WAIT_MINIMUM_LIQUIDITY_CANDLES
+
+completeLiquidityRun(RawZone zone) =>
+    if zone.liquidityRunCount >= 2
+        array.push(zone.liquidityAnchors, zone.liquidityRunAnchor)
+        zone.eligibilityReason := WAIT_LIQUIDITY_OWN_EXTREME
+    else if zone.liquidityRunCount == 1
+        zone.eligibilityReason := REJECT_ONE_CANDLE_LIQUIDITY
+    zone.liquidityRunCount := 0
+    zone.liquidityRunAnchor := na
+
+updateZoneEligibility(RawZone zone) =>
+    bool becameEligible = false
+    if zone.eligibilityState == ELIGIBILITY_WAITING
+        if zone.state != STATE_FRESH
+            zone.eligibilityState := ELIGIBILITY_EXPIRED
+            zone.eligibilityBar := bar_index
+            zone.eligibilityTime := time_close
+            zone.eligibilityReason := EXPIRE_ZONE_NOT_FRESH
+        else if bar_index > zone.confirmationBar
+            bool requiredCandle = zone.demand ? close < open : close > open
+            if requiredCandle
+                extendLiquidityRun(zone)
+            else
+                completeLiquidityRun(zone)
+
+            float brokenAnchor = na
+            int candidateCount = array.size(zone.liquidityAnchors)
+            if candidateCount > 0
+                for candidateIndex = 0 to candidateCount - 1
+                    float candidateAnchor = array.get(zone.liquidityAnchors, candidateIndex)
+                    bool broken = zone.demand ? high > candidateAnchor : low < candidateAnchor
+                    if broken
+                        brokenAnchor := candidateAnchor
+            if not na(brokenAnchor)
+                zone.eligibilityState := ELIGIBILITY_ELIGIBLE
+                zone.eligibilityBar := bar_index
+                zone.eligibilityTime := time_close
+                zone.eligibilityReason := LIQUIDITY_OWN_EXTREME_TAKEN
+                zone.liquidityAnchor := brokenAnchor
+                becameEligible := true
+    becameEligible
 
 deleteZone(RawZone zone) =>
     if not na(zone.zoneBox)
@@ -249,6 +325,11 @@ if barstate.isconfirmed and isFiveMinute
                     lastDecision := zone.reason
                     if emitDiagnostics
                         alert(diagnosticPayload(invalidated ? "ZONE_INVALIDATED_NON_EXECUTABLE" : "ZONE_TAPPED_NON_EXECUTABLE", zone), alert.freq_once_per_bar_close)
+            bool becameEligible = updateZoneEligibility(zone)
+            if becameEligible
+                lastDecision := LIQUIDITY_OWN_EXTREME_TAKEN
+                if emitDiagnostics
+                    alert(diagnosticPayload("ZONE_ELIGIBLE_NON_EXECUTABLE", zone), alert.freq_once_per_bar_close)
             array.set(zones, index, zone)
 
     int direction = candleDirection(0)

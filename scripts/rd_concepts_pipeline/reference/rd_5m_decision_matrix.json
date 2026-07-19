@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "timeframe": "5m",
   "market_scope": ["all"],
   "runtime_contract": "closed_bar_deterministic",
@@ -117,6 +117,59 @@
       "implementations": ["reference_detector.RawZoneDetector._update_zone_lifecycle", "SND_RD_5M_V1_LAB.zone lifecycle loop"]
     }
   ],
+  "eligibility_contract": {
+    "stage": "post_raw_confirmation_pre_entry",
+    "raw_zone_visibility_unchanged": true,
+    "implementation_status": "IMPLEMENTED",
+    "default_policy": "fail_closed"
+  },
+  "eligibility_decisions": [
+    {
+      "decision_id": "await_minimum_liquidity_candles",
+      "condition": "After raw zone confirmation and before its first tap, fewer than two consecutive opposite-direction liquidity candles have closed in front of it.",
+      "outcome": "Keep the raw zone visible but do not mark it strategy-eligible.",
+      "reason_code": "WAIT_MINIMUM_LIQUIDITY_CANDLES",
+      "rule_ids": ["RD5M-LIQUIDITY-MIN-OPPOSITE-CANDLES"],
+      "implementation_status": "IMPLEMENTED",
+      "implementations": ["reference_detector.RawZoneDetector._update_zone_eligibility", "SND_RD_5M_V1_LAB.extendLiquidityRun"]
+    },
+    {
+      "decision_id": "reject_one_candle_liquidity_default",
+      "condition": "Only one opposite-direction liquidity candle exists and the discretionary exception cannot be evaluated objectively.",
+      "outcome": "Keep the raw zone visible and fail closed for strategy eligibility.",
+      "reason_code": "REJECT_ONE_CANDLE_LIQUIDITY",
+      "rule_ids": ["RD5M-LIQUIDITY-MIN-OPPOSITE-CANDLES", "RD5M-LIQUIDITY-ONE-CANDLE-EXCEPTION"],
+      "implementation_status": "IMPLEMENTED",
+      "implementations": ["reference_detector.RawZoneDetector._complete_liquidity_run", "SND_RD_5M_V1_LAB.completeLiquidityRun"]
+    },
+    {
+      "decision_id": "await_liquidity_own_extreme",
+      "condition": "At least two opposite-direction liquidity candles have formed, using the wick extreme at the run's starting swing as the anchor, but price has not traded beyond that anchor.",
+      "outcome": "Keep the raw zone visible and continue waiting without emitting an eligible setup.",
+      "reason_code": "WAIT_LIQUIDITY_OWN_EXTREME",
+      "rule_ids": ["RD5M-LIQUIDITY-MIN-OPPOSITE-CANDLES", "RD5M-LIQUIDITY-TAKE-OWN-EXTREME"],
+      "implementation_status": "IMPLEMENTED",
+      "implementations": ["reference_detector.RawZoneDetector._update_zone_eligibility", "SND_RD_5M_V1_LAB.updateZoneEligibility"]
+    },
+    {
+      "decision_id": "expire_unconfirmed_liquidity_on_zone_retest",
+      "condition": "The raw zone is tapped or invalidated before qualifying liquidity takes its own extreme.",
+      "outcome": "Keep the raw zone and its lifecycle visible but expire strategy eligibility for that setup.",
+      "reason_code": "EXPIRE_ZONE_NOT_FRESH",
+      "rule_ids": ["RD5M-ZONE-UNTAPPED", "RD5M-LIQUIDITY-TAKE-OWN-EXTREME"],
+      "implementation_status": "IMPLEMENTED",
+      "implementations": ["reference_detector.RawZoneDetector._update_zone_eligibility", "SND_RD_5M_V1_LAB.updateZoneEligibility"]
+    },
+    {
+      "decision_id": "confirm_liquidity_eligibility",
+      "condition": "At least two opposite-direction liquidity candles formed after zone confirmation and price subsequently traded beyond the starting swing's wick high for demand or wick low for supply.",
+      "outcome": "Mark the still-fresh raw zone as strategy-eligible on the closed five-minute bar.",
+      "reason_code": "LIQUIDITY_OWN_EXTREME_TAKEN",
+      "rule_ids": ["RD5M-LIQUIDITY-MIN-OPPOSITE-CANDLES", "RD5M-LIQUIDITY-TAKE-OWN-EXTREME", "RD5M-DETECTOR-CLOSED-5M"],
+      "implementation_status": "IMPLEMENTED",
+      "implementations": ["reference_detector.RawZoneDetector._update_zone_eligibility", "SND_RD_5M_V1_LAB.updateZoneEligibility"]
+    }
+  ],
   "conflicts": [
     {
       "conflict_id": "accuracy_body_vs_legacy_wick_segment",
@@ -132,6 +185,11 @@
       "conflict_id": "first_candidate_vs_final_opposite_origin",
       "status": "RESOLVED",
       "resolution": "Replace an unformed candidate with each newer opposite candle so the final opposite candle becomes the origin."
+    },
+    {
+      "conflict_id": "normal_two_candle_liquidity_vs_discretionary_one_candle_exception",
+      "status": "RESOLVED",
+      "resolution": "Automation requires the objective two-candle minimum. Keep the one-candle exception documented but fail closed until its large-retracement, obvious-zone-fakeout, and clear-direction conditions have approved numeric definitions."
     }
   ]
 }

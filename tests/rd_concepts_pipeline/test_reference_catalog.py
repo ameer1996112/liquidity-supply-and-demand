@@ -49,6 +49,9 @@ def test_initial_rule_catalog_is_valid_and_contains_zone_contracts() -> None:
         "RD5M-ZONE-UNTAPPED",
         "RD5M-ZONE-DEPARTURE-WICK-EXCEPTION",
         "RD5M-ZONE-FORMATION-WICK-DEMAND",
+        "RD5M-LIQUIDITY-MIN-OPPOSITE-CANDLES",
+        "RD5M-LIQUIDITY-TAKE-OWN-EXTREME",
+        "RD5M-LIQUIDITY-ONE-CANDLE-EXCEPTION",
     } <= set(rule_ids)
     assert validate_rule_catalog(records) == []
 

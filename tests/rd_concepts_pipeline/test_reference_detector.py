@@ -5,6 +5,7 @@ from pathlib import Path
 from scripts.rd_concepts_pipeline.reference_detector import (
     Bar,
     Direction,
+    EligibilityState,
     Geometry,
     ZoneState,
     detect_zones,
@@ -107,3 +108,78 @@ def test_invalid_bar_geometry_is_rejected() -> None:
         assert str(exc) == "bar high is below its body"
     else:
         raise AssertionError("invalid OHLC must fail")
+
+
+def test_demand_zone_becomes_eligible_after_two_bearish_candles_take_own_high() -> None:
+    bars = [Bar.from_mapping(row) for row in load_cases()[0]["bars"]]
+    bars.extend(
+        Bar.from_mapping(row)
+        for row in [
+            {"time": "t3", "open": 10.5, "high": 10.6, "low": 10.3, "close": 10.4},
+            {"time": "t4", "open": 10.4, "high": 10.45, "low": 10.15, "close": 10.2},
+            {"time": "t5", "open": 10.2, "high": 10.61, "low": 10.1, "close": 10.55},
+        ]
+    )
+
+    zone = detect_zones(bars).zones[0]
+
+    assert zone.state is ZoneState.CONFIRMED_FRESH
+    assert zone.eligibility_state is EligibilityState.ELIGIBLE
+    assert zone.eligibility_index == 5
+    assert zone.liquidity_anchor == Decimal("10.6")
+    assert zone.eligibility_reason == "LIQUIDITY_OWN_EXTREME_TAKEN"
+
+
+def test_supply_zone_becomes_eligible_after_two_bullish_candles_take_own_low() -> None:
+    bars = [
+        Bar.from_mapping({"time": "t0", "open": 10.4, "high": 10.5, "low": 10.1, "close": 10.2}),
+        Bar.from_mapping({"time": "t1", "open": 10.2, "high": 10.6, "low": 10.15, "close": 10.5}),
+        Bar.from_mapping({"time": "t2", "open": 10.5, "high": 10.55, "low": 9.9, "close": 10.0}),
+        Bar.from_mapping({"time": "t3", "open": 9.9, "high": 10.05, "low": 9.7, "close": 10.0}),
+        Bar.from_mapping({"time": "t4", "open": 10.0, "high": 10.1, "low": 9.8, "close": 10.05}),
+        Bar.from_mapping({"time": "t5", "open": 10.05, "high": 10.1, "low": 9.65, "close": 9.7}),
+    ]
+
+    zone = next(zone for zone in detect_zones(bars).zones if zone.origin_index == 1)
+
+    assert zone.state is ZoneState.CONFIRMED_FRESH
+    assert zone.eligibility_state is EligibilityState.ELIGIBLE
+    assert zone.eligibility_index == 5
+    assert zone.liquidity_anchor == Decimal("9.7")
+
+
+def test_one_candle_liquidity_fails_closed_without_hiding_raw_zone() -> None:
+    bars = [Bar.from_mapping(row) for row in load_cases()[0]["bars"]]
+    bars.extend(
+        Bar.from_mapping(row)
+        for row in [
+            {"time": "t3", "open": 10.5, "high": 10.6, "low": 10.3, "close": 10.4},
+            {"time": "t4", "open": 10.4, "high": 10.7, "low": 10.2, "close": 10.65},
+        ]
+    )
+
+    result = detect_zones(bars)
+    zone = result.zones[0]
+
+    assert zone in result.zones
+    assert zone.eligibility_state is EligibilityState.WAITING_FOR_LIQUIDITY
+    assert zone.eligibility_reason == "REJECT_ONE_CANDLE_LIQUIDITY"
+
+
+def test_zone_tapped_before_liquidity_confirmation_expires_eligibility() -> None:
+    bars = [Bar.from_mapping(row) for row in load_cases()[0]["bars"]]
+    bars.extend(
+        Bar.from_mapping(row)
+        for row in [
+            {"time": "t3", "open": 10.5, "high": 10.6, "low": 10.3, "close": 10.4},
+            {"time": "t4", "open": 10.4, "high": 10.45, "low": 10.15, "close": 10.2},
+            {"time": "t5", "open": 10.2, "high": 10.3, "low": 9.8, "close": 10.0},
+        ]
+    )
+
+    zone = detect_zones(bars).zones[0]
+
+    assert zone.state is ZoneState.TAPPED
+    assert zone.eligibility_state is EligibilityState.EXPIRED
+    assert zone.eligibility_index == 5
+    assert zone.eligibility_reason == "EXPIRE_ZONE_NOT_FRESH"

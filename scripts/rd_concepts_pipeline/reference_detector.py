@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
 from typing import Any, Mapping, Sequence
@@ -25,6 +25,12 @@ class ZoneState(str, Enum):
     CONFIRMED_FRESH = "CONFIRMED_FRESH"
     TAPPED = "TAPPED"
     INVALIDATED = "INVALIDATED"
+
+
+class EligibilityState(str, Enum):
+    WAITING_FOR_LIQUIDITY = "WAITING_FOR_LIQUIDITY"
+    ELIGIBLE = "ELIGIBLE"
+    EXPIRED = "EXPIRED"
 
 
 @dataclass(frozen=True)
@@ -84,6 +90,11 @@ class Zone:
     state_index: int | None = None
     state_time: str | None = None
     reason: str = "CONFIRM_CLOSE_BEYOND_ORIGIN"
+    eligibility_state: EligibilityState = EligibilityState.WAITING_FOR_LIQUIDITY
+    eligibility_index: int | None = None
+    eligibility_time: str | None = None
+    eligibility_reason: str = "WAIT_MINIMUM_LIQUIDITY_CANDLES"
+    liquidity_anchor: Decimal | None = None
 
     def to_mapping(self) -> dict[str, Any]:
         return {
@@ -101,6 +112,15 @@ class Zone:
             "state_index": self.state_index,
             "state_time": self.state_time,
             "reason": self.reason,
+            "eligibility_state": self.eligibility_state.value,
+            "eligibility_index": self.eligibility_index,
+            "eligibility_time": self.eligibility_time,
+            "eligibility_reason": self.eligibility_reason,
+            "liquidity_anchor": (
+                str(self.liquidity_anchor)
+                if self.liquidity_anchor is not None
+                else None
+            ),
         }
 
 
@@ -133,6 +153,19 @@ class _Candidate:
 
 
 @dataclass(frozen=True)
+class _LiquidityCandidate:
+    anchor: Decimal
+    formed_index: int
+
+
+@dataclass
+class _LiquidityTracker:
+    run_count: int = 0
+    run_anchor: Decimal | None = None
+    candidates: list[_LiquidityCandidate] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class DetectionResult:
     zones: tuple[Zone, ...]
     rejections: tuple[Rejection, ...]
@@ -143,6 +176,7 @@ class RawZoneDetector:
         self._bars: list[Bar] = []
         self._zones: list[Zone] = []
         self._rejections: list[Rejection] = []
+        self._liquidity_trackers: dict[str, _LiquidityTracker] = {}
         self._demand_candidate: _Candidate | None = None
         self._supply_candidate: _Candidate | None = None
 
@@ -154,6 +188,7 @@ class RawZoneDetector:
         index = len(self._bars)
         self._bars.append(bar)
         self._update_zone_lifecycle(index, bar)
+        self._update_zone_eligibility(index, bar)
 
         if bar.bullish:
             self._advance_candidate(self._demand_candidate, index)
@@ -307,6 +342,89 @@ class RawZoneDetector:
                 if invalidated
                 else "TAP_POST_CONFIRM_OVERLAP"
             )
+
+    def _update_zone_eligibility(self, index: int, bar: Bar) -> None:
+        for zone in self._zones:
+            if zone.eligibility_state is EligibilityState.ELIGIBLE:
+                continue
+            if zone.state is not ZoneState.CONFIRMED_FRESH:
+                zone.eligibility_state = EligibilityState.EXPIRED
+                zone.eligibility_index = index
+                zone.eligibility_time = bar.time
+                zone.eligibility_reason = "EXPIRE_ZONE_NOT_FRESH"
+                continue
+            if index <= zone.confirmation_index:
+                continue
+
+            tracker = self._liquidity_trackers.setdefault(
+                zone.zone_id, _LiquidityTracker()
+            )
+            required_candle = (
+                bar.bearish
+                if zone.direction is Direction.DEMAND
+                else bar.bullish
+            )
+            if required_candle:
+                self._extend_liquidity_run(zone, tracker, index, bar)
+            else:
+                self._complete_liquidity_run(zone, tracker, index)
+
+            broken = [
+                candidate
+                for candidate in tracker.candidates
+                if (
+                    bar.high > candidate.anchor
+                    if zone.direction is Direction.DEMAND
+                    else bar.low < candidate.anchor
+                )
+            ]
+            if not broken:
+                continue
+
+            candidate = broken[-1]
+            zone.eligibility_state = EligibilityState.ELIGIBLE
+            zone.eligibility_index = index
+            zone.eligibility_time = bar.time
+            zone.eligibility_reason = "LIQUIDITY_OWN_EXTREME_TAKEN"
+            zone.liquidity_anchor = candidate.anchor
+
+    def _extend_liquidity_run(
+        self,
+        zone: Zone,
+        tracker: _LiquidityTracker,
+        index: int,
+        bar: Bar,
+    ) -> None:
+        if tracker.run_count == 0:
+            previous = self._bars[index - 1]
+            tracker.run_anchor = (
+                max(previous.high, bar.high)
+                if zone.direction is Direction.DEMAND
+                else min(previous.low, bar.low)
+            )
+        elif zone.direction is Direction.DEMAND:
+            tracker.run_anchor = max(tracker.run_anchor, bar.high)
+        else:
+            tracker.run_anchor = min(tracker.run_anchor, bar.low)
+        tracker.run_count += 1
+        zone.eligibility_reason = "WAIT_MINIMUM_LIQUIDITY_CANDLES"
+
+    @staticmethod
+    def _complete_liquidity_run(
+        zone: Zone, tracker: _LiquidityTracker, decision_index: int
+    ) -> None:
+        if tracker.run_count >= 2:
+            tracker.candidates.append(
+                _LiquidityCandidate(
+                    anchor=tracker.run_anchor,
+                    formed_index=decision_index - 1,
+                )
+            )
+            zone.eligibility_reason = "WAIT_LIQUIDITY_OWN_EXTREME"
+        elif tracker.run_count == 1:
+            zone.eligibility_reason = "REJECT_ONE_CANDLE_LIQUIDITY"
+        tracker.run_count = 0
+        tracker.run_anchor = None
 
 
 def detect_zones(bars: Sequence[Bar]) -> DetectionResult:
