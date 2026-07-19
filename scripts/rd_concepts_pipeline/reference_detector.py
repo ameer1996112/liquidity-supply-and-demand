@@ -97,6 +97,7 @@ class Zone:
     state_index: int | None = None
     state_time: str | None = None
     reason: str = "CONFIRM_CLOSE_BEYOND_ORIGIN"
+    departure_active: bool = True
     eligibility_state: EligibilityState = EligibilityState.WAITING_FOR_LIQUIDITY
     eligibility_index: int | None = None
     eligibility_time: str | None = None
@@ -126,6 +127,7 @@ class Zone:
             "state_index": self.state_index,
             "state_time": self.state_time,
             "reason": self.reason,
+            "departure_active": self.departure_active,
             "eligibility_state": self.eligibility_state.value,
             "eligibility_index": self.eligibility_index,
             "eligibility_time": self.eligibility_time,
@@ -221,18 +223,41 @@ class RawZoneDetector:
 
         if bar.bullish:
             self._advance_candidate(self._demand_candidate, index)
-            self._interrupt_candidate(self._supply_candidate, index)
-            self._supply_candidate = _Candidate(Direction.SUPPLY, index)
+            rebased_supply = self._rebase_inside_formation(
+                self._supply_candidate, index
+            )
+            if rebased_supply is None:
+                self._interrupt_candidate(self._supply_candidate, index)
+                self._supply_candidate = _Candidate(Direction.SUPPLY, index)
+            else:
+                self._supply_candidate = rebased_supply
         elif bar.bearish:
             self._advance_candidate(self._supply_candidate, index)
-            self._interrupt_candidate(self._demand_candidate, index)
-            self._demand_candidate = _Candidate(Direction.DEMAND, index)
+            rebased_demand = self._rebase_inside_formation(
+                self._demand_candidate, index
+            )
+            if rebased_demand is None:
+                self._interrupt_candidate(self._demand_candidate, index)
+                self._demand_candidate = _Candidate(Direction.DEMAND, index)
+            else:
+                self._demand_candidate = rebased_demand
         else:
             self._interrupt_candidate(self._demand_candidate, index)
             self._interrupt_candidate(self._supply_candidate, index)
             self._demand_candidate = None
             self._supply_candidate = None
         return self.result
+
+    def _rebase_inside_formation(
+        self, candidate: _Candidate | None, index: int
+    ) -> _Candidate | None:
+        if candidate is None or candidate.first_departure_index is None:
+            return None
+        origin = self._bars[candidate.origin_index]
+        bar = self._bars[index]
+        if bar.high > origin.high or bar.low < origin.low:
+            return None
+        return _Candidate(candidate.direction, index, distal=candidate.distal)
 
     def _advance_candidate(
         self, candidate: _Candidate | None, departure_index: int
@@ -243,7 +268,18 @@ class RawZoneDetector:
         origin = self._bars[candidate.origin_index]
         if candidate.first_departure_index is None:
             candidate.first_departure_index = departure_index
-            candidate.distal = departure.low if candidate.direction is Direction.DEMAND else departure.high
+            if candidate.direction is Direction.DEMAND:
+                candidate.distal = (
+                    departure.low
+                    if candidate.distal is None
+                    else min(candidate.distal, departure.low)
+                )
+            else:
+                candidate.distal = (
+                    departure.high
+                    if candidate.distal is None
+                    else max(candidate.distal, departure.high)
+                )
         elif candidate.direction is Direction.DEMAND:
             candidate.distal = min(candidate.distal, departure.low)
         else:
@@ -355,6 +391,15 @@ class RawZoneDetector:
                 continue
             if index <= zone.confirmation_index:
                 continue
+            if zone.departure_active:
+                same_direction = (
+                    bar.bullish
+                    if zone.direction is Direction.DEMAND
+                    else bar.bearish
+                )
+                if same_direction:
+                    continue
+                zone.departure_active = False
             overlaps = bar.high >= zone.bottom and bar.low <= zone.top
             if not overlaps:
                 continue

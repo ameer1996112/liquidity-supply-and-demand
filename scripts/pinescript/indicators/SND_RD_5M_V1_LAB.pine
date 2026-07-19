@@ -87,6 +87,7 @@ type RawZone
     int stateBar
     int stateTime
     string reason
+    bool departureActive
     string eligibilityState
     int eligibilityBar
     int eligibilityTime
@@ -141,13 +142,31 @@ method begin(Candidate this) =>
     this.firstDepartureLow := na
     this.distal := na
 
+method rebaseInsideFormation(Candidate this) =>
+    bool rebased = false
+    if this.isActive and this.isForming
+        rebased := high <= this.originHigh and low >= this.originLow
+        if rebased
+            this.isForming := false
+            this.originBar := bar_index
+            this.originTime := time
+            this.originOpen := open
+            this.originHigh := high
+            this.originLow := low
+            this.originClose := close
+            this.approachDirection := bar_index > 0 ? candleDirection(1) : 0
+            this.firstDepartureBar := na
+            this.firstDepartureHigh := na
+            this.firstDepartureLow := na
+    rebased
+
 method advance(Candidate this, bool demand) =>
     if not this.isForming
         this.isForming := true
         this.firstDepartureBar := bar_index
         this.firstDepartureHigh := high
         this.firstDepartureLow := low
-        this.distal := demand ? low : high
+        this.distal := demand ? (na(this.distal) ? low : math.min(this.distal, low)) : (na(this.distal) ? high : math.max(this.distal, high))
     else
         this.distal := demand ? math.min(this.distal, low) : math.max(this.distal, high)
     demand ? close > this.originHigh : close < this.originLow
@@ -186,6 +205,7 @@ buildConfirmedZone(Candidate candidate, bool demand, int zoneId, string formatio
     zone.stateBar := na
     zone.stateTime := na
     zone.reason := CONFIRM_CLOSE_BEYOND_ORIGIN
+    zone.departureActive := true
     zone.eligibilityState := ELIGIBILITY_WAITING
     zone.eligibilityBar := na
     zone.eligibilityTime := na
@@ -484,16 +504,19 @@ if barstate.isconfirmed and isFiveMinute
         for index = 0 to zoneCount - 1
             RawZone zone = array.get(zones, index)
             if zone.state == STATE_FRESH and bar_index > zone.confirmationBar
-                bool overlaps = high >= zone.bottom and low <= zone.top
-                if overlaps
-                    bool invalidated = zone.demand ? close < zone.bottom : close > zone.top
-                    zone.state := invalidated ? STATE_INVALIDATED : STATE_TAPPED
-                    zone.stateBar := bar_index
-                    zone.stateTime := time_close
-                    zone.reason := invalidated ? INVALIDATE_CLOSE_BEYOND_DISTAL : TAP_POST_CONFIRM_OVERLAP
-                    lastDecision := zone.reason
-                    if emitDiagnostics
-                        alert(diagnosticPayload(invalidated ? "ZONE_INVALIDATED_NON_EXECUTABLE" : "ZONE_TAPPED_NON_EXECUTABLE", zone), alert.freq_once_per_bar_close)
+                bool sameDirectionDeparture = zone.demand ? close > open : close < open
+                if not (zone.departureActive and sameDirectionDeparture)
+                    zone.departureActive := false
+                    bool overlaps = high >= zone.bottom and low <= zone.top
+                    if overlaps
+                        bool invalidated = zone.demand ? close < zone.bottom : close > zone.top
+                        zone.state := invalidated ? STATE_INVALIDATED : STATE_TAPPED
+                        zone.stateBar := bar_index
+                        zone.stateTime := time_close
+                        zone.reason := invalidated ? INVALIDATE_CLOSE_BEYOND_DISTAL : TAP_POST_CONFIRM_OVERLAP
+                        lastDecision := zone.reason
+                        if emitDiagnostics
+                            alert(diagnosticPayload(invalidated ? "ZONE_INVALIDATED_NON_EXECUTABLE" : "ZONE_TAPPED_NON_EXECUTABLE", zone), alert.freq_once_per_bar_close)
             array.set(zones, index, zone)
 
         for index = 0 to zoneCount - 1
@@ -541,10 +564,12 @@ if barstate.isconfirmed and isFiveMinute
                     eventZone := zone
                     lastDecision := CONFIRM_CLOSE_BEYOND_ORIGIN
                 demandCandidate.reset()
-        if supplyCandidate.isActive and supplyCandidate.isForming
-            lastDecision := REJECT_FORMATION_INTERRUPTED
-        supplyCandidate.reset()
-        supplyCandidate.begin()
+        bool rebasedSupply = supplyCandidate.rebaseInsideFormation()
+        if not rebasedSupply
+            if supplyCandidate.isActive and supplyCandidate.isForming
+                lastDecision := REJECT_FORMATION_INTERRUPTED
+            supplyCandidate.reset()
+            supplyCandidate.begin()
     else if direction == -1
         if supplyCandidate.isActive
             bool confirmed = supplyCandidate.advance(false)
@@ -560,10 +585,12 @@ if barstate.isconfirmed and isFiveMinute
                     eventZone := zone
                     lastDecision := CONFIRM_CLOSE_BEYOND_ORIGIN
                 supplyCandidate.reset()
-        if demandCandidate.isActive and demandCandidate.isForming
-            lastDecision := REJECT_FORMATION_INTERRUPTED
-        demandCandidate.reset()
-        demandCandidate.begin()
+        bool rebasedDemand = demandCandidate.rebaseInsideFormation()
+        if not rebasedDemand
+            if demandCandidate.isActive and demandCandidate.isForming
+                lastDecision := REJECT_FORMATION_INTERRUPTED
+            demandCandidate.reset()
+            demandCandidate.begin()
     else
         if demandCandidate.isActive and demandCandidate.isForming
             lastDecision := REJECT_FORMATION_INTERRUPTED

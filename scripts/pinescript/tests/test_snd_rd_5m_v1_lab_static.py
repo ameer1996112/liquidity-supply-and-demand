@@ -30,13 +30,23 @@ def test_accuracy_geometry_uses_origin_body_not_wick_segment() -> None:
 
 def test_formation_wicks_extend_only_distal_boundary_before_confirmation() -> None:
     text = source()
-    assert "this.distal := demand ? low : high" in text
+    assert "na(this.distal) ? low : math.min(this.distal, low)" in text
+    assert "na(this.distal) ? high : math.max(this.distal, high)" in text
     assert "this.distal := demand ? math.min(this.distal, low) : math.max(this.distal, high)" in text
     assert "frozenBottom := math.min(frozenBottom, candidate.distal)" in text
     assert "frozenTop := math.max(frozenTop, candidate.distal)" in text
 
     assert len(re.findall(r"zone\.top\s*:=", text)) == 1
     assert len(re.findall(r"zone\.bottom\s*:=", text)) == 1
+
+
+def test_inside_base_interruption_rebases_and_keeps_formation_envelope() -> None:
+    text = source()
+    assert "method rebaseInsideFormation(Candidate this)" in text
+    assert "high <= this.originHigh and low >= this.originLow" in text
+    assert "this.originBar := bar_index" in text
+    assert "bool rebasedSupply = supplyCandidate.rebaseInsideFormation()" in text
+    assert "bool rebasedDemand = demandCandidate.rebaseInsideFormation()" in text
 
 
 def test_reversal_and_continuation_are_independent_of_geometry() -> None:
@@ -57,6 +67,14 @@ def test_zone_identity_and_lifecycle_are_deterministic() -> None:
     assert "TAP_POST_CONFIRM_OVERLAP" in text
     assert "INVALIDATE_CLOSE_BEYOND_DISTAL" in text
     assert "REJECT_FORMATION_INTERRUPTED" in text
+
+
+def test_same_direction_departure_wicks_do_not_tap_confirmed_zone() -> None:
+    text = source()
+    assert "zone.departureActive := true" in text
+    assert "bool sameDirectionDeparture = zone.demand ? close > open : close < open" in text
+    assert "zone.departureActive and sameDirectionDeparture" in text
+    assert "zone.departureActive := false" in text
 
 
 def test_detector_has_no_legacy_threshold_or_symbol_overrides() -> None:

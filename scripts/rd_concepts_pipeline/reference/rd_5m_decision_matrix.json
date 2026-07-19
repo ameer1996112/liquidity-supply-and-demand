@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "timeframe": "5m",
   "market_scope": ["all"],
   "runtime_contract": "closed_bar_deterministic",
@@ -85,8 +85,16 @@
       "implementations": ["reference_detector.RawZoneDetector._classify_formation", "SND_RD_5M_V1_LAB.candidateFormation"]
     },
     {
+      "decision_id": "rebase_inside_formation",
+      "condition": "An opposite-color candle appears after formation starts and its full range remains inside the prior origin range.",
+      "outcome": "Move the origin to the contained candle, retain the existing distal formation envelope, and wait for a new same-direction departure.",
+      "reason_code": null,
+      "rule_ids": ["RD5M-ZONE-INSIDE-BASE-REBASE"],
+      "implementations": ["reference_detector.RawZoneDetector._rebase_inside_formation", "SND_RD_5M_V1_LAB.Candidate.rebaseInsideFormation"]
+    },
+    {
       "decision_id": "reject_formation_interrupted",
-      "condition": "An opposite-color candle appears after formation starts and before confirmation.",
+      "condition": "An opposite-color candle appears after formation starts, is not fully contained by the prior origin, and arrives before confirmation.",
       "outcome": "Reject and clear the candidate.",
       "reason_code": "REJECT_FORMATION_INTERRUPTED",
       "rule_ids": ["RD5M-ZONE-FORMATION-INTERRUPTION"],
@@ -101,8 +109,16 @@
       "implementations": ["reference_detector.RawZoneDetector._confirmed_zone", "SND_RD_5M_V1_LAB.buildConfirmedZone"]
     },
     {
+      "decision_id": "ignore_active_departure_wick_overlap",
+      "condition": "After confirmation, the uninterrupted departure leg continues with another same-direction candle whose wick overlaps the frozen zone.",
+      "outcome": "Keep the zone fresh, leave its bounds unchanged, and keep the departure phase active until the first opposite-direction or doji candle.",
+      "reason_code": null,
+      "rule_ids": ["RD5M-ZONE-DEPARTURE-WICK-EXCEPTION", "RD5M-ZONE-BOUNDS-FREEZE"],
+      "implementations": ["reference_detector.RawZoneDetector._update_zone_lifecycle", "SND_RD_5M_V1_LAB.zone lifecycle loop"]
+    },
+    {
       "decision_id": "post_confirmation_tap",
-      "condition": "A later bar overlaps the frozen zone and does not close beyond the distal boundary.",
+      "condition": "After the active departure leg ends, a later bar overlaps the frozen zone and does not close beyond the distal boundary.",
       "outcome": "Change the lifecycle state from fresh to tapped.",
       "reason_code": "TAP_POST_CONFIRM_OVERLAP",
       "rule_ids": ["RD5M-ZONE-UNTAPPED", "RD5M-ZONE-INVALIDATION-CLOSE"],

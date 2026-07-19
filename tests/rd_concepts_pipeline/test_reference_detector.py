@@ -79,6 +79,46 @@ def test_post_confirmation_overlap_taps_without_resizing_zone() -> None:
     assert zone.bottom == Decimal("9.4")
 
 
+def test_same_direction_departure_wick_does_not_count_as_a_retest() -> None:
+    bars = [Bar.from_mapping(row) for row in load_cases()[-1]["bars"][:5]]
+    bars.extend(
+        [
+            Bar.from_mapping(
+                {
+                    "time": "departure-wick",
+                    "open": "162.500",
+                    "high": "162.504",
+                    "low": "162.470",
+                    "close": "162.480",
+                }
+            ),
+            Bar.from_mapping(
+                {
+                    "time": "departure-ended",
+                    "open": "162.480",
+                    "high": "162.490",
+                    "low": "162.470",
+                    "close": "162.488",
+                }
+            ),
+            Bar.from_mapping(
+                {
+                    "time": "later-retest",
+                    "open": "162.488",
+                    "high": "162.500",
+                    "low": "162.470",
+                    "close": "162.480",
+                }
+            ),
+        ]
+    )
+
+    zone = detect_zones(bars).zones[0]
+
+    assert zone.state is ZoneState.TAPPED
+    assert zone.state_index == 7
+
+
 def test_close_beyond_distal_invalidates_zone() -> None:
     bars = [Bar.from_mapping(row) for row in load_cases()[0]["bars"]]
     bars.append(

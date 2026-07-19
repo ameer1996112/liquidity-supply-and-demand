@@ -82,7 +82,7 @@ def test_first_manual_case_has_exact_ohlc_and_positive_release_coverage() -> Non
     records = load_rule_catalog(REFERENCE / "rd_5m_rules.jsonl")
     cases = load_benchmark_cases(REFERENCE / "rd_5m_cases.jsonl")
 
-    assert len(cases) == 1
+    assert len(cases) == 2
     assert cases[0]["case_id"] == "USDJPY-5M-FORMATION-WICK-001"
     assert cases[0]["label_status"] == "APPROVED"
     assert len(cases[0]["bars"]) == 3
@@ -94,6 +94,13 @@ def test_first_manual_case_has_exact_ohlc_and_positive_release_coverage() -> Non
     coverage = rule_coverage(records, cases)
     assert "RD5M-ZONE-FORMATION-WICK-DEMAND" not in coverage["missing_positive"]
     assert "RD5M-ZONE-FORMATION-WICK-DEMAND" in coverage["missing_negative"]
+
+    inside_base_case = cases[1]
+    assert inside_base_case["case_id"] == "USDJPY-5M-INSIDE-BASE-SUPPLY-001"
+    assert inside_base_case["expected_zones"][0]["top"] == "162.506"
+    assert "RD5M-ZONE-INSIDE-BASE-REBASE" in inside_base_case["rules"]
+    assert validate_benchmark_case(inside_base_case) == []
+    assert "RD5M-ZONE-INSIDE-BASE-REBASE" not in coverage["missing_positive"]
 
 
 def test_readme_documents_youtube_safety_and_commands() -> None:

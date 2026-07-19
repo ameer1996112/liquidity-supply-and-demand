@@ -46,7 +46,7 @@ def test_decision_matrix_is_complete_and_resolved() -> None:
     matrix_decisions = all_decisions(matrix)
     decision_ids = [decision["decision_id"] for decision in matrix_decisions]
 
-    assert matrix["version"] == 4
+    assert matrix["version"] == 5
     assert matrix["timeframe"] == "5m"
     assert matrix["runtime_contract"] == "closed_bar_deterministic"
     assert len(decision_ids) == len(set(decision_ids))
