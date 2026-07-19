@@ -1,0 +1,318 @@
+//@version=6
+indicator("SND RD 5M V1 LAB", overlay = true, max_boxes_count = 300, max_labels_count = 300)
+
+// Canonical, non-executable raw-zone detector. Decisions occur on closed 5m bars.
+
+const string DIRECTION_DEMAND = "DEMAND"
+const string DIRECTION_SUPPLY = "SUPPLY"
+const string FORMATION_REVERSAL = "REVERSAL"
+const string FORMATION_CONTINUATION = "CONTINUATION"
+const string GEOMETRY_STANDARD = "STANDARD"
+const string GEOMETRY_ACCURACY = "ACCURACY"
+const string STATE_FRESH = "CONFIRMED_FRESH"
+const string STATE_TAPPED = "TAPPED"
+const string STATE_INVALIDATED = "INVALIDATED"
+
+const string CONFIRM_CLOSE_BEYOND_ORIGIN = "CONFIRM_CLOSE_BEYOND_ORIGIN"
+const string REJECT_FORMATION_INTERRUPTED = "REJECT_FORMATION_INTERRUPTED"
+const string REJECT_UNKNOWN_APPROACH = "REJECT_UNKNOWN_APPROACH"
+const string TAP_POST_CONFIRM_OVERLAP = "TAP_POST_CONFIRM_OVERLAP"
+const string INVALIDATE_CLOSE_BEYOND_DISTAL = "INVALIDATE_CLOSE_BEYOND_DISTAL"
+
+maxZones = input.int(120, "Maximum zones", minval = 10, maxval = 200, group = "Display")
+projectionBars = input.int(120, "Fresh-zone projection bars", minval = 1, maxval = 500, group = "Display")
+showFresh = input.bool(true, "Show fresh zones", group = "Display")
+showTapped = input.bool(true, "Show tapped zones", group = "Display")
+showInvalidated = input.bool(false, "Show invalidated zones", group = "Display")
+showLabels = input.bool(false, "Show diagnostic labels", group = "Diagnostics")
+emitDiagnostics = input.bool(false, "Emit non-executable diagnostic alerts", group = "Diagnostics")
+
+demandColor = input.color(color.new(color.teal, 72), "Demand", group = "Colors")
+supplyColor = input.color(color.new(color.red, 76), "Supply", group = "Colors")
+accuracyDemandColor = input.color(color.new(color.blue, 72), "Accuracy demand", group = "Colors")
+accuracySupplyColor = input.color(color.new(color.orange, 70), "Accuracy supply", group = "Colors")
+tappedColor = input.color(color.new(color.gray, 82), "Tapped", group = "Colors")
+invalidatedColor = input.color(color.new(color.black, 88), "Invalidated", group = "Colors")
+
+type Candidate
+    bool isActive
+    bool isForming
+    int originBar
+    int originTime
+    float originOpen
+    float originHigh
+    float originLow
+    float originClose
+    int approachDirection
+    int firstDepartureBar
+    float firstDepartureHigh
+    float firstDepartureLow
+    float distal
+
+type RawZone
+    int id
+    bool demand
+    string formation
+    string geometry
+    int originBar
+    int originTime
+    int confirmationBar
+    int confirmationTime
+    float top
+    float bottom
+    string state
+    int stateBar
+    int stateTime
+    string reason
+    box zoneBox
+    label debugLabel
+
+method reset(Candidate this) =>
+    this.isActive := false
+    this.isForming := false
+    this.originBar := na
+    this.originTime := na
+    this.originOpen := na
+    this.originHigh := na
+    this.originLow := na
+    this.originClose := na
+    this.approachDirection := 0
+    this.firstDepartureBar := na
+    this.firstDepartureHigh := na
+    this.firstDepartureLow := na
+    this.distal := na
+
+candleDirection(int offset) =>
+    close[offset] > open[offset] ? 1 : close[offset] < open[offset] ? -1 : 0
+
+method begin(Candidate this) =>
+    this.isActive := true
+    this.isForming := false
+    this.originBar := bar_index
+    this.originTime := time
+    this.originOpen := open
+    this.originHigh := high
+    this.originLow := low
+    this.originClose := close
+    this.approachDirection := bar_index > 0 ? candleDirection(1) : 0
+    this.firstDepartureBar := na
+    this.firstDepartureHigh := na
+    this.firstDepartureLow := na
+    this.distal := na
+
+method advance(Candidate this, bool demand) =>
+    if not this.isForming
+        this.isForming := true
+        this.firstDepartureBar := bar_index
+        this.firstDepartureHigh := high
+        this.firstDepartureLow := low
+        this.distal := demand ? low : high
+    else
+        this.distal := demand ? math.min(this.distal, low) : math.max(this.distal, high)
+    demand ? close > this.originHigh : close < this.originLow
+
+candidateFormation(Candidate candidate, bool demand) =>
+    string result = ""
+    if candidate.approachDirection != 0
+        bool continuation = demand ? candidate.approachDirection == 1 : candidate.approachDirection == -1
+        result := continuation ? FORMATION_CONTINUATION : FORMATION_REVERSAL
+    result
+
+buildConfirmedZone(Candidate candidate, bool demand, int zoneId, string formation) =>
+    bool accuracy = demand ? candidate.originHigh > candidate.firstDepartureHigh : candidate.originLow < candidate.firstDepartureLow
+    string geometry = accuracy ? GEOMETRY_ACCURACY : GEOMETRY_STANDARD
+    float bodyHigh = math.max(candidate.originOpen, candidate.originClose)
+    float bodyLow = math.min(candidate.originOpen, candidate.originClose)
+    float frozenTop = accuracy ? bodyHigh : candidate.originHigh
+    float frozenBottom = accuracy ? bodyLow : candidate.originLow
+    if demand
+        frozenBottom := math.min(frozenBottom, candidate.distal)
+    else
+        frozenTop := math.max(frozenTop, candidate.distal)
+
+    RawZone zone = RawZone.new()
+    zone.id := zoneId
+    zone.demand := demand
+    zone.formation := formation
+    zone.geometry := geometry
+    zone.originBar := candidate.originBar
+    zone.originTime := candidate.originTime
+    zone.confirmationBar := bar_index
+    zone.confirmationTime := time_close
+    zone.top := frozenTop
+    zone.bottom := frozenBottom
+    zone.state := STATE_FRESH
+    zone.stateBar := na
+    zone.stateTime := na
+    zone.reason := CONFIRM_CLOSE_BEYOND_ORIGIN
+    zone.zoneBox := na
+    zone.debugLabel := na
+    zone
+
+zoneVisible(RawZone zone) =>
+    zone.state == STATE_FRESH ? showFresh : zone.state == STATE_TAPPED ? showTapped : showInvalidated
+
+zoneColor(RawZone zone) =>
+    color result = zone.state == STATE_TAPPED ? tappedColor : zone.state == STATE_INVALIDATED ? invalidatedColor : zone.geometry == GEOMETRY_ACCURACY ? (zone.demand ? accuracyDemandColor : accuracySupplyColor) : (zone.demand ? demandColor : supplyColor)
+    result
+
+zoneBorderColor(RawZone zone) =>
+    zone.demand ? color.teal : color.red
+
+zoneRightBar(RawZone zone) =>
+    zone.state == STATE_FRESH ? bar_index + projectionBars : zone.stateBar
+
+zoneText(RawZone zone) =>
+    string side = zone.demand ? "D" : "S"
+    "Z" + str.tostring(zone.id) + " " + side + " " + zone.formation + " " + zone.geometry + "\n" + zone.state + " " + zone.reason
+
+updateZoneDrawing(RawZone zone) =>
+    bool visible = zoneVisible(zone)
+    if visible
+        int rightBar = zoneRightBar(zone)
+        if na(zone.zoneBox)
+            zone.zoneBox := box.new(zone.originBar, zone.top, rightBar, zone.bottom, xloc = xloc.bar_index, bgcolor = zoneColor(zone), border_color = zoneBorderColor(zone), border_width = zone.geometry == GEOMETRY_ACCURACY ? 2 : 1)
+        else
+            box.set_right(zone.zoneBox, rightBar)
+            box.set_top(zone.zoneBox, zone.top)
+            box.set_bottom(zone.zoneBox, zone.bottom)
+            box.set_bgcolor(zone.zoneBox, zoneColor(zone))
+            box.set_border_color(zone.zoneBox, zoneBorderColor(zone))
+        if showLabels
+            if na(zone.debugLabel)
+                zone.debugLabel := label.new(zone.originBar, zone.demand ? zone.bottom : zone.top, zoneText(zone), xloc = xloc.bar_index, style = zone.demand ? label.style_label_up : label.style_label_down, color = color.new(color.black, 15), textcolor = color.white, size = size.tiny)
+            else
+                label.set_text(zone.debugLabel, zoneText(zone))
+        else if not na(zone.debugLabel)
+            label.delete(zone.debugLabel)
+            zone.debugLabel := na
+    else
+        if not na(zone.zoneBox)
+            box.delete(zone.zoneBox)
+            zone.zoneBox := na
+        if not na(zone.debugLabel)
+            label.delete(zone.debugLabel)
+            zone.debugLabel := na
+    true
+
+diagnosticPayload(string eventName, RawZone zone) =>
+    "{" +
+     "\"event\":\"" + eventName + "\"," +
+     "\"strategy_id\":\"snd_rd_5m_v1_lab\"," +
+     "\"executable\":false," +
+     "\"symbol\":\"" + syminfo.tickerid + "\"," +
+     "\"timeframe\":\"" + timeframe.period + "\"," +
+     "\"zone_id\":" + str.tostring(zone.id) + "," +
+     "\"direction\":\"" + (zone.demand ? DIRECTION_DEMAND : DIRECTION_SUPPLY) + "\"," +
+     "\"formation\":\"" + zone.formation + "\"," +
+     "\"geometry\":\"" + zone.geometry + "\"," +
+     "\"origin_time\":" + str.tostring(zone.originTime) + "," +
+     "\"confirmation_time\":" + str.tostring(zone.confirmationTime) + "," +
+     "\"top\":" + str.tostring(zone.top, format.mintick) + "," +
+     "\"bottom\":" + str.tostring(zone.bottom, format.mintick) + "," +
+     "\"state\":\"" + zone.state + "\"," +
+     "\"reason\":\"" + zone.reason + "\"}"
+
+deleteZone(RawZone zone) =>
+    if not na(zone.zoneBox)
+        box.delete(zone.zoneBox)
+    if not na(zone.debugLabel)
+        label.delete(zone.debugLabel)
+
+var Candidate demandCandidate = Candidate.new()
+var Candidate supplyCandidate = Candidate.new()
+var RawZone[] zones = array.new<RawZone>()
+var int nextZoneId = 1
+var string lastDecision = "WAITING_FOR_CLOSED_5M_BAR"
+
+if barstate.isfirst
+    demandCandidate.reset()
+    supplyCandidate.reset()
+
+bool isFiveMinute = timeframe.isminutes and timeframe.multiplier == 5
+bool confirmedEvent = false
+RawZone eventZone = na
+
+if barstate.isconfirmed and isFiveMinute
+    int zoneCount = array.size(zones)
+    if zoneCount > 0
+        for index = 0 to zoneCount - 1
+            RawZone zone = array.get(zones, index)
+            if zone.state == STATE_FRESH and bar_index > zone.confirmationBar
+                bool overlaps = high >= zone.bottom and low <= zone.top
+                if overlaps
+                    bool invalidated = zone.demand ? close < zone.bottom : close > zone.top
+                    zone.state := invalidated ? STATE_INVALIDATED : STATE_TAPPED
+                    zone.stateBar := bar_index
+                    zone.stateTime := time_close
+                    zone.reason := invalidated ? INVALIDATE_CLOSE_BEYOND_DISTAL : TAP_POST_CONFIRM_OVERLAP
+                    lastDecision := zone.reason
+                    if emitDiagnostics
+                        alert(diagnosticPayload(invalidated ? "ZONE_INVALIDATED_NON_EXECUTABLE" : "ZONE_TAPPED_NON_EXECUTABLE", zone), alert.freq_once_per_bar_close)
+            array.set(zones, index, zone)
+
+    int direction = candleDirection(0)
+    if direction == 1
+        if demandCandidate.isActive
+            bool confirmed = demandCandidate.advance(true)
+            if confirmed
+                string formation = candidateFormation(demandCandidate, true)
+                if str.length(formation) == 0
+                    lastDecision := REJECT_UNKNOWN_APPROACH
+                else
+                    RawZone zone = buildConfirmedZone(demandCandidate, true, nextZoneId, formation)
+                    array.unshift(zones, zone)
+                    nextZoneId += 1
+                    confirmedEvent := true
+                    eventZone := zone
+                    lastDecision := CONFIRM_CLOSE_BEYOND_ORIGIN
+                demandCandidate.reset()
+        if supplyCandidate.isActive and supplyCandidate.isForming
+            lastDecision := REJECT_FORMATION_INTERRUPTED
+        supplyCandidate.reset()
+        supplyCandidate.begin()
+    else if direction == -1
+        if supplyCandidate.isActive
+            bool confirmed = supplyCandidate.advance(false)
+            if confirmed
+                string formation = candidateFormation(supplyCandidate, false)
+                if str.length(formation) == 0
+                    lastDecision := REJECT_UNKNOWN_APPROACH
+                else
+                    RawZone zone = buildConfirmedZone(supplyCandidate, false, nextZoneId, formation)
+                    array.unshift(zones, zone)
+                    nextZoneId += 1
+                    confirmedEvent := true
+                    eventZone := zone
+                    lastDecision := CONFIRM_CLOSE_BEYOND_ORIGIN
+                supplyCandidate.reset()
+        if demandCandidate.isActive and demandCandidate.isForming
+            lastDecision := REJECT_FORMATION_INTERRUPTED
+        demandCandidate.reset()
+        demandCandidate.begin()
+    else
+        if demandCandidate.isActive and demandCandidate.isForming
+            lastDecision := REJECT_FORMATION_INTERRUPTED
+        if supplyCandidate.isActive and supplyCandidate.isForming
+            lastDecision := REJECT_FORMATION_INTERRUPTED
+        demandCandidate.reset()
+        supplyCandidate.reset()
+
+    while array.size(zones) > maxZones
+        RawZone oldest = array.pop(zones)
+        deleteZone(oldest)
+
+    if confirmedEvent and emitDiagnostics and not na(eventZone)
+        alert(diagnosticPayload("ZONE_CONFIRMED_NON_EXECUTABLE", eventZone), alert.freq_once_per_bar_close)
+
+int drawCount = array.size(zones)
+if drawCount > 0
+    for index = 0 to drawCount - 1
+        RawZone zone = array.get(zones, index)
+        updateZoneDrawing(zone)
+        array.set(zones, index, zone)
+
+var table statusTable = table.new(position.top_right, 1, 2, border_width = 1)
+if barstate.islast
+    table.cell(statusTable, 0, 0, isFiveMinute ? "SND RD 5M V1 LAB" : "5m chart required", text_color = color.white, bgcolor = isFiveMinute ? color.new(color.teal, 25) : color.new(color.red, 15))
+    table.cell(statusTable, 0, 1, lastDecision, text_color = color.white, bgcolor = color.new(color.black, 15), text_size = size.tiny)

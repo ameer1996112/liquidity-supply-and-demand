@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "timeframe": "5m",
+  "market_scope": ["all"],
+  "runtime_contract": "closed_bar_deterministic",
+  "decisions": [
+    {
+      "decision_id": "origin_demand",
+      "condition": "A bearish candle is the final opposite candle before an approved bullish departure.",
+      "outcome": "Start or replace the demand candidate at that candle.",
+      "reason_code": null,
+      "rule_ids": ["RD5M-ZONE-ORIGIN-DEMAND"],
+      "implementations": ["reference_detector.RawZoneDetector.update", "SND_RD_5M_V1_LAB.demandCandidate.begin"]
+    },
+    {
+      "decision_id": "origin_supply",
+      "condition": "A bullish candle is the final opposite candle before an approved bearish departure.",
+      "outcome": "Start or replace the supply candidate at that candle.",
+      "reason_code": null,
+      "rule_ids": ["RD5M-ZONE-ORIGIN-SUPPLY"],
+      "implementations": ["reference_detector.RawZoneDetector.update", "SND_RD_5M_V1_LAB.supplyCandidate.begin"]
+    },
+    {
+      "decision_id": "confirm_close_beyond_origin",
+      "condition": "The same-direction departure closes beyond the origin extreme.",
+      "outcome": "Confirm a fresh zone on the closed five-minute bar.",
+      "reason_code": "CONFIRM_CLOSE_BEYOND_ORIGIN",
+      "rule_ids": ["RD5M-ZONE-CONFIRM-CLOSE", "RD5M-DETECTOR-CLOSED-5M"],
+      "implementations": ["reference_detector.RawZoneDetector._advance_candidate", "SND_RD_5M_V1_LAB.Candidate.advance"]
+    },
+    {
+      "decision_id": "standard_geometry",
+      "condition": "The accuracy condition is false.",
+      "outcome": "Use the origin range plus any permitted formation-envelope distal extension.",
+      "reason_code": null,
+      "rule_ids": ["RD5M-ZONE-STANDARD-BOUNDS"],
+      "implementations": ["reference_detector.RawZoneDetector._confirmed_zone", "SND_RD_5M_V1_LAB.buildConfirmedZone"]
+    },
+    {
+      "decision_id": "accuracy_geometry_demand",
+      "condition": "The bearish demand origin high is above the first bullish departure high.",
+      "outcome": "Use the full origin body before applying the permitted distal extension.",
+      "reason_code": null,
+      "rule_ids": ["RD5M-ZONE-ACCURACY-DEMAND"],
+      "implementations": ["reference_detector.RawZoneDetector._confirmed_zone", "SND_RD_5M_V1_LAB.buildConfirmedZone"]
+    },
+    {
+      "decision_id": "accuracy_geometry_supply",
+      "condition": "The bullish supply origin low is below the first bearish departure low.",
+      "outcome": "Use the full origin body before applying the permitted distal extension.",
+      "reason_code": null,
+      "rule_ids": ["RD5M-ZONE-ACCURACY-SUPPLY"],
+      "implementations": ["reference_detector.RawZoneDetector._confirmed_zone", "SND_RD_5M_V1_LAB.buildConfirmedZone"]
+    },
+    {
+      "decision_id": "formation_envelope_demand",
+      "condition": "Consecutive bullish formation candles print lower lows before demand confirmation.",
+      "outcome": "Extend only the demand distal boundary downward.",
+      "reason_code": null,
+      "rule_ids": ["RD5M-ZONE-DEPARTURE-WICK-EXCEPTION", "RD5M-ZONE-FORMATION-WICK-DEMAND"],
+      "implementations": ["reference_detector.RawZoneDetector._advance_candidate", "SND_RD_5M_V1_LAB.Candidate.advance"]
+    },
+    {
+      "decision_id": "formation_envelope_supply",
+      "condition": "Consecutive bearish formation candles print higher highs before supply confirmation.",
+      "outcome": "Extend only the supply distal boundary upward.",
+      "reason_code": null,
+      "rule_ids": ["RD5M-ZONE-DEPARTURE-WICK-EXCEPTION", "RD5M-ZONE-FORMATION-WICK-SUPPLY"],
+      "implementations": ["reference_detector.RawZoneDetector._advance_candidate", "SND_RD_5M_V1_LAB.Candidate.advance"]
+    },
+    {
+      "decision_id": "formation_classification",
+      "condition": "The pre-origin approach candle has a known direction.",
+      "outcome": "Classify continuation when approach matches departure direction; otherwise reversal.",
+      "reason_code": null,
+      "rule_ids": ["RD5M-ZONE-FORMATION-CLASSIFICATION"],
+      "implementations": ["reference_detector.RawZoneDetector._classify_formation", "SND_RD_5M_V1_LAB.candidateFormation"]
+    },
+    {
+      "decision_id": "reject_unknown_approach",
+      "condition": "The origin has no prior bar or its approach candle is a doji.",
+      "outcome": "Reject the candidate without guessing a formation class.",
+      "reason_code": "REJECT_UNKNOWN_APPROACH",
+      "rule_ids": ["RD5M-ZONE-FORMATION-CLASSIFICATION"],
+      "implementations": ["reference_detector.RawZoneDetector._classify_formation", "SND_RD_5M_V1_LAB.candidateFormation"]
+    },
+    {
+      "decision_id": "reject_formation_interrupted",
+      "condition": "An opposite-color candle appears after formation starts and before confirmation.",
+      "outcome": "Reject and clear the candidate.",
+      "reason_code": "REJECT_FORMATION_INTERRUPTED",
+      "rule_ids": ["RD5M-ZONE-FORMATION-INTERRUPTION"],
+      "implementations": ["reference_detector.RawZoneDetector._interrupt_candidate", "SND_RD_5M_V1_LAB.Candidate.reset"]
+    },
+    {
+      "decision_id": "freeze_bounds",
+      "condition": "The confirmation bar closes.",
+      "outcome": "Freeze top and bottom for the full lifecycle.",
+      "reason_code": null,
+      "rule_ids": ["RD5M-ZONE-BOUNDS-FREEZE"],
+      "implementations": ["reference_detector.RawZoneDetector._confirmed_zone", "SND_RD_5M_V1_LAB.buildConfirmedZone"]
+    },
+    {
+      "decision_id": "post_confirmation_tap",
+      "condition": "A later bar overlaps the frozen zone and does not close beyond the distal boundary.",
+      "outcome": "Change the lifecycle state from fresh to tapped.",
+      "reason_code": "TAP_POST_CONFIRM_OVERLAP",
+      "rule_ids": ["RD5M-ZONE-UNTAPPED", "RD5M-ZONE-INVALIDATION-CLOSE"],
+      "implementations": ["reference_detector.RawZoneDetector._update_zone_lifecycle", "SND_RD_5M_V1_LAB.zone lifecycle loop"]
+    },
+    {
+      "decision_id": "post_confirmation_invalidation",
+      "condition": "A later overlapping bar closes beyond the frozen distal boundary.",
+      "outcome": "Change the lifecycle state from fresh to invalidated.",
+      "reason_code": "INVALIDATE_CLOSE_BEYOND_DISTAL",
+      "rule_ids": ["RD5M-ZONE-INVALIDATION-CLOSE", "RD5M-ZONE-BOUNDS-FREEZE"],
+      "implementations": ["reference_detector.RawZoneDetector._update_zone_lifecycle", "SND_RD_5M_V1_LAB.zone lifecycle loop"]
+    }
+  ],
+  "conflicts": [
+    {
+      "conflict_id": "accuracy_body_vs_legacy_wick_segment",
+      "status": "RESOLVED",
+      "resolution": "Use the full origin body for accuracy geometry, matching the canonical RD explanation; do not retain the legacy partial wick segment."
+    },
+    {
+      "conflict_id": "formation_wick_vs_post_confirmation_tap",
+      "status": "RESOLVED",
+      "resolution": "Same-direction wick overlap before confirmation extends the formation envelope; only bars after confirmation can tap the frozen zone."
+    },
+    {
+      "conflict_id": "first_candidate_vs_final_opposite_origin",
+      "status": "RESOLVED",
+      "resolution": "Replace an unformed candidate with each newer opposite candle so the final opposite candle becomes the origin."
+    }
+  ]
+}
