@@ -95,6 +95,8 @@ class Zone:
     eligibility_time: str | None = None
     eligibility_reason: str = "WAIT_MINIMUM_LIQUIDITY_CANDLES"
     liquidity_anchor: Decimal | None = None
+    liquidity_extreme: Decimal | None = None
+    liquidity_formed_index: int | None = None
 
     def to_mapping(self) -> dict[str, Any]:
         return {
@@ -121,6 +123,12 @@ class Zone:
                 if self.liquidity_anchor is not None
                 else None
             ),
+            "liquidity_extreme": (
+                str(self.liquidity_extreme)
+                if self.liquidity_extreme is not None
+                else None
+            ),
+            "liquidity_formed_index": self.liquidity_formed_index,
         }
 
 
@@ -152,16 +160,19 @@ class _Candidate:
     distal: Decimal | None = None
 
 
-@dataclass(frozen=True)
+@dataclass
 class _LiquidityCandidate:
     anchor: Decimal
+    near_extreme: Decimal
     formed_index: int
+    taken_index: int | None = None
 
 
 @dataclass
 class _LiquidityTracker:
     run_count: int = 0
     run_anchor: Decimal | None = None
+    run_near_extreme: Decimal | None = None
     candidates: list[_LiquidityCandidate] = field(default_factory=list)
 
 
@@ -345,13 +356,12 @@ class RawZoneDetector:
 
     def _update_zone_eligibility(self, index: int, bar: Bar) -> None:
         for zone in self._zones:
-            if zone.eligibility_state is EligibilityState.ELIGIBLE:
-                continue
             if zone.state is not ZoneState.CONFIRMED_FRESH:
-                zone.eligibility_state = EligibilityState.EXPIRED
-                zone.eligibility_index = index
-                zone.eligibility_time = bar.time
-                zone.eligibility_reason = "EXPIRE_ZONE_NOT_FRESH"
+                if zone.eligibility_state is not EligibilityState.ELIGIBLE:
+                    zone.eligibility_state = EligibilityState.EXPIRED
+                    zone.eligibility_index = index
+                    zone.eligibility_time = bar.time
+                    zone.eligibility_reason = "EXPIRE_ZONE_NOT_FRESH"
                 continue
             if index <= zone.confirmation_index:
                 continue
@@ -369,24 +379,40 @@ class RawZoneDetector:
             else:
                 self._complete_liquidity_run(zone, tracker, index)
 
-            broken = [
-                candidate
-                for candidate in tracker.candidates
-                if (
+            for candidate in tracker.candidates:
+                if candidate.taken_index is not None:
+                    continue
+                taken = (
                     bar.high > candidate.anchor
                     if zone.direction is Direction.DEMAND
                     else bar.low < candidate.anchor
                 )
-            ]
-            if not broken:
+                if taken:
+                    candidate.taken_index = index
+
+            primary = self._primary_liquidity(zone, tracker)
+            if primary is None:
                 continue
 
-            candidate = broken[-1]
-            zone.eligibility_state = EligibilityState.ELIGIBLE
-            zone.eligibility_index = index
-            zone.eligibility_time = bar.time
-            zone.eligibility_reason = "LIQUIDITY_OWN_EXTREME_TAKEN"
-            zone.liquidity_anchor = candidate.anchor
+            next_state = (
+                EligibilityState.WAITING_FOR_LIQUIDITY
+                if primary.taken_index is None
+                else EligibilityState.ELIGIBLE
+            )
+            primary_changed = zone.liquidity_formed_index != primary.formed_index
+            state_changed = zone.eligibility_state is not next_state
+            zone.liquidity_anchor = primary.anchor
+            zone.liquidity_extreme = primary.near_extreme
+            zone.liquidity_formed_index = primary.formed_index
+            if primary_changed or state_changed:
+                zone.eligibility_index = index
+                zone.eligibility_time = bar.time
+            if primary.taken_index is None:
+                zone.eligibility_state = next_state
+                zone.eligibility_reason = "WAIT_LIQUIDITY_OWN_EXTREME"
+            else:
+                zone.eligibility_state = next_state
+                zone.eligibility_reason = "LIQUIDITY_OWN_EXTREME_TAKEN"
 
     def _extend_liquidity_run(
         self,
@@ -402,21 +428,35 @@ class RawZoneDetector:
                 if zone.direction is Direction.DEMAND
                 else min(previous.low, bar.low)
             )
+            tracker.run_near_extreme = (
+                bar.low
+                if zone.direction is Direction.DEMAND
+                else bar.high
+            )
         elif zone.direction is Direction.DEMAND:
             tracker.run_anchor = max(tracker.run_anchor, bar.high)
+            tracker.run_near_extreme = min(tracker.run_near_extreme, bar.low)
         else:
             tracker.run_anchor = min(tracker.run_anchor, bar.low)
+            tracker.run_near_extreme = max(tracker.run_near_extreme, bar.high)
         tracker.run_count += 1
-        zone.eligibility_reason = "WAIT_MINIMUM_LIQUIDITY_CANDLES"
+        if zone.eligibility_state is not EligibilityState.ELIGIBLE:
+            zone.eligibility_reason = "WAIT_MINIMUM_LIQUIDITY_CANDLES"
 
-    @staticmethod
     def _complete_liquidity_run(
-        zone: Zone, tracker: _LiquidityTracker, decision_index: int
+        self, zone: Zone, tracker: _LiquidityTracker, decision_index: int
     ) -> None:
         if tracker.run_count >= 2:
+            decision = self._bars[decision_index]
+            near_extreme = (
+                min(tracker.run_near_extreme, decision.low)
+                if zone.direction is Direction.DEMAND
+                else max(tracker.run_near_extreme, decision.high)
+            )
             tracker.candidates.append(
                 _LiquidityCandidate(
                     anchor=tracker.run_anchor,
+                    near_extreme=near_extreme,
                     formed_index=decision_index - 1,
                 )
             )
@@ -425,6 +465,29 @@ class RawZoneDetector:
             zone.eligibility_reason = "REJECT_ONE_CANDLE_LIQUIDITY"
         tracker.run_count = 0
         tracker.run_anchor = None
+        tracker.run_near_extreme = None
+
+    @staticmethod
+    def _primary_liquidity(
+        zone: Zone, tracker: _LiquidityTracker
+    ) -> _LiquidityCandidate | None:
+        if not tracker.candidates:
+            return None
+        if zone.direction is Direction.DEMAND:
+            return min(
+                tracker.candidates,
+                key=lambda candidate: (
+                    candidate.near_extreme,
+                    -candidate.formed_index,
+                ),
+            )
+        return max(
+            tracker.candidates,
+            key=lambda candidate: (
+                candidate.near_extreme,
+                candidate.formed_index,
+            ),
+        )
 
 
 def detect_zones(bars: Sequence[Bar]) -> DetectionResult:

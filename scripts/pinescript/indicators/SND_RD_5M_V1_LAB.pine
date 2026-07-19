@@ -77,9 +77,14 @@ type RawZone
     int eligibilityTime
     string eligibilityReason
     float liquidityAnchor
+    float liquidityExtreme
+    int liquidityPrimaryIndex
     int liquidityRunCount
     float liquidityRunAnchor
+    float liquidityRunNearExtreme
     array<float> liquidityAnchors
+    array<float> liquidityExtremes
+    array<bool> liquidityTaken
     box zoneBox
     label debugLabel
 
@@ -166,9 +171,14 @@ buildConfirmedZone(Candidate candidate, bool demand, int zoneId, string formatio
     zone.eligibilityTime := na
     zone.eligibilityReason := WAIT_MINIMUM_LIQUIDITY_CANDLES
     zone.liquidityAnchor := na
+    zone.liquidityExtreme := na
+    zone.liquidityPrimaryIndex := na
     zone.liquidityRunCount := 0
     zone.liquidityRunAnchor := na
+    zone.liquidityRunNearExtreme := na
     zone.liquidityAnchors := array.new<float>()
+    zone.liquidityExtremes := array.new<float>()
+    zone.liquidityTaken := array.new<bool>()
     zone.zoneBox := na
     zone.debugLabel := na
     zone
@@ -238,55 +248,86 @@ diagnosticPayload(string eventName, RawZone zone) =>
      "\"reason\":\"" + zone.reason + "\"," +
      "\"eligibility_state\":\"" + zone.eligibilityState + "\"," +
      "\"eligibility_reason\":\"" + zone.eligibilityReason + "\"," +
-     "\"liquidity_anchor\":" + (na(zone.liquidityAnchor) ? "null" : str.tostring(zone.liquidityAnchor, format.mintick)) + "}"
+     "\"liquidity_anchor\":" + (na(zone.liquidityAnchor) ? "null" : str.tostring(zone.liquidityAnchor, format.mintick)) + "," +
+     "\"liquidity_extreme\":" + (na(zone.liquidityExtreme) ? "null" : str.tostring(zone.liquidityExtreme, format.mintick)) + "," +
+     "\"liquidity_primary_index\":" + (na(zone.liquidityPrimaryIndex) ? "null" : str.tostring(zone.liquidityPrimaryIndex)) + "}"
 
 extendLiquidityRun(RawZone zone) =>
     if zone.liquidityRunCount == 0
         zone.liquidityRunAnchor := zone.demand ? math.max(high[1], high) : math.min(low[1], low)
+        zone.liquidityRunNearExtreme := zone.demand ? low : high
     else
         zone.liquidityRunAnchor := zone.demand ? math.max(zone.liquidityRunAnchor, high) : math.min(zone.liquidityRunAnchor, low)
+        zone.liquidityRunNearExtreme := zone.demand ? math.min(zone.liquidityRunNearExtreme, low) : math.max(zone.liquidityRunNearExtreme, high)
     zone.liquidityRunCount += 1
-    zone.eligibilityReason := WAIT_MINIMUM_LIQUIDITY_CANDLES
+    if zone.eligibilityState != ELIGIBILITY_ELIGIBLE
+        zone.eligibilityReason := WAIT_MINIMUM_LIQUIDITY_CANDLES
 
 completeLiquidityRun(RawZone zone) =>
     if zone.liquidityRunCount >= 2
+        float nearExtreme = zone.demand ? math.min(zone.liquidityRunNearExtreme, low) : math.max(zone.liquidityRunNearExtreme, high)
         array.push(zone.liquidityAnchors, zone.liquidityRunAnchor)
+        array.push(zone.liquidityExtremes, nearExtreme)
+        array.push(zone.liquidityTaken, false)
         zone.eligibilityReason := WAIT_LIQUIDITY_OWN_EXTREME
     else if zone.liquidityRunCount == 1
         zone.eligibilityReason := REJECT_ONE_CANDLE_LIQUIDITY
     zone.liquidityRunCount := 0
     zone.liquidityRunAnchor := na
+    zone.liquidityRunNearExtreme := na
 
 updateZoneEligibility(RawZone zone) =>
     bool becameEligible = false
-    if zone.eligibilityState == ELIGIBILITY_WAITING
-        if zone.state != STATE_FRESH
+    if zone.state != STATE_FRESH
+        if zone.eligibilityState != ELIGIBILITY_ELIGIBLE
             zone.eligibilityState := ELIGIBILITY_EXPIRED
             zone.eligibilityBar := bar_index
             zone.eligibilityTime := time_close
             zone.eligibilityReason := EXPIRE_ZONE_NOT_FRESH
-        else if bar_index > zone.confirmationBar
-            bool requiredCandle = zone.demand ? close < open : close > open
-            if requiredCandle
-                extendLiquidityRun(zone)
-            else
-                completeLiquidityRun(zone)
+    else if bar_index > zone.confirmationBar
+        bool requiredCandle = zone.demand ? close < open : close > open
+        if requiredCandle
+            extendLiquidityRun(zone)
+        else
+            completeLiquidityRun(zone)
 
-            float brokenAnchor = na
-            int candidateCount = array.size(zone.liquidityAnchors)
-            if candidateCount > 0
-                for candidateIndex = 0 to candidateCount - 1
-                    float candidateAnchor = array.get(zone.liquidityAnchors, candidateIndex)
-                    bool broken = zone.demand ? high > candidateAnchor : low < candidateAnchor
-                    if broken
-                        brokenAnchor := candidateAnchor
-            if not na(brokenAnchor)
-                zone.eligibilityState := ELIGIBILITY_ELIGIBLE
+        int primaryIndex = na
+        float primaryExtreme = na
+        int candidateCount = array.size(zone.liquidityAnchors)
+        if candidateCount > 0
+            for candidateIndex = 0 to candidateCount - 1
+                float candidateAnchor = array.get(zone.liquidityAnchors, candidateIndex)
+                float candidateExtreme = array.get(zone.liquidityExtremes, candidateIndex)
+                bool taken = array.get(zone.liquidityTaken, candidateIndex)
+                if not taken
+                    taken := zone.demand ? high > candidateAnchor : low < candidateAnchor
+                    if taken
+                        array.set(zone.liquidityTaken, candidateIndex, true)
+                bool closer = na(primaryIndex) or (zone.demand ? candidateExtreme <= primaryExtreme : candidateExtreme >= primaryExtreme)
+                if closer
+                    primaryIndex := candidateIndex
+                    primaryExtreme := candidateExtreme
+
+        if not na(primaryIndex)
+            string previousEligibility = zone.eligibilityState
+            int previousPrimaryIndex = zone.liquidityPrimaryIndex
+            bool primaryTaken = array.get(zone.liquidityTaken, primaryIndex)
+            string nextEligibility = primaryTaken ? ELIGIBILITY_ELIGIBLE : ELIGIBILITY_WAITING
+            bool primaryChanged = na(previousPrimaryIndex) or previousPrimaryIndex != primaryIndex
+            bool stateChanged = previousEligibility != nextEligibility
+            zone.liquidityAnchor := array.get(zone.liquidityAnchors, primaryIndex)
+            zone.liquidityExtreme := array.get(zone.liquidityExtremes, primaryIndex)
+            zone.liquidityPrimaryIndex := primaryIndex
+            if primaryChanged or stateChanged
                 zone.eligibilityBar := bar_index
                 zone.eligibilityTime := time_close
+            if primaryTaken
+                zone.eligibilityState := nextEligibility
                 zone.eligibilityReason := LIQUIDITY_OWN_EXTREME_TAKEN
-                zone.liquidityAnchor := brokenAnchor
-                becameEligible := true
+                becameEligible := previousEligibility != ELIGIBILITY_ELIGIBLE
+            else
+                zone.eligibilityState := nextEligibility
+                zone.eligibilityReason := WAIT_LIQUIDITY_OWN_EXTREME
     becameEligible
 
 deleteZone(RawZone zone) =>

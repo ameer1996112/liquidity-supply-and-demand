@@ -152,6 +152,15 @@
       "implementations": ["reference_detector.RawZoneDetector._update_zone_eligibility", "SND_RD_5M_V1_LAB.updateZoneEligibility"]
     },
     {
+      "decision_id": "select_primary_liquidity_closest_to_zone",
+      "condition": "More than one completed normal-liquidity swing exists in front of the still-fresh raw zone.",
+      "outcome": "Use the spatially closest swing as primary; if it has not taken its own extreme, return strategy eligibility to waiting even when an older farther swing was valid.",
+      "reason_code": null,
+      "rule_ids": ["RD5M-LIQUIDITY-PRIMARY-CLOSEST-TO-ZONE", "RD5M-LIQUIDITY-TAKE-OWN-EXTREME"],
+      "implementation_status": "IMPLEMENTED",
+      "implementations": ["reference_detector.RawZoneDetector._primary_liquidity", "SND_RD_5M_V1_LAB.updateZoneEligibility"]
+    },
+    {
       "decision_id": "expire_unconfirmed_liquidity_on_zone_retest",
       "condition": "The raw zone is tapped or invalidated before qualifying liquidity takes its own extreme.",
       "outcome": "Keep the raw zone and its lifecycle visible but expire strategy eligibility for that setup.",
@@ -190,6 +199,11 @@
       "conflict_id": "normal_two_candle_liquidity_vs_discretionary_one_candle_exception",
       "status": "RESOLVED",
       "resolution": "Automation requires the objective two-candle minimum. Keep the one-candle exception documented but fail closed until its large-retracement, obvious-zone-fakeout, and clear-direction conditions have approved numeric definitions."
+    },
+    {
+      "conflict_id": "older_valid_liquidity_vs_new_closer_unswept_liquidity",
+      "status": "RESOLVED",
+      "resolution": "The spatially closest completed swing is the primary gate. Older swept swings remain supporting confidence but cannot override a closer unswept primary."
     }
   ]
 }

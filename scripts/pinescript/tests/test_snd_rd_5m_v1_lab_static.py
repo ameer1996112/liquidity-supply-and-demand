@@ -98,3 +98,18 @@ def test_liquidity_eligibility_never_hides_raw_zones() -> None:
     )[0]
     assert "zone.state" in visible_body
     assert "eligibility" not in visible_body.lower()
+
+
+def test_closest_completed_liquidity_is_the_primary_candidate() -> None:
+    text = source()
+    assert "array<float> liquidityExtremes" in text
+    assert "array<bool> liquidityTaken" in text
+    assert "zone.liquidityRunNearExtreme" in text
+    assert "float candidateExtreme = array.get(zone.liquidityExtremes" in text
+    assert "candidateExtreme <= primaryExtreme" in text
+    assert "candidateExtreme >= primaryExtreme" in text
+    assert "bool primaryTaken = array.get(zone.liquidityTaken, primaryIndex)" in text
+    assert "string nextEligibility = primaryTaken ? ELIGIBILITY_ELIGIBLE : ELIGIBILITY_WAITING" in text
+    assert "zone.eligibilityState := nextEligibility" in text
+    assert "bool primaryChanged = na(previousPrimaryIndex)" in text
+    assert "if primaryChanged or stateChanged" in text

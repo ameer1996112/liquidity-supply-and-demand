@@ -7,6 +7,7 @@ from scripts.rd_concepts_pipeline.reference_detector import (
     Direction,
     EligibilityState,
     Geometry,
+    RawZoneDetector,
     ZoneState,
     detect_zones,
 )
@@ -183,3 +184,82 @@ def test_zone_tapped_before_liquidity_confirmation_expires_eligibility() -> None
     assert zone.eligibility_state is EligibilityState.EXPIRED
     assert zone.eligibility_index == 5
     assert zone.eligibility_reason == "EXPIRE_ZONE_NOT_FRESH"
+
+
+def test_closer_unswept_liquidity_replaces_older_eligible_primary() -> None:
+    rows = [
+        *load_cases()[0]["bars"],
+        {"time": "t3", "open": 10.5, "high": 10.6, "low": 10.3, "close": 10.4},
+        {"time": "t4", "open": 10.4, "high": 10.45, "low": 10.15, "close": 10.2},
+        {"time": "t5", "open": 10.2, "high": 10.61, "low": 10.1, "close": 10.55},
+        {"time": "t6", "open": 10.55, "high": 10.58, "low": 10.2, "close": 10.3},
+        {"time": "t7", "open": 10.3, "high": 10.35, "low": 10.05, "close": 10.1},
+        {"time": "t8", "open": 10.1, "high": 10.4, "low": 10.0, "close": 10.3},
+        {"time": "t9", "open": 10.3, "high": 10.62, "low": 10.2, "close": 10.6},
+    ]
+    detector = RawZoneDetector()
+    for row in rows[:6]:
+        detector.update(Bar.from_mapping(row))
+
+    zone = detector.result.zones[0]
+    assert zone.eligibility_state is EligibilityState.ELIGIBLE
+    assert zone.liquidity_anchor == Decimal("10.6")
+    assert zone.liquidity_extreme == Decimal("10.1")
+
+    for row in rows[6:9]:
+        detector.update(Bar.from_mapping(row))
+
+    assert zone.eligibility_state is EligibilityState.WAITING_FOR_LIQUIDITY
+    assert zone.eligibility_reason == "WAIT_LIQUIDITY_OWN_EXTREME"
+    assert zone.liquidity_anchor == Decimal("10.61")
+    assert zone.liquidity_extreme == Decimal("10.0")
+
+    detector.update(Bar.from_mapping(rows[9]))
+
+    assert zone.eligibility_state is EligibilityState.ELIGIBLE
+    assert zone.eligibility_index == 9
+    assert zone.liquidity_anchor == Decimal("10.61")
+
+    detector.update(
+        Bar.from_mapping(
+            {"time": "t10", "open": 10.6, "high": 10.7, "low": 10.5, "close": 10.65}
+        )
+    )
+
+    assert zone.eligibility_index == 9
+    assert zone.eligibility_time == "t9"
+
+
+def test_supply_primary_uses_highest_completed_liquidity_swing() -> None:
+    rows = [
+        {"time": "t0", "open": 10.4, "high": 10.5, "low": 10.1, "close": 10.2},
+        {"time": "t1", "open": 10.2, "high": 10.6, "low": 10.15, "close": 10.5},
+        {"time": "t2", "open": 10.5, "high": 10.55, "low": 9.9, "close": 10.0},
+        {"time": "t3", "open": 9.9, "high": 10.05, "low": 9.7, "close": 10.0},
+        {"time": "t4", "open": 10.0, "high": 10.1, "low": 9.8, "close": 10.05},
+        {"time": "t5", "open": 10.05, "high": 10.1, "low": 9.65, "close": 9.7},
+        {"time": "t6", "open": 9.7, "high": 10.05, "low": 9.68, "close": 9.95},
+        {"time": "t7", "open": 9.95, "high": 10.12, "low": 9.9, "close": 10.05},
+        {"time": "t8", "open": 10.05, "high": 10.13, "low": 9.8, "close": 9.9},
+        {"time": "t9", "open": 9.9, "high": 10.05, "low": 9.64, "close": 9.7},
+    ]
+    detector = RawZoneDetector()
+    for row in rows[:6]:
+        detector.update(Bar.from_mapping(row))
+
+    zone = next(zone for zone in detector.result.zones if zone.origin_index == 1)
+    assert zone.eligibility_state is EligibilityState.ELIGIBLE
+    assert zone.liquidity_anchor == Decimal("9.7")
+    assert zone.liquidity_extreme == Decimal("10.1")
+
+    for row in rows[6:9]:
+        detector.update(Bar.from_mapping(row))
+
+    assert zone.eligibility_state is EligibilityState.WAITING_FOR_LIQUIDITY
+    assert zone.liquidity_anchor == Decimal("9.65")
+    assert zone.liquidity_extreme == Decimal("10.13")
+
+    detector.update(Bar.from_mapping(rows[9]))
+
+    assert zone.eligibility_state is EligibilityState.ELIGIBLE
+    assert zone.eligibility_index == 9
