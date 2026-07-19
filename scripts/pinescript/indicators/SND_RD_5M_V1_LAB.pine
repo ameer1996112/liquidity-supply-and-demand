@@ -19,6 +19,8 @@ const string SETUP_WAITING = "WAITING_FOR_ELIGIBILITY"
 const string SETUP_ARMED = "ARMED"
 const string SETUP_TRIGGERED = "TRIGGERED"
 const string SETUP_REJECTED = "REJECTED"
+const string DISPLAY_CLEAN = "Clean"
+const string DISPLAY_RAW_AUDIT = "Raw audit"
 
 const string CONFIRM_CLOSE_BEYOND_ORIGIN = "CONFIRM_CLOSE_BEYOND_ORIGIN"
 const string REJECT_FORMATION_INTERRUPTED = "REJECT_FORMATION_INTERRUPTED"
@@ -40,8 +42,10 @@ const string REJECT_AMBIGUOUS_SAME_BAR_ROUTE = "REJECT_AMBIGUOUS_SAME_BAR_ROUTE"
 
 maxZones = input.int(120, "Maximum zones", minval = 10, maxval = 200, group = "Display")
 projectionBars = input.int(120, "Fresh-zone projection bars", minval = 1, maxval = 500, group = "Display")
+displayMode = input.string(DISPLAY_CLEAN, "View", options = [DISPLAY_CLEAN, DISPLAY_RAW_AUDIT], group = "Display")
+cleanZonesPerSide = input.int(3, "Clean zones per side", minval = 1, maxval = 10, group = "Display")
 showFresh = input.bool(true, "Show fresh zones", group = "Display")
-showTapped = input.bool(true, "Show tapped zones", group = "Display")
+showTapped = input.bool(false, "Show tapped zones", group = "Display")
 showInvalidated = input.bool(false, "Show invalidated zones", group = "Display")
 showLabels = input.bool(false, "Show diagnostic labels", group = "Diagnostics")
 emitDiagnostics = input.bool(false, "Emit non-executable diagnostic alerts", group = "Diagnostics")
@@ -204,8 +208,27 @@ buildConfirmedZone(Candidate candidate, bool demand, int zoneId, string formatio
     zone.debugLabel := na
     zone
 
-zoneVisible(RawZone zone) =>
-    zone.state == STATE_FRESH ? showFresh : zone.state == STATE_TAPPED ? showTapped : showInvalidated
+zoneDistanceFromPrice(RawZone zone) =>
+    close < zone.bottom ? zone.bottom - close : close > zone.top ? close - zone.top : 0.0
+
+zoneSelectedForCleanView(RawZone target, array<RawZone> allZones) =>
+    int closerCount = 0
+    float targetDistance = zoneDistanceFromPrice(target)
+    int candidateCount = array.size(allZones)
+    if candidateCount > 0
+        for candidateIndex = 0 to candidateCount - 1
+            RawZone candidate = array.get(allZones, candidateIndex)
+            bool comparable = candidate.id != target.id and candidate.demand == target.demand and candidate.state == STATE_FRESH
+            if comparable
+                float candidateDistance = zoneDistanceFromPrice(candidate)
+                bool ranksAhead = candidateDistance < targetDistance or (candidateDistance == targetDistance and candidate.id > target.id)
+                if ranksAhead
+                    closerCount += 1
+    closerCount < cleanZonesPerSide
+
+zoneVisible(RawZone zone, array<RawZone> allZones) =>
+    bool lifecycleVisible = zone.state == STATE_FRESH ? showFresh : zone.state == STATE_TAPPED ? showTapped : showInvalidated
+    displayMode == DISPLAY_RAW_AUDIT ? lifecycleVisible : zone.state == STATE_FRESH and showFresh and zoneSelectedForCleanView(zone, allZones)
 
 zoneColor(RawZone zone) =>
     color result = zone.state == STATE_TAPPED ? tappedColor : zone.state == STATE_INVALIDATED ? invalidatedColor : zone.geometry == GEOMETRY_ACCURACY ? (zone.demand ? accuracyDemandColor : accuracySupplyColor) : (zone.demand ? demandColor : supplyColor)
@@ -221,8 +244,8 @@ zoneText(RawZone zone) =>
     string side = zone.demand ? "D" : "S"
     "Z" + str.tostring(zone.id) + " " + side + " " + zone.formation + " " + zone.geometry + "\n" + zone.state + " " + zone.reason + "\n" + zone.eligibilityState + " " + zone.eligibilityReason + "\n" + zone.setupState + " " + zone.setupReason
 
-updateZoneDrawing(RawZone zone) =>
-    bool visible = zoneVisible(zone)
+updateZoneDrawing(RawZone zone, array<RawZone> allZones) =>
+    bool visible = zoneVisible(zone, allZones)
     if visible
         int rightBar = zoneRightBar(zone)
         if na(zone.zoneBox)
@@ -560,10 +583,10 @@ int drawCount = array.size(zones)
 if drawCount > 0
     for index = 0 to drawCount - 1
         RawZone zone = array.get(zones, index)
-        updateZoneDrawing(zone)
+        updateZoneDrawing(zone, zones)
         array.set(zones, index, zone)
 
 var table statusTable = table.new(position.top_right, 1, 2, border_width = 1)
 if barstate.islast
-    table.cell(statusTable, 0, 0, isFiveMinute ? "SND RD 5M V1 LAB" : "5m chart required", text_color = color.white, bgcolor = isFiveMinute ? color.new(color.teal, 25) : color.new(color.red, 15))
+    table.cell(statusTable, 0, 0, isFiveMinute ? "SND RD 5M V1 LAB - " + str.upper(displayMode) : "5m chart required", text_color = color.white, bgcolor = isFiveMinute ? color.new(color.teal, 25) : color.new(color.red, 15))
     table.cell(statusTable, 0, 1, lastDecision, text_color = color.white, bgcolor = color.new(color.black, 15), text_size = size.tiny)

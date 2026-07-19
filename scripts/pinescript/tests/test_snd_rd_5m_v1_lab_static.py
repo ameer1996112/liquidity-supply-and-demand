@@ -93,7 +93,9 @@ def test_liquidity_eligibility_matches_reference_detector_contract() -> None:
 
 def test_liquidity_eligibility_never_hides_raw_zones() -> None:
     text = source()
-    visible_body = text.split("zoneVisible(RawZone zone) =>", 1)[1].split(
+    visible_body = text.split(
+        "zoneVisible(RawZone zone, array<RawZone> allZones) =>", 1
+    )[1].split(
         "zoneColor(RawZone zone) =>", 1
     )[0]
     assert "zone.state" in visible_body
@@ -127,7 +129,9 @@ def test_opposite_zone_route_blocker_expires_only_strategy_eligibility() -> None
     assert "zone.eligibilityReason := EXPIRE_OPPOSITE_ZONE_RETRACE" in text
     assert "zone.routeBlockerId := blockerId" in text
 
-    visible_body = text.split("zoneVisible(RawZone zone) =>", 1)[1].split(
+    visible_body = text.split(
+        "zoneVisible(RawZone zone, array<RawZone> allZones) =>", 1
+    )[1].split(
         "zoneColor(RawZone zone) =>", 1
     )[0]
     assert "routeBlocker" not in visible_body
@@ -170,7 +174,28 @@ def test_same_bar_route_ambiguity_fails_closed() -> None:
 
 def test_setup_state_does_not_control_raw_zone_visibility() -> None:
     text = source()
-    visible_body = text.split("zoneVisible(RawZone zone) =>", 1)[1].split(
+    visible_body = text.split(
+        "zoneVisible(RawZone zone, array<RawZone> allZones) =>", 1
+    )[1].split(
         "zoneColor(RawZone zone) =>", 1
     )[0]
     assert "setup" not in visible_body.lower()
+
+
+def test_clean_view_limits_visible_raw_zones_without_changing_detection() -> None:
+    text = source()
+    assert 'DISPLAY_CLEAN = "Clean"' in text
+    assert 'DISPLAY_RAW_AUDIT = "Raw audit"' in text
+    assert 'displayMode = input.string(DISPLAY_CLEAN, "View"' in text
+    assert 'cleanZonesPerSide = input.int(3, "Clean zones per side"' in text
+    assert 'showTapped = input.bool(false, "Show tapped zones"' in text
+    assert "zoneSelectedForCleanView(RawZone target, array<RawZone> allZones) =>" in text
+    assert "candidate.demand == target.demand" in text
+    assert "candidate.state == STATE_FRESH" in text
+    assert "closerCount < cleanZonesPerSide" in text
+
+    decision_body = text.split(
+        "if barstate.isconfirmed and isFiveMinute", 1
+    )[1].split("int drawCount", 1)[0]
+    assert "displayMode" not in decision_body
+    assert "cleanZonesPerSide" not in decision_body
