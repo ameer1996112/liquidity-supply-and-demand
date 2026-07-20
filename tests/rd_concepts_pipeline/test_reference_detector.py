@@ -236,6 +236,7 @@ def test_zone_does_not_reuse_liquidity_started_before_confirmation() -> None:
     assert level.formed_index == 2
     assert zone.confirmation_index == 3
     assert zone.eligibility_state is EligibilityState.WAITING_FOR_LIQUIDITY
+    assert zone.liquidity_qualified is False
     assert zone.liquidity_anchor is None
 
 
@@ -257,6 +258,7 @@ def test_demand_zone_becomes_eligible_after_two_bearish_candles_take_own_high() 
     assert zone.eligibility_index == 5
     assert zone.liquidity_anchor == Decimal("10.6")
     assert zone.eligibility_reason == "LIQUIDITY_OWN_EXTREME_TAKEN"
+    assert zone.liquidity_qualified is True
     assert zone.setup_state is SetupState.ARMED
     assert zone.setup_reason == "ARM_SETUP_AFTER_LIQUIDITY"
 
@@ -426,6 +428,7 @@ def test_demand_setup_expires_after_tapping_intervening_supply_zone() -> None:
     assert target.eligibility_state is EligibilityState.EXPIRED
     assert target.eligibility_index == 7
     assert target.eligibility_reason == "EXPIRE_OPPOSITE_ZONE_RETRACE"
+    assert target.liquidity_qualified is True
     assert target.route_blocker_zone_id == blocker.zone_id
     assert target.setup_state is SetupState.REJECTED
     assert target.setup_reason == "EXPIRE_OPPOSITE_ZONE_RETRACE"

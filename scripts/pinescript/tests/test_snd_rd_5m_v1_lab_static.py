@@ -124,15 +124,20 @@ def test_liquidity_eligibility_matches_reference_detector_contract() -> None:
     assert "zone.eligibilityReason := EXPIRE_ZONE_NOT_FRESH" in text
 
 
-def test_liquidity_eligibility_never_hides_raw_zones() -> None:
+def test_raw_audit_visibility_is_independent_from_strategy_eligibility() -> None:
     text = source()
     visible_body = text.split(
         "zoneVisible(RawZone zone, array<RawZone> allZones) =>", 1
     )[1].split(
         "zoneColor(RawZone zone) =>", 1
     )[0]
-    assert "zone.state" in visible_body
-    assert "eligibility" not in visible_body.lower()
+    assert "lifecycleVisible" in visible_body
+    visibility_line = next(
+        line for line in visible_body.splitlines() if "DISPLAY_RAW_AUDIT ?" in line
+    )
+    raw_branch = visibility_line.split("DISPLAY_RAW_AUDIT ?", 1)[1].split(":", 1)[0]
+    assert "lifecycleVisible" in raw_branch
+    assert "eligibility" not in raw_branch.lower()
 
 
 def test_closest_completed_liquidity_is_the_primary_candidate() -> None:
@@ -252,17 +257,21 @@ def test_same_bar_route_ambiguity_fails_closed() -> None:
     assert "REJECT_AMBIGUOUS_SAME_BAR_ROUTE" in text
 
 
-def test_setup_state_does_not_control_raw_zone_visibility() -> None:
+def test_setup_state_does_not_control_raw_audit_visibility() -> None:
     text = source()
     visible_body = text.split(
         "zoneVisible(RawZone zone, array<RawZone> allZones) =>", 1
     )[1].split(
         "zoneColor(RawZone zone) =>", 1
     )[0]
-    assert "setup" not in visible_body.lower()
+    visibility_line = next(
+        line for line in visible_body.splitlines() if "DISPLAY_RAW_AUDIT ?" in line
+    )
+    raw_branch = visibility_line.split("DISPLAY_RAW_AUDIT ?", 1)[1].split(":", 1)[0]
+    assert "setup" not in raw_branch.lower()
 
 
-def test_clean_view_deduplicates_overlapping_levels_without_changing_detection() -> None:
+def test_clean_view_keeps_only_ever_qualified_fresh_zones_then_deduplicates() -> None:
     text = source()
     assert 'DISPLAY_CLEAN = "Clean"' in text
     assert 'DISPLAY_RAW_AUDIT = "Raw audit"' in text
@@ -271,11 +280,18 @@ def test_clean_view_deduplicates_overlapping_levels_without_changing_detection()
     assert 'showTapped = input.bool(false, "Show tapped zones"' in text
     assert "zonesOverlap(RawZone first, RawZone other) =>" in text
     assert "first.bottom <= other.top and first.top >= other.bottom" in text
+    assert "bool liquidityQualified" in text
+    assert "zone.liquidityQualified := false" in text
+    assert "zone.liquidityQualified := true" in text
+    assert "zoneQualifiedForCleanView(RawZone zone) =>" in text
+    assert "zone.state == STATE_FRESH" in text
+    assert "zone.liquidityQualified" in text
     assert "zoneSelectedForCleanView(RawZone target, array<RawZone> allZones) =>" in text
     assert "candidate.demand == target.demand" in text
-    assert "candidate.state == STATE_FRESH" in text
+    assert "zoneQualifiedForCleanView(candidate)" in text
     assert "zonesOverlap(candidate, target)" in text
     assert "closerCount < cleanZonesPerLevel" in text
+    assert "showFresh and zoneQualifiedForCleanView(zone)" in text
 
     decision_body = text.split(
         "if barstate.isconfirmed and isFiveMinute", 1

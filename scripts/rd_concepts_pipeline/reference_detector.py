@@ -105,6 +105,7 @@ class Zone:
     eligibility_index: int | None = None
     eligibility_time: str | None = None
     eligibility_reason: str = "WAIT_MINIMUM_LIQUIDITY_CANDLES"
+    liquidity_qualified: bool = False
     liquidity_anchor: Decimal | None = None
     liquidity_extreme: Decimal | None = None
     liquidity_formed_index: int | None = None
@@ -135,6 +136,7 @@ class Zone:
             "eligibility_index": self.eligibility_index,
             "eligibility_time": self.eligibility_time,
             "eligibility_reason": self.eligibility_reason,
+            "liquidity_qualified": self.liquidity_qualified,
             "liquidity_anchor": (
                 str(self.liquidity_anchor)
                 if self.liquidity_anchor is not None
@@ -500,6 +502,7 @@ class RawZoneDetector:
             else:
                 zone.eligibility_state = next_state
                 zone.eligibility_reason = "LIQUIDITY_OWN_EXTREME_TAKEN"
+                zone.liquidity_qualified = True
 
     def _update_setup_state(self, index: int, bar: Bar) -> None:
         for zone in self._zones:

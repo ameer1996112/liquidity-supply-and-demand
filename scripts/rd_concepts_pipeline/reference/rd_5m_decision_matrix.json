@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "timeframe": "5m",
   "market_scope": ["all"],
   "runtime_contract": "closed_bar_deterministic",
@@ -138,6 +138,14 @@
     "raw_zone_visibility_unchanged": true,
     "implementation_status": "IMPLEMENTED",
     "default_policy": "fail_closed"
+  },
+  "clean_view_contract": {
+    "stage": "display_only_post_eligibility",
+    "fresh_zone_required": true,
+    "liquidity_qualified_once_required": true,
+    "current_eligibility_state_required": false,
+    "current_setup_state_required": false,
+    "raw_audit_unchanged": true
   },
   "eligibility_decisions": [
     {
