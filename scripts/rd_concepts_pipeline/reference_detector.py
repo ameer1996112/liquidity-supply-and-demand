@@ -257,7 +257,19 @@ class RawZoneDetector:
         bar = self._bars[index]
         if bar.high > origin.high or bar.low < origin.low:
             return None
-        return _Candidate(candidate.direction, index, distal=candidate.distal)
+        if candidate.direction is Direction.DEMAND:
+            distal = (
+                bar.low
+                if candidate.distal is None
+                else min(candidate.distal, bar.low)
+            )
+        else:
+            distal = (
+                bar.high
+                if candidate.distal is None
+                else max(candidate.distal, bar.high)
+            )
+        return _Candidate(candidate.direction, index, distal=distal)
 
     def _advance_candidate(
         self, candidate: _Candidate | None, departure_index: int
@@ -342,8 +354,12 @@ class RawZoneDetector:
         geometry = Geometry.ACCURACY if accuracy else Geometry.STANDARD
 
         if geometry is Geometry.ACCURACY:
-            top = origin.body_high
-            bottom = origin.body_low
+            if candidate.direction is Direction.DEMAND:
+                top = origin.body_high
+                bottom = origin.low
+            else:
+                top = origin.high
+                bottom = origin.body_low
         else:
             top = origin.high
             bottom = origin.low

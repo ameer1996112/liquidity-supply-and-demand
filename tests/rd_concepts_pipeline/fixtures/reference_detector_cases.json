@@ -29,6 +29,26 @@
     "expected": {"direction": "SUPPLY", "formation": "REVERSAL", "geometry": "ACCURACY", "origin_index": 1, "confirmation_index": 3, "top": "10.4", "bottom": "10.0"}
   },
   {
+    "case_id": "DEMAND-ACCURACY-ORIGIN-WICK",
+    "bars": [
+      {"time": "t0", "open": "9.4", "high": "10.0", "low": "9.3", "close": "9.9"},
+      {"time": "t1", "open": "10.0", "high": "10.2", "low": "9.5", "close": "9.8"},
+      {"time": "t2", "open": "9.8", "high": "10.1", "low": "9.7", "close": "10.0"},
+      {"time": "t3", "open": "10.0", "high": "10.3", "low": "9.8", "close": "10.25"}
+    ],
+    "expected": {"direction": "DEMAND", "formation": "CONTINUATION", "geometry": "ACCURACY", "origin_index": 1, "confirmation_index": 3, "top": "10.0", "bottom": "9.5"}
+  },
+  {
+    "case_id": "SUPPLY-ACCURACY-ORIGIN-WICK",
+    "bars": [
+      {"time": "t0", "open": "10.4", "high": "10.5", "low": "9.9", "close": "10.0"},
+      {"time": "t1", "open": "10.0", "high": "10.5", "low": "9.8", "close": "10.2"},
+      {"time": "t2", "open": "10.2", "high": "10.3", "low": "9.9", "close": "10.0"},
+      {"time": "t3", "open": "10.0", "high": "10.2", "low": "9.7", "close": "9.75"}
+    ],
+    "expected": {"direction": "SUPPLY", "formation": "CONTINUATION", "geometry": "ACCURACY", "origin_index": 1, "confirmation_index": 3, "top": "10.5", "bottom": "10.0"}
+  },
+  {
     "case_id": "DEMAND-STANDARD-CONTINUATION",
     "bars": [
       {"time": "t0", "open": "9.5", "high": "10.0", "low": "9.4", "close": "9.9"},
@@ -67,5 +87,29 @@
       {"time": "2026-07-16T20:25:00+03:00", "open": "162.484", "high": "162.495", "low": "162.473", "close": "162.473"}
     ],
     "expected": {"direction": "SUPPLY", "formation": "CONTINUATION", "geometry": "STANDARD", "origin_index": 3, "confirmation_index": 4, "top": "162.506", "bottom": "162.493"}
+  },
+  {
+    "case_id": "DEMAND-ACCURACY-REBASE-WICK",
+    "bars": [
+      {"time": "t0", "open": "9.0", "high": "10.0", "low": "8.8", "close": "9.8"},
+      {"time": "t1", "open": "9.8", "high": "10.2", "low": "8.0", "close": "8.5"},
+      {"time": "t2", "open": "8.5", "high": "9.6", "low": "8.3", "close": "9.4"},
+      {"time": "t3", "open": "9.4", "high": "9.7", "low": "8.1", "close": "8.8"},
+      {"time": "t4", "open": "8.8", "high": "9.5", "low": "8.2", "close": "9.4"},
+      {"time": "t5", "open": "9.4", "high": "10.0", "low": "8.7", "close": "9.9"}
+    ],
+    "expected": {"direction": "DEMAND", "formation": "CONTINUATION", "geometry": "ACCURACY", "origin_index": 3, "confirmation_index": 5, "top": "9.4", "bottom": "8.1"}
+  },
+  {
+    "case_id": "SUPPLY-ACCURACY-REBASE-WICK",
+    "bars": [
+      {"time": "t0", "open": "10.0", "high": "10.2", "low": "9.0", "close": "9.2"},
+      {"time": "t1", "open": "9.2", "high": "11.0", "low": "9.0", "close": "10.5"},
+      {"time": "t2", "open": "10.5", "high": "10.7", "low": "9.5", "close": "9.6"},
+      {"time": "t3", "open": "9.6", "high": "10.9", "low": "9.3", "close": "10.2"},
+      {"time": "t4", "open": "10.2", "high": "10.8", "low": "9.6", "close": "9.7"},
+      {"time": "t5", "open": "9.7", "high": "10.3", "low": "9.1", "close": "9.2"}
+    ],
+    "expected": {"direction": "SUPPLY", "formation": "CONTINUATION", "geometry": "ACCURACY", "origin_index": 3, "confirmation_index": 5, "top": "10.9", "bottom": "9.6"}
   }
 ]

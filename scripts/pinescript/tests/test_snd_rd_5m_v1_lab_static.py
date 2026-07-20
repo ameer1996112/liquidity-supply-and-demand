@@ -18,12 +18,12 @@ def test_new_lab_is_non_executable_and_close_confirmed() -> None:
     assert '"\\\"executable\\\":false,"' in text
 
 
-def test_accuracy_geometry_uses_origin_body_not_wick_segment() -> None:
+def test_accuracy_geometry_uses_body_proximal_and_origin_wick_distal() -> None:
     text = source()
     assert "float bodyHigh = math.max(candidate.originOpen, candidate.originClose)" in text
     assert "float bodyLow = math.min(candidate.originOpen, candidate.originClose)" in text
-    assert "float frozenTop = accuracy ? bodyHigh : candidate.originHigh" in text
-    assert "float frozenBottom = accuracy ? bodyLow : candidate.originLow" in text
+    assert "float frozenTop = accuracy and demand ? bodyHigh : candidate.originHigh" in text
+    assert "float frozenBottom = accuracy and not demand ? bodyLow : candidate.originLow" in text
     assert "candidate.originHigh > candidate.firstDepartureHigh" in text
     assert "candidate.originLow < candidate.firstDepartureLow" in text
 
@@ -42,11 +42,13 @@ def test_formation_wicks_extend_only_distal_boundary_before_confirmation() -> No
 
 def test_inside_base_interruption_rebases_and_keeps_formation_envelope() -> None:
     text = source()
-    assert "method rebaseInsideFormation(Candidate this)" in text
+    assert "method rebaseInsideFormation(Candidate this, bool demand)" in text
     assert "high <= this.originHigh and low >= this.originLow" in text
+    assert "float rebasedDistal = demand ? math.min(this.distal, low) : math.max(this.distal, high)" in text
     assert "this.originBar := bar_index" in text
-    assert "bool rebasedSupply = supplyCandidate.rebaseInsideFormation()" in text
-    assert "bool rebasedDemand = demandCandidate.rebaseInsideFormation()" in text
+    assert "this.distal := rebasedDistal" in text
+    assert "bool rebasedSupply = supplyCandidate.rebaseInsideFormation(false)" in text
+    assert "bool rebasedDemand = demandCandidate.rebaseInsideFormation(true)" in text
 
 
 def test_reversal_and_continuation_are_independent_of_geometry() -> None:

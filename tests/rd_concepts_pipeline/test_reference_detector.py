@@ -23,6 +23,10 @@ def load_cases() -> list[dict]:
     return json.loads(FIXTURE.read_text(encoding="utf-8"))
 
 
+def load_case(case_id: str) -> dict:
+    return next(case for case in load_cases() if case["case_id"] == case_id)
+
+
 def test_reference_detector_matches_geometry_contract_cases() -> None:
     for case in load_cases():
         result = detect_zones([Bar.from_mapping(row) for row in case["bars"]])
@@ -80,7 +84,8 @@ def test_post_confirmation_overlap_taps_without_resizing_zone() -> None:
 
 
 def test_same_direction_departure_wick_does_not_count_as_a_retest() -> None:
-    bars = [Bar.from_mapping(row) for row in load_cases()[-1]["bars"][:5]]
+    case = load_case("SUPPLY-INSIDE-BASE-INTERRUPTION")
+    bars = [Bar.from_mapping(row) for row in case["bars"][:5]]
     bars.extend(
         [
             Bar.from_mapping(

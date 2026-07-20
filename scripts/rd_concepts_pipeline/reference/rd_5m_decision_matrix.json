@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "timeframe": "5m",
   "market_scope": ["all"],
   "runtime_contract": "closed_bar_deterministic",
@@ -39,7 +39,7 @@
     {
       "decision_id": "accuracy_geometry_demand",
       "condition": "The bearish demand origin high is above the first bullish departure high.",
-      "outcome": "Use the full origin body before applying the permitted distal extension.",
+      "outcome": "Use the origin body high as the proximal boundary and preserve the origin low as the distal boundary before applying any farther formation-envelope extension.",
       "reason_code": null,
       "rule_ids": ["RD5M-ZONE-ACCURACY-DEMAND"],
       "implementations": ["reference_detector.RawZoneDetector._confirmed_zone", "SND_RD_5M_V1_LAB.buildConfirmedZone"]
@@ -47,7 +47,7 @@
     {
       "decision_id": "accuracy_geometry_supply",
       "condition": "The bullish supply origin low is below the first bearish departure low.",
-      "outcome": "Use the full origin body before applying the permitted distal extension.",
+      "outcome": "Use the origin body low as the proximal boundary and preserve the origin high as the distal boundary before applying any farther formation-envelope extension.",
       "reason_code": null,
       "rule_ids": ["RD5M-ZONE-ACCURACY-SUPPLY"],
       "implementations": ["reference_detector.RawZoneDetector._confirmed_zone", "SND_RD_5M_V1_LAB.buildConfirmedZone"]
@@ -87,7 +87,7 @@
     {
       "decision_id": "rebase_inside_formation",
       "condition": "An opposite-color candle appears after formation starts and its full range remains inside the prior origin range.",
-      "outcome": "Move the origin to the contained candle, retain the existing distal formation envelope, and wait for a new same-direction departure.",
+      "outcome": "Move the origin to the contained candle, merge its low into the retained demand distal envelope or its high into the retained supply distal envelope, and wait for a new same-direction departure.",
       "reason_code": null,
       "rule_ids": ["RD5M-ZONE-INSIDE-BASE-REBASE"],
       "implementations": ["reference_detector.RawZoneDetector._rebase_inside_formation", "SND_RD_5M_V1_LAB.Candidate.rebaseInsideFormation"]
@@ -277,9 +277,9 @@
   ],
   "conflicts": [
     {
-      "conflict_id": "accuracy_body_vs_legacy_wick_segment",
+      "conflict_id": "accuracy_body_only_vs_wick_distal",
       "status": "RESOLVED",
-      "resolution": "Use the full origin body for accuracy geometry, matching the canonical RD explanation; do not retain the legacy partial wick segment."
+      "resolution": "Use the origin body edge only on the proximal side and preserve the origin wick extreme on the distal side; formation candles may extend that distal boundary farther before confirmation."
     },
     {
       "conflict_id": "formation_wick_vs_post_confirmation_tap",

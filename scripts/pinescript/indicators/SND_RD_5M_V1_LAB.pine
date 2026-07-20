@@ -142,11 +142,12 @@ method begin(Candidate this) =>
     this.firstDepartureLow := na
     this.distal := na
 
-method rebaseInsideFormation(Candidate this) =>
+method rebaseInsideFormation(Candidate this, bool demand) =>
     bool rebased = false
     if this.isActive and this.isForming
         rebased := high <= this.originHigh and low >= this.originLow
         if rebased
+            float rebasedDistal = demand ? math.min(this.distal, low) : math.max(this.distal, high)
             this.isForming := false
             this.originBar := bar_index
             this.originTime := time
@@ -158,6 +159,7 @@ method rebaseInsideFormation(Candidate this) =>
             this.firstDepartureBar := na
             this.firstDepartureHigh := na
             this.firstDepartureLow := na
+            this.distal := rebasedDistal
     rebased
 
 method advance(Candidate this, bool demand) =>
@@ -183,8 +185,8 @@ buildConfirmedZone(Candidate candidate, bool demand, int zoneId, string formatio
     string geometry = accuracy ? GEOMETRY_ACCURACY : GEOMETRY_STANDARD
     float bodyHigh = math.max(candidate.originOpen, candidate.originClose)
     float bodyLow = math.min(candidate.originOpen, candidate.originClose)
-    float frozenTop = accuracy ? bodyHigh : candidate.originHigh
-    float frozenBottom = accuracy ? bodyLow : candidate.originLow
+    float frozenTop = accuracy and demand ? bodyHigh : candidate.originHigh
+    float frozenBottom = accuracy and not demand ? bodyLow : candidate.originLow
     if demand
         frozenBottom := math.min(frozenBottom, candidate.distal)
     else
@@ -564,7 +566,7 @@ if barstate.isconfirmed and isFiveMinute
                     eventZone := zone
                     lastDecision := CONFIRM_CLOSE_BEYOND_ORIGIN
                 demandCandidate.reset()
-        bool rebasedSupply = supplyCandidate.rebaseInsideFormation()
+        bool rebasedSupply = supplyCandidate.rebaseInsideFormation(false)
         if not rebasedSupply
             if supplyCandidate.isActive and supplyCandidate.isForming
                 lastDecision := REJECT_FORMATION_INTERRUPTED
@@ -585,7 +587,7 @@ if barstate.isconfirmed and isFiveMinute
                     eventZone := zone
                     lastDecision := CONFIRM_CLOSE_BEYOND_ORIGIN
                 supplyCandidate.reset()
-        bool rebasedDemand = demandCandidate.rebaseInsideFormation()
+        bool rebasedDemand = demandCandidate.rebaseInsideFormation(true)
         if not rebasedDemand
             if demandCandidate.isActive and demandCandidate.isForming
                 lastDecision := REJECT_FORMATION_INTERRUPTED
