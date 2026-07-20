@@ -157,6 +157,88 @@ def test_invalid_bar_geometry_is_rejected() -> None:
         raise AssertionError("invalid OHLC must fail")
 
 
+def test_global_liquidity_detects_both_sides_without_parent_zones() -> None:
+    bars = [
+        Bar.from_mapping({"time": "t0", "open": 10, "high": 10.2, "low": 9.8, "close": 10}),
+        Bar.from_mapping({"time": "t1", "open": 10, "high": 10.1, "low": 9.7, "close": 9.9}),
+        Bar.from_mapping({"time": "t2", "open": 9.9, "high": 10.0, "low": 9.6, "close": 9.8}),
+        Bar.from_mapping({"time": "t3", "open": 9.8, "high": 10.05, "low": 9.55, "close": 9.95}),
+        Bar.from_mapping({"time": "t4", "open": 9.95, "high": 10.1, "low": 9.9, "close": 10.05}),
+        Bar.from_mapping({"time": "t5", "open": 10.05, "high": 10.15, "low": 9.8, "close": 9.9}),
+    ]
+
+    result = detect_zones(bars)
+    demand_liquidity = next(
+        level for level in result.liquidity_levels if level.direction is Direction.DEMAND
+    )
+    supply_liquidity = next(
+        level for level in result.liquidity_levels if level.direction is Direction.SUPPLY
+    )
+
+    assert demand_liquidity.run_start_index == 1
+    assert demand_liquidity.formed_index == 2
+    assert demand_liquidity.anchor == Decimal("10.2")
+    assert demand_liquidity.anchor_index == 0
+    assert demand_liquidity.near_extreme == Decimal("9.55")
+    assert demand_liquidity.near_extreme_index == 3
+    assert demand_liquidity.taken_index is None
+
+    assert supply_liquidity.run_start_index == 3
+    assert supply_liquidity.formed_index == 4
+    assert supply_liquidity.anchor == Decimal("9.55")
+    assert supply_liquidity.anchor_index == 3
+    assert supply_liquidity.near_extreme == Decimal("10.15")
+    assert supply_liquidity.near_extreme_index == 5
+    assert supply_liquidity.taken_index is None
+
+
+def test_global_liquidity_requires_strict_later_break_of_own_extreme() -> None:
+    rows = [
+        {"time": "t0", "open": 10, "high": 10.2, "low": 9.8, "close": 10},
+        {"time": "t1", "open": 10, "high": 10.1, "low": 9.7, "close": 9.9},
+        {"time": "t2", "open": 9.9, "high": 10.0, "low": 9.6, "close": 9.8},
+        {"time": "t3", "open": 9.8, "high": 10.05, "low": 9.55, "close": 9.95},
+        {"time": "t4", "open": 9.95, "high": 10.2, "low": 9.9, "close": 10.1},
+        {"time": "t5", "open": 10.1, "high": 10.21, "low": 10.0, "close": 10.15},
+    ]
+    detector = RawZoneDetector()
+    for row in rows[:5]:
+        detector.update(Bar.from_mapping(row))
+
+    demand_liquidity = next(
+        level
+        for level in detector.result.liquidity_levels
+        if level.direction is Direction.DEMAND
+    )
+    assert demand_liquidity.taken_index is None
+
+    detector.update(Bar.from_mapping(rows[5]))
+
+    assert demand_liquidity.taken_index == 5
+
+
+def test_zone_does_not_reuse_liquidity_started_before_confirmation() -> None:
+    rows = [
+        {"time": "t0", "open": 10, "high": 10.2, "low": 9.8, "close": 10},
+        {"time": "t1", "open": 10, "high": 10.1, "low": 9.7, "close": 9.9},
+        {"time": "t2", "open": 9.9, "high": 10.0, "low": 9.5, "close": 9.6},
+        {"time": "t3", "open": 9.6, "high": 10.2, "low": 9.55, "close": 10.1},
+        {"time": "t4", "open": 10.1, "high": 10.3, "low": 10.0, "close": 10.2},
+    ]
+
+    result = detect_zones([Bar.from_mapping(row) for row in rows])
+    zone = next(zone for zone in result.zones if zone.origin_index == 2)
+    level = next(
+        level for level in result.liquidity_levels if level.direction is Direction.DEMAND
+    )
+
+    assert level.run_start_index == 1
+    assert level.formed_index == 2
+    assert zone.confirmation_index == 3
+    assert zone.eligibility_state is EligibilityState.WAITING_FOR_LIQUIDITY
+    assert zone.liquidity_anchor is None
+
+
 def test_demand_zone_becomes_eligible_after_two_bearish_candles_take_own_high() -> None:
     bars = [Bar.from_mapping(row) for row in load_cases()[0]["bars"]]
     bars.extend(

@@ -114,11 +114,13 @@ def test_liquidity_eligibility_matches_reference_detector_contract() -> None:
     assert 'ELIGIBILITY_WAITING = "WAITING_FOR_LIQUIDITY"' in text
     assert 'ELIGIBILITY_ELIGIBLE = "ELIGIBLE"' in text
     assert 'ELIGIBILITY_EXPIRED = "EXPIRED"' in text
-    assert "zone.liquidityRunCount >= 2" in text
+    assert "run.count >= 2" in text
     assert "math.max(high[1], high)" in text
     assert "math.min(low[1], low)" in text
-    assert "high > candidateAnchor" in text
-    assert "low < candidateAnchor" in text
+    assert "level.demand ? high > level.anchor : low < level.anchor" in text
+    assert "candidate.runStartBar > zone.confirmationBar" in text
+    assert "candidate.nearExtreme > zone.top" in text
+    assert "candidate.nearExtreme < zone.bottom" in text
     assert "zone.eligibilityReason := EXPIRE_ZONE_NOT_FRESH" in text
 
 
@@ -135,47 +137,64 @@ def test_liquidity_eligibility_never_hides_raw_zones() -> None:
 
 def test_closest_completed_liquidity_is_the_primary_candidate() -> None:
     text = source()
-    assert "array<float> liquidityExtremes" in text
-    assert "array<bool> liquidityTaken" in text
-    assert "zone.liquidityRunNearExtreme" in text
-    assert "float candidateExtreme = array.get(zone.liquidityExtremes" in text
-    assert "candidateExtreme <= primaryExtreme" in text
-    assert "candidateExtreme >= primaryExtreme" in text
-    assert "bool primaryTaken = array.get(zone.liquidityTaken, primaryIndex)" in text
-    assert "string nextEligibility = primaryTaken ? ELIGIBILITY_ELIGIBLE : ELIGIBILITY_WAITING" in text
+    assert "type LiquidityLevel" in text
+    assert "array<LiquidityLevel> levels" in text
+    assert "array<int> createdIndexes" in text
+    assert "candidate.nearExtreme <= primary.nearExtreme" in text
+    assert "candidate.nearExtreme >= primary.nearExtreme" in text
+    assert "string nextEligibility = primary.taken ? ELIGIBILITY_ELIGIBLE : ELIGIBILITY_WAITING" in text
     assert "zone.eligibilityState := nextEligibility" in text
-    assert "bool primaryChanged = na(previousPrimaryIndex)" in text
+    assert "bool primaryChanged = na(zone.liquidityAnchor)" in text
     assert "if primaryChanged or stateChanged" in text
 
 
 def test_liquidity_lines_preserve_anchor_and_sweep_provenance() -> None:
     text = source()
-    assert "int liquidityRunAnchorBar" in text
-    assert "array<int> liquidityAnchorBars" in text
-    assert "array<int> liquidityTakenBars" in text
-    assert "array<line> liquidityLines" in text
-    assert "zone.liquidityRunAnchorBar := priorIsAnchor ? bar_index - 1 : bar_index" in text
-    assert "zone.liquidityRunAnchorBar := bar_index" in text
-    assert "array.push(zone.liquidityAnchorBars, zone.liquidityRunAnchorBar)" in text
-    assert "array.set(zone.liquidityTakenBars, candidateIndex, bar_index)" in text
+    assert "int anchorBar" in text
+    assert "int nearExtremeBar" in text
+    assert "int runStartBar" in text
+    assert "int formedBar" in text
+    assert "int takenBar" in text
+    assert "run.anchorBar := priorIsAnchor ? bar_index - 1 : bar_index" in text
+    assert "run.nearExtremeBar := bar_index" in text
+    assert "level.formedBar := bar_index - 1" in text
+    assert "level.takenBar := bar_index" in text
 
 
 def test_liquidity_line_renderer_is_bounded_and_auditable() -> None:
     text = source()
     assert 'showLiquidityLines = input.bool(true, "Show liquidity lines"' in text
-    assert "liquiditySecondaryIndex(RawZone zone) =>" in text
-    assert "primary or (displayMode == DISPLAY_RAW_AUDIT and candidateIndex == secondaryIndex)" in text
-    assert "not na(takenBar) ? takenBar" in text
+    assert 'rawAuditLiquidityLevels = input.int(20, "Raw-audit liquidity levels"' in text
+    assert "levelCount - rawAuditLiquidityLevels" in text
+    assert "nearestDemandIndex" in text
+    assert "nearestSupplyIndex" in text
+    assert "level.taken ? level.takenBar" in text
     assert "bar_index + projectionBars" in text
     assert "line.style_dashed" in text
     assert "line.style_solid" in text
     assert "line.style_dotted" in text
-    assert "line.new(anchorBar, anchor, rightBar, anchor" in text
-    assert "updateLiquidityDrawings(zone, zones)" in text
-    delete_body = text.split("deleteZone(RawZone zone) =>", 1)[1].split(
-        "var Candidate demandCandidate", 1
-    )[0]
-    assert "line.delete(liquidityLine)" in delete_body
+    assert "line.new(level.nearExtremeBar, level.nearExtreme" in text
+    assert "line.new(level.anchorBar, level.anchor" in text
+    assert "if displayMode == DISPLAY_RAW_AUDIT" in text
+    assert "updateLiquidityDrawings(liquidityLevels, drawnLiquidityIndexes, zones)" in text
+    assert "line.delete(previousLevel.liquidityLine)" in text
+    assert "line.delete(previousLevel.ownExtremeLine)" in text
+
+
+def test_global_liquidity_runs_are_bidirectional_and_zone_independent() -> None:
+    text = source()
+    assert "var LiquidityRun demandLiquidityRun" in text
+    assert "var LiquidityRun supplyLiquidityRun" in text
+    assert "var LiquidityLevel[] liquidityLevels" in text
+    assert "extendLiquidityRun(demandRun, true)" in text
+    assert "extendLiquidityRun(supplyRun, false)" in text
+    assert "completeLiquidityRun(supplyRun, false" in text
+    assert "completeLiquidityRun(demandRun, true" in text
+    assert "oneCandleEvent.startBar := run.startBar" in text
+    assert "demandOneCandleEvent.startBar > zone.confirmationBar" in text
+    assert "supplyOneCandleEvent.startBar > zone.confirmationBar" in text
+    main = text.split("if barstate.isconfirmed and isFiveMinute", 1)[1]
+    assert main.index("updateGlobalLiquidity(") < main.index("int zoneCount = array.size(zones)")
 
 
 def test_opposite_zone_route_blocker_expires_only_strategy_eligibility() -> None:
@@ -250,8 +269,8 @@ def test_clean_view_deduplicates_overlapping_levels_without_changing_detection()
     assert 'displayMode = input.string(DISPLAY_CLEAN, "View"' in text
     assert 'cleanZonesPerLevel = input.int(1, "Clean zones per overlapping level"' in text
     assert 'showTapped = input.bool(false, "Show tapped zones"' in text
-    assert "zonesOverlap(RawZone first, RawZone second) =>" in text
-    assert "first.bottom <= second.top and first.top >= second.bottom" in text
+    assert "zonesOverlap(RawZone first, RawZone other) =>" in text
+    assert "first.bottom <= other.top and first.top >= other.bottom" in text
     assert "zoneSelectedForCleanView(RawZone target, array<RawZone> allZones) =>" in text
     assert "candidate.demand == target.demand" in text
     assert "candidate.state == STATE_FRESH" in text

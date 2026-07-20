@@ -49,6 +49,7 @@ showFresh = input.bool(true, "Show fresh zones", group = "Display")
 showTapped = input.bool(false, "Show tapped zones", group = "Display")
 showInvalidated = input.bool(false, "Show invalidated zones", group = "Display")
 showLiquidityLines = input.bool(true, "Show liquidity lines", group = "Display")
+rawAuditLiquidityLevels = input.int(20, "Raw-audit liquidity levels", minval = 2, maxval = 100, group = "Display")
 showLabels = input.bool(false, "Show diagnostic labels", group = "Diagnostics")
 emitDiagnostics = input.bool(false, "Emit non-executable diagnostic alerts", group = "Diagnostics")
 
@@ -60,7 +61,7 @@ tappedColor = input.color(color.new(color.gray, 82), "Tapped", group = "Colors")
 invalidatedColor = input.color(color.new(color.black, 88), "Invalidated", group = "Colors")
 liquidityPendingColor = input.color(color.orange, "Liquidity pending", group = "Colors")
 liquiditySweptColor = input.color(color.teal, "Liquidity swept", group = "Colors")
-liquiditySecondaryColor = input.color(color.new(color.gray, 35), "Liquidity secondary", group = "Colors")
+liquiditySecondaryColor = input.color(color.new(color.gray, 35), "Liquidity own-extreme audit", group = "Colors")
 
 type Candidate
     bool isActive
@@ -76,6 +77,31 @@ type Candidate
     float firstDepartureHigh
     float firstDepartureLow
     float distal
+
+type LiquidityRun
+    int count
+    float anchor
+    int anchorBar
+    float nearExtreme
+    int nearExtremeBar
+    int startBar
+
+type OneCandleLiquidityEvent
+    int startBar
+    int completedBar
+
+type LiquidityLevel
+    bool demand
+    float anchor
+    int anchorBar
+    float nearExtreme
+    int nearExtremeBar
+    int runStartBar
+    int formedBar
+    bool taken
+    int takenBar
+    line liquidityLine
+    line ownExtremeLine
 
 type RawZone
     int id
@@ -105,16 +131,6 @@ type RawZone
     float liquidityAnchor
     float liquidityExtreme
     int liquidityPrimaryIndex
-    int liquidityRunCount
-    float liquidityRunAnchor
-    int liquidityRunAnchorBar
-    float liquidityRunNearExtreme
-    array<float> liquidityAnchors
-    array<int> liquidityAnchorBars
-    array<float> liquidityExtremes
-    array<bool> liquidityTaken
-    array<int> liquidityTakenBars
-    array<line> liquidityLines
     int routeBlockerId
     string setupState
     int setupBar
@@ -240,16 +256,6 @@ buildConfirmedZone(Candidate candidate, bool demand, int zoneId, string formatio
     zone.liquidityAnchor := na
     zone.liquidityExtreme := na
     zone.liquidityPrimaryIndex := na
-    zone.liquidityRunCount := 0
-    zone.liquidityRunAnchor := na
-    zone.liquidityRunAnchorBar := na
-    zone.liquidityRunNearExtreme := na
-    zone.liquidityAnchors := array.new<float>()
-    zone.liquidityAnchorBars := array.new<int>()
-    zone.liquidityExtremes := array.new<float>()
-    zone.liquidityTaken := array.new<bool>()
-    zone.liquidityTakenBars := array.new<int>()
-    zone.liquidityLines := array.new<line>()
     zone.routeBlockerId := na
     zone.setupState := SETUP_WAITING
     zone.setupBar := na
@@ -262,8 +268,8 @@ buildConfirmedZone(Candidate candidate, bool demand, int zoneId, string formatio
 zoneDistanceFromPrice(RawZone zone) =>
     close < zone.bottom ? zone.bottom - close : close > zone.top ? close - zone.top : 0.0
 
-zonesOverlap(RawZone first, RawZone second) =>
-    first.bottom <= second.top and first.top >= second.bottom
+zonesOverlap(RawZone first, RawZone other) =>
+    first.bottom <= other.top and first.top >= other.bottom
 
 zoneSelectedForCleanView(RawZone target, array<RawZone> allZones) =>
     int closerCount = 0
@@ -328,43 +334,116 @@ updateZoneDrawing(RawZone zone, array<RawZone> allZones) =>
             zone.debugLabel := na
     true
 
-liquiditySecondaryIndex(RawZone zone) =>
-    int secondaryIndex = array.size(zone.liquidityAnchors) - 1
-    if secondaryIndex == zone.liquidityPrimaryIndex
-        secondaryIndex -= 1
-    secondaryIndex
+addUniqueLiquidityIndex(array<int> selectedIndexes, int candidateIndex) =>
+    if not na(candidateIndex) and not array.includes(selectedIndexes, candidateIndex)
+        array.push(selectedIndexes, candidateIndex)
 
-updateLiquidityDrawings(RawZone zone, array<RawZone> allZones) =>
-    bool parentVisible = zoneVisible(zone, allZones)
-    int candidateCount = array.size(zone.liquidityAnchors)
-    int secondaryIndex = liquiditySecondaryIndex(zone)
-    if candidateCount > 0
-        for candidateIndex = 0 to candidateCount - 1
-            bool primary = candidateIndex == zone.liquidityPrimaryIndex
-            bool selected = primary or (displayMode == DISPLAY_RAW_AUDIT and candidateIndex == secondaryIndex)
-            bool visible = showLiquidityLines and parentVisible and selected
-            line liquidityLine = array.get(zone.liquidityLines, candidateIndex)
-            if visible
-                float anchor = array.get(zone.liquidityAnchors, candidateIndex)
-                int anchorBar = array.get(zone.liquidityAnchorBars, candidateIndex)
-                bool taken = array.get(zone.liquidityTaken, candidateIndex)
-                int takenBar = array.get(zone.liquidityTakenBars, candidateIndex)
-                int rightBar = not na(takenBar) ? takenBar : zone.state == STATE_FRESH ? bar_index + projectionBars : zone.stateBar
-                color lineColor = primary ? (taken ? liquiditySweptColor : liquidityPendingColor) : liquiditySecondaryColor
-                string lineStyle = primary ? (taken ? line.style_solid : line.style_dashed) : line.style_dotted
+liquidityIsPrimary(int candidateIndex, array<RawZone> allZones) =>
+    bool primary = false
+    int zoneCount = array.size(allZones)
+    if zoneCount > 0
+        for zoneIndex = 0 to zoneCount - 1
+            RawZone zone = array.get(allZones, zoneIndex)
+            if zoneVisible(zone, allZones) and zone.liquidityPrimaryIndex == candidateIndex
+                primary := true
+    primary
+
+updateLiquidityDrawings(array<LiquidityLevel> levels, array<int> drawnIndexes, array<RawZone> allZones) =>
+    array<int> selectedIndexes = array.new<int>()
+    int levelCount = array.size(levels)
+
+    int zoneCount = array.size(allZones)
+    if zoneCount > 0
+        for zoneIndex = 0 to zoneCount - 1
+            RawZone zone = array.get(allZones, zoneIndex)
+            if zoneVisible(zone, allZones)
+                addUniqueLiquidityIndex(selectedIndexes, zone.liquidityPrimaryIndex)
+
+    if levelCount > 0
+        if displayMode == DISPLAY_RAW_AUDIT
+            int firstAuditIndex = math.max(0, levelCount - rawAuditLiquidityLevels)
+            for candidateIndex = firstAuditIndex to levelCount - 1
+                addUniqueLiquidityIndex(selectedIndexes, candidateIndex)
+        else
+            int nearestDemandIndex = na
+            int nearestSupplyIndex = na
+            float nearestDemandExtreme = na
+            float nearestSupplyExtreme = na
+            int firstScanIndex = math.max(0, levelCount - 300)
+            for candidateIndex = firstScanIndex to levelCount - 1
+                LiquidityLevel level = array.get(levels, candidateIndex)
+                if not level.taken
+                    if level.demand and level.nearExtreme < close and (na(nearestDemandExtreme) or level.nearExtreme > nearestDemandExtreme)
+                        nearestDemandIndex := candidateIndex
+                        nearestDemandExtreme := level.nearExtreme
+                    else if not level.demand and level.nearExtreme > close and (na(nearestSupplyExtreme) or level.nearExtreme < nearestSupplyExtreme)
+                        nearestSupplyIndex := candidateIndex
+                        nearestSupplyExtreme := level.nearExtreme
+            addUniqueLiquidityIndex(selectedIndexes, nearestDemandIndex)
+            addUniqueLiquidityIndex(selectedIndexes, nearestSupplyIndex)
+
+    int previousCount = array.size(drawnIndexes)
+    if previousCount > 0
+        for previousOffset = 0 to previousCount - 1
+            int previousIndex = array.get(drawnIndexes, previousOffset)
+            if previousIndex < levelCount and not array.includes(selectedIndexes, previousIndex)
+                LiquidityLevel previousLevel = array.get(levels, previousIndex)
+                if not na(previousLevel.liquidityLine)
+                    line.delete(previousLevel.liquidityLine)
+                    previousLevel.liquidityLine := na
+                if not na(previousLevel.ownExtremeLine)
+                    line.delete(previousLevel.ownExtremeLine)
+                    previousLevel.ownExtremeLine := na
+                array.set(levels, previousIndex, previousLevel)
+
+    int selectedCount = array.size(selectedIndexes)
+    if showLiquidityLines and selectedCount > 0
+        for selectedOffset = 0 to selectedCount - 1
+            int candidateIndex = array.get(selectedIndexes, selectedOffset)
+            if candidateIndex < levelCount
+                LiquidityLevel level = array.get(levels, candidateIndex)
+                bool primary = liquidityIsPrimary(candidateIndex, allZones)
+                int rightBar = level.taken ? level.takenBar : bar_index + projectionBars
+                color lineColor = level.taken ? liquiditySweptColor : liquidityPendingColor
+                string lineStyle = level.taken ? line.style_solid : line.style_dashed
                 int lineWidth = primary ? 2 : 1
-                if na(liquidityLine)
-                    liquidityLine := line.new(anchorBar, anchor, rightBar, anchor, xloc = xloc.bar_index, extend = extend.none, color = lineColor, style = lineStyle, width = lineWidth)
-                    array.set(zone.liquidityLines, candidateIndex, liquidityLine)
+                if na(level.liquidityLine)
+                    level.liquidityLine := line.new(level.nearExtremeBar, level.nearExtreme, rightBar, level.nearExtreme, xloc = xloc.bar_index, extend = extend.none, color = lineColor, style = lineStyle, width = lineWidth)
                 else
-                    line.set_xy1(liquidityLine, anchorBar, anchor)
-                    line.set_xy2(liquidityLine, rightBar, anchor)
-                    line.set_color(liquidityLine, lineColor)
-                    line.set_style(liquidityLine, lineStyle)
-                    line.set_width(liquidityLine, lineWidth)
-            else if not na(liquidityLine)
-                line.delete(liquidityLine)
-                array.set(zone.liquidityLines, candidateIndex, na)
+                    line.set_xy1(level.liquidityLine, level.nearExtremeBar, level.nearExtreme)
+                    line.set_xy2(level.liquidityLine, rightBar, level.nearExtreme)
+                    line.set_color(level.liquidityLine, lineColor)
+                    line.set_style(level.liquidityLine, lineStyle)
+                    line.set_width(level.liquidityLine, lineWidth)
+
+                if displayMode == DISPLAY_RAW_AUDIT
+                    if na(level.ownExtremeLine)
+                        level.ownExtremeLine := line.new(level.anchorBar, level.anchor, rightBar, level.anchor, xloc = xloc.bar_index, extend = extend.none, color = liquiditySecondaryColor, style = line.style_dotted, width = 1)
+                    else
+                        line.set_xy1(level.ownExtremeLine, level.anchorBar, level.anchor)
+                        line.set_xy2(level.ownExtremeLine, rightBar, level.anchor)
+                else if not na(level.ownExtremeLine)
+                    line.delete(level.ownExtremeLine)
+                    level.ownExtremeLine := na
+                array.set(levels, candidateIndex, level)
+
+    if not showLiquidityLines and previousCount > 0
+        for previousOffset = 0 to previousCount - 1
+            int previousIndex = array.get(drawnIndexes, previousOffset)
+            if previousIndex < levelCount
+                LiquidityLevel previousLevel = array.get(levels, previousIndex)
+                if not na(previousLevel.liquidityLine)
+                    line.delete(previousLevel.liquidityLine)
+                    previousLevel.liquidityLine := na
+                if not na(previousLevel.ownExtremeLine)
+                    line.delete(previousLevel.ownExtremeLine)
+                    previousLevel.ownExtremeLine := na
+                array.set(levels, previousIndex, previousLevel)
+
+    array.clear(drawnIndexes)
+    if showLiquidityLines and selectedCount > 0
+        for selectedOffset = 0 to selectedCount - 1
+            array.push(drawnIndexes, array.get(selectedIndexes, selectedOffset))
     true
 
 diagnosticPayload(string eventName, RawZone zone) =>
@@ -394,40 +473,83 @@ diagnosticPayload(string eventName, RawZone zone) =>
      "\"setup_reason\":\"" + zone.setupReason + "\"," +
      "\"setup_time\":" + (na(zone.setupTime) ? "null" : str.tostring(zone.setupTime)) + "}"
 
-extendLiquidityRun(RawZone zone) =>
-    if zone.liquidityRunCount == 0
-        bool priorIsAnchor = zone.demand ? high[1] >= high : low[1] <= low
-        zone.liquidityRunAnchor := zone.demand ? math.max(high[1], high) : math.min(low[1], low)
-        zone.liquidityRunAnchorBar := priorIsAnchor ? bar_index - 1 : bar_index
-        zone.liquidityRunNearExtreme := zone.demand ? low : high
+resetLiquidityRun(LiquidityRun run) =>
+    run.count := 0
+    run.anchor := na
+    run.anchorBar := na
+    run.nearExtreme := na
+    run.nearExtremeBar := na
+    run.startBar := na
+
+extendLiquidityRun(LiquidityRun run, bool demand) =>
+    if run.count == 0
+        bool priorIsAnchor = demand ? high[1] >= high : low[1] <= low
+        run.anchor := demand ? math.max(high[1], high) : math.min(low[1], low)
+        run.anchorBar := priorIsAnchor ? bar_index - 1 : bar_index
+        run.nearExtreme := demand ? low : high
+        run.nearExtremeBar := bar_index
+        run.startBar := bar_index
     else
-        bool extendsAnchor = zone.demand ? high > zone.liquidityRunAnchor : low < zone.liquidityRunAnchor
+        bool extendsAnchor = demand ? high > run.anchor : low < run.anchor
         if extendsAnchor
-            zone.liquidityRunAnchor := zone.demand ? high : low
-            zone.liquidityRunAnchorBar := bar_index
-        zone.liquidityRunNearExtreme := zone.demand ? math.min(zone.liquidityRunNearExtreme, low) : math.max(zone.liquidityRunNearExtreme, high)
-    zone.liquidityRunCount += 1
-    if zone.eligibilityState != ELIGIBILITY_ELIGIBLE
-        zone.eligibilityReason := WAIT_MINIMUM_LIQUIDITY_CANDLES
+            run.anchor := demand ? high : low
+            run.anchorBar := bar_index
+        bool extendsNearExtreme = demand ? low < run.nearExtreme : high > run.nearExtreme
+        if extendsNearExtreme
+            run.nearExtreme := demand ? low : high
+            run.nearExtremeBar := bar_index
+    run.count += 1
 
-completeLiquidityRun(RawZone zone) =>
-    if zone.liquidityRunCount >= 2
-        float nearExtreme = zone.demand ? math.min(zone.liquidityRunNearExtreme, low) : math.max(zone.liquidityRunNearExtreme, high)
-        array.push(zone.liquidityAnchors, zone.liquidityRunAnchor)
-        array.push(zone.liquidityAnchorBars, zone.liquidityRunAnchorBar)
-        array.push(zone.liquidityExtremes, nearExtreme)
-        array.push(zone.liquidityTaken, false)
-        array.push(zone.liquidityTakenBars, na)
-        array.push(zone.liquidityLines, na)
-        zone.eligibilityReason := WAIT_LIQUIDITY_OWN_EXTREME
-    else if zone.liquidityRunCount == 1
-        zone.eligibilityReason := REJECT_ONE_CANDLE_LIQUIDITY
-    zone.liquidityRunCount := 0
-    zone.liquidityRunAnchor := na
-    zone.liquidityRunAnchorBar := na
-    zone.liquidityRunNearExtreme := na
+completeLiquidityRun(LiquidityRun run, bool demand, OneCandleLiquidityEvent oneCandleEvent, array<LiquidityLevel> levels, array<int> createdIndexes, array<int> pendingIndexes) =>
+    if run.count >= 2
+        bool decisionExtends = demand ? low < run.nearExtreme : high > run.nearExtreme
+        LiquidityLevel level = LiquidityLevel.new()
+        level.demand := demand
+        level.anchor := run.anchor
+        level.anchorBar := run.anchorBar
+        level.nearExtreme := decisionExtends ? (demand ? low : high) : run.nearExtreme
+        level.nearExtremeBar := decisionExtends ? bar_index : run.nearExtremeBar
+        level.runStartBar := run.startBar
+        level.formedBar := bar_index - 1
+        level.taken := false
+        level.takenBar := na
+        level.liquidityLine := na
+        level.ownExtremeLine := na
+        array.push(levels, level)
+        int createdIndex = array.size(levels) - 1
+        array.push(createdIndexes, createdIndex)
+        array.push(pendingIndexes, createdIndex)
+    else if run.count == 1
+        oneCandleEvent.startBar := run.startBar
+        oneCandleEvent.completedBar := bar_index
+    resetLiquidityRun(run)
 
-updateZoneEligibility(RawZone zone) =>
+updateGlobalLiquidity(LiquidityRun demandRun, LiquidityRun supplyRun, OneCandleLiquidityEvent demandOneCandleEvent, OneCandleLiquidityEvent supplyOneCandleEvent, array<LiquidityLevel> levels, array<int> createdIndexes, array<int> pendingIndexes) =>
+    array.clear(createdIndexes)
+    if bar_index > 0
+        if close < open
+            extendLiquidityRun(demandRun, true)
+            completeLiquidityRun(supplyRun, false, supplyOneCandleEvent, levels, createdIndexes, pendingIndexes)
+        else if close > open
+            extendLiquidityRun(supplyRun, false)
+            completeLiquidityRun(demandRun, true, demandOneCandleEvent, levels, createdIndexes, pendingIndexes)
+        else
+            completeLiquidityRun(demandRun, true, demandOneCandleEvent, levels, createdIndexes, pendingIndexes)
+            completeLiquidityRun(supplyRun, false, supplyOneCandleEvent, levels, createdIndexes, pendingIndexes)
+
+        int pendingOffset = array.size(pendingIndexes) - 1
+        while pendingOffset >= 0
+            int candidateIndex = array.get(pendingIndexes, pendingOffset)
+            LiquidityLevel level = array.get(levels, candidateIndex)
+            bool taken = bar_index > level.formedBar and (level.demand ? high > level.anchor : low < level.anchor)
+            if taken
+                level.taken := true
+                level.takenBar := bar_index
+                array.set(levels, candidateIndex, level)
+                array.remove(pendingIndexes, pendingOffset)
+            pendingOffset -= 1
+
+updateZoneEligibility(RawZone zone, array<LiquidityLevel> levels, array<int> createdIndexes, OneCandleLiquidityEvent demandOneCandleEvent, OneCandleLiquidityEvent supplyOneCandleEvent) =>
     bool becameEligible = false
     if zone.eligibilityState == ELIGIBILITY_EXPIRED
         becameEligible := false
@@ -438,50 +560,44 @@ updateZoneEligibility(RawZone zone) =>
             zone.eligibilityTime := time_close
             zone.eligibilityReason := EXPIRE_ZONE_NOT_FRESH
     else if bar_index > zone.confirmationBar
-        bool requiredCandle = zone.demand ? close < open : close > open
-        if requiredCandle
-            extendLiquidityRun(zone)
-        else
-            completeLiquidityRun(zone)
+        int createdCount = array.size(createdIndexes)
+        if createdCount > 0
+            for createdOffset = 0 to createdCount - 1
+                int candidateIndex = array.get(createdIndexes, createdOffset)
+                LiquidityLevel candidate = array.get(levels, candidateIndex)
+                bool correctDirection = candidate.demand == zone.demand
+                bool formedAfterConfirmation = candidate.runStartBar > zone.confirmationBar
+                bool inFront = zone.demand ? candidate.nearExtreme > zone.top : candidate.nearExtreme < zone.bottom
+                if correctDirection and formedAfterConfirmation and inFront
+                    bool closer = na(zone.liquidityPrimaryIndex)
+                    if not closer
+                        LiquidityLevel primary = array.get(levels, zone.liquidityPrimaryIndex)
+                        closer := zone.demand ? candidate.nearExtreme <= primary.nearExtreme : candidate.nearExtreme >= primary.nearExtreme
+                    if closer
+                        zone.liquidityPrimaryIndex := candidateIndex
 
-        int primaryIndex = na
-        float primaryExtreme = na
-        int candidateCount = array.size(zone.liquidityAnchors)
-        if candidateCount > 0
-            for candidateIndex = 0 to candidateCount - 1
-                float candidateAnchor = array.get(zone.liquidityAnchors, candidateIndex)
-                float candidateExtreme = array.get(zone.liquidityExtremes, candidateIndex)
-                bool taken = array.get(zone.liquidityTaken, candidateIndex)
-                if not taken
-                    taken := zone.demand ? high > candidateAnchor : low < candidateAnchor
-                    if taken
-                        array.set(zone.liquidityTaken, candidateIndex, true)
-                        array.set(zone.liquidityTakenBars, candidateIndex, bar_index)
-                bool closer = na(primaryIndex) or (zone.demand ? candidateExtreme <= primaryExtreme : candidateExtreme >= primaryExtreme)
-                if closer
-                    primaryIndex := candidateIndex
-                    primaryExtreme := candidateExtreme
-
-        if not na(primaryIndex)
+        if not na(zone.liquidityPrimaryIndex)
+            LiquidityLevel primary = array.get(levels, zone.liquidityPrimaryIndex)
             string previousEligibility = zone.eligibilityState
-            int previousPrimaryIndex = zone.liquidityPrimaryIndex
-            bool primaryTaken = array.get(zone.liquidityTaken, primaryIndex)
-            string nextEligibility = primaryTaken ? ELIGIBILITY_ELIGIBLE : ELIGIBILITY_WAITING
-            bool primaryChanged = na(previousPrimaryIndex) or previousPrimaryIndex != primaryIndex
+            string nextEligibility = primary.taken ? ELIGIBILITY_ELIGIBLE : ELIGIBILITY_WAITING
+            bool primaryChanged = na(zone.liquidityAnchor) or zone.liquidityAnchor != primary.anchor or zone.liquidityExtreme != primary.nearExtreme
             bool stateChanged = previousEligibility != nextEligibility
-            zone.liquidityAnchor := array.get(zone.liquidityAnchors, primaryIndex)
-            zone.liquidityExtreme := array.get(zone.liquidityExtremes, primaryIndex)
-            zone.liquidityPrimaryIndex := primaryIndex
+            zone.liquidityAnchor := primary.anchor
+            zone.liquidityExtreme := primary.nearExtreme
             if primaryChanged or stateChanged
                 zone.eligibilityBar := bar_index
                 zone.eligibilityTime := time_close
-            if primaryTaken
+            if primary.taken
                 zone.eligibilityState := nextEligibility
                 zone.eligibilityReason := LIQUIDITY_OWN_EXTREME_TAKEN
                 becameEligible := previousEligibility != ELIGIBILITY_ELIGIBLE
             else
                 zone.eligibilityState := nextEligibility
                 zone.eligibilityReason := WAIT_LIQUIDITY_OWN_EXTREME
+        else
+            bool oneCandleAfterConfirmation = zone.demand ? demandOneCandleEvent.startBar > zone.confirmationBar and demandOneCandleEvent.completedBar == bar_index : supplyOneCandleEvent.startBar > zone.confirmationBar and supplyOneCandleEvent.completedBar == bar_index
+            if oneCandleAfterConfirmation
+                zone.eligibilityReason := REJECT_ONE_CANDLE_LIQUIDITY
     becameEligible
 
 routeBlockerId(RawZone target, array<RawZone> allZones) =>
@@ -567,28 +683,34 @@ deleteZone(RawZone zone) =>
         box.delete(zone.zoneBox)
     if not na(zone.debugLabel)
         label.delete(zone.debugLabel)
-    int liquidityLineCount = array.size(zone.liquidityLines)
-    if liquidityLineCount > 0
-        for liquidityIndex = 0 to liquidityLineCount - 1
-            line liquidityLine = array.get(zone.liquidityLines, liquidityIndex)
-            if not na(liquidityLine)
-                line.delete(liquidityLine)
 
 var Candidate demandCandidate = Candidate.new()
 var Candidate supplyCandidate = Candidate.new()
+var LiquidityRun demandLiquidityRun = LiquidityRun.new()
+var LiquidityRun supplyLiquidityRun = LiquidityRun.new()
+var OneCandleLiquidityEvent demandOneCandleEvent = OneCandleLiquidityEvent.new()
+var OneCandleLiquidityEvent supplyOneCandleEvent = OneCandleLiquidityEvent.new()
 var RawZone[] zones = array.new<RawZone>()
+var LiquidityLevel[] liquidityLevels = array.new<LiquidityLevel>()
+var int[] createdLiquidityIndexes = array.new<int>()
+var int[] pendingLiquidityIndexes = array.new<int>()
+var int[] drawnLiquidityIndexes = array.new<int>()
 var int nextZoneId = 1
 var string lastDecision = "WAITING_FOR_CLOSED_5M_BAR"
 
 if barstate.isfirst
     demandCandidate.reset()
     supplyCandidate.reset()
+    resetLiquidityRun(demandLiquidityRun)
+    resetLiquidityRun(supplyLiquidityRun)
 
 bool isFiveMinute = timeframe.isminutes and timeframe.multiplier == 5
 bool confirmedEvent = false
 RawZone eventZone = na
 
 if barstate.isconfirmed and isFiveMinute
+    updateGlobalLiquidity(demandLiquidityRun, supplyLiquidityRun, demandOneCandleEvent, supplyOneCandleEvent, liquidityLevels, createdLiquidityIndexes, pendingLiquidityIndexes)
+
     int zoneCount = array.size(zones)
     if zoneCount > 0
         for index = 0 to zoneCount - 1
@@ -622,7 +744,7 @@ if barstate.isconfirmed and isFiveMinute
                 if emitDiagnostics
                     alert(diagnosticPayload("ZONE_ROUTE_EXPIRED_NON_EXECUTABLE", zone), alert.freq_once_per_bar_close)
             else
-                bool becameEligible = updateZoneEligibility(zone)
+                bool becameEligible = updateZoneEligibility(zone, liquidityLevels, createdLiquidityIndexes, demandOneCandleEvent, supplyOneCandleEvent)
                 if becameEligible
                     lastDecision := LIQUIDITY_OWN_EXTREME_TAKEN
                     if emitDiagnostics
@@ -701,8 +823,8 @@ if drawCount > 0
     for index = 0 to drawCount - 1
         RawZone zone = array.get(zones, index)
         updateZoneDrawing(zone, zones)
-        updateLiquidityDrawings(zone, zones)
         array.set(zones, index, zone)
+updateLiquidityDrawings(liquidityLevels, drawnLiquidityIndexes, zones)
 
 var table statusTable = table.new(position.top_right, 1, 2, border_width = 1)
 if barstate.islast

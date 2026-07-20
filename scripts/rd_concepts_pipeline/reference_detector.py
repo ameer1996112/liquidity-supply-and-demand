@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
 from typing import Any, Mapping, Sequence
@@ -183,9 +183,13 @@ class _Candidate:
 
 
 @dataclass
-class _LiquidityCandidate:
+class LiquidityLevel:
+    direction: Direction
     anchor: Decimal
+    anchor_index: int
     near_extreme: Decimal
+    near_extreme_index: int
+    run_start_index: int
     formed_index: int
     taken_index: int | None = None
 
@@ -194,14 +198,17 @@ class _LiquidityCandidate:
 class _LiquidityTracker:
     run_count: int = 0
     run_anchor: Decimal | None = None
+    run_anchor_index: int | None = None
     run_near_extreme: Decimal | None = None
-    candidates: list[_LiquidityCandidate] = field(default_factory=list)
+    run_near_extreme_index: int | None = None
+    run_start_index: int | None = None
 
 
 @dataclass(frozen=True)
 class DetectionResult:
     zones: tuple[Zone, ...]
     rejections: tuple[Rejection, ...]
+    liquidity_levels: tuple[LiquidityLevel, ...]
 
 
 class RawZoneDetector:
@@ -209,17 +216,28 @@ class RawZoneDetector:
         self._bars: list[Bar] = []
         self._zones: list[Zone] = []
         self._rejections: list[Rejection] = []
-        self._liquidity_trackers: dict[str, _LiquidityTracker] = {}
+        self._liquidity_levels: list[LiquidityLevel] = []
+        self._pending_liquidity_levels: list[LiquidityLevel] = []
+        self._liquidity_trackers = {
+            Direction.DEMAND: _LiquidityTracker(),
+            Direction.SUPPLY: _LiquidityTracker(),
+        }
+        self._last_one_candle_liquidity: dict[Direction, tuple[int, int]] = {}
         self._demand_candidate: _Candidate | None = None
         self._supply_candidate: _Candidate | None = None
 
     @property
     def result(self) -> DetectionResult:
-        return DetectionResult(tuple(self._zones), tuple(self._rejections))
+        return DetectionResult(
+            tuple(self._zones),
+            tuple(self._rejections),
+            tuple(self._liquidity_levels),
+        )
 
     def update(self, bar: Bar) -> DetectionResult:
         index = len(self._bars)
         self._bars.append(bar)
+        self._update_global_liquidity(index, bar)
         self._update_zone_lifecycle(index, bar)
         self._update_zone_eligibility(index, bar)
         self._update_setup_state(index, bar)
@@ -452,32 +470,15 @@ class RawZoneDetector:
                 zone.route_blocker_zone_id = route_blocker.zone_id
                 continue
 
-            tracker = self._liquidity_trackers.setdefault(
-                zone.zone_id, _LiquidityTracker()
-            )
-            required_candle = (
-                bar.bearish
-                if zone.direction is Direction.DEMAND
-                else bar.bullish
-            )
-            if required_candle:
-                self._extend_liquidity_run(zone, tracker, index, bar)
-            else:
-                self._complete_liquidity_run(zone, tracker, index)
-
-            for candidate in tracker.candidates:
-                if candidate.taken_index is not None:
-                    continue
-                taken = (
-                    bar.high > candidate.anchor
-                    if zone.direction is Direction.DEMAND
-                    else bar.low < candidate.anchor
-                )
-                if taken:
-                    candidate.taken_index = index
-
-            primary = self._primary_liquidity(zone, tracker)
+            primary = self._primary_liquidity(zone)
             if primary is None:
+                one_candle = self._last_one_candle_liquidity.get(zone.direction)
+                if (
+                    one_candle is not None
+                    and one_candle[0] > zone.confirmation_index
+                    and one_candle[1] == index
+                ):
+                    zone.eligibility_reason = "REJECT_ONE_CANDLE_LIQUIDITY"
                 continue
 
             next_state = (
@@ -587,58 +588,105 @@ class RawZoneDetector:
         zone.setup_time = time
         zone.setup_reason = reason
 
-    def _extend_liquidity_run(
-        self,
-        zone: Zone,
-        tracker: _LiquidityTracker,
-        index: int,
-        bar: Bar,
-    ) -> None:
-        if tracker.run_count == 0:
-            previous = self._bars[index - 1]
-            tracker.run_anchor = (
-                max(previous.high, bar.high)
-                if zone.direction is Direction.DEMAND
-                else min(previous.low, bar.low)
-            )
-            tracker.run_near_extreme = (
-                bar.low
-                if zone.direction is Direction.DEMAND
-                else bar.high
-            )
-        elif zone.direction is Direction.DEMAND:
-            tracker.run_anchor = max(tracker.run_anchor, bar.high)
-            tracker.run_near_extreme = min(tracker.run_near_extreme, bar.low)
+    def _update_global_liquidity(self, index: int, bar: Bar) -> None:
+        if index == 0:
+            return
+        if bar.bearish:
+            self._extend_liquidity_run(Direction.DEMAND, index, bar)
+            self._complete_liquidity_run(Direction.SUPPLY, index, bar)
+        elif bar.bullish:
+            self._extend_liquidity_run(Direction.SUPPLY, index, bar)
+            self._complete_liquidity_run(Direction.DEMAND, index, bar)
         else:
-            tracker.run_anchor = min(tracker.run_anchor, bar.low)
-            tracker.run_near_extreme = max(tracker.run_near_extreme, bar.high)
-        tracker.run_count += 1
-        if zone.eligibility_state is not EligibilityState.ELIGIBLE:
-            zone.eligibility_reason = "WAIT_MINIMUM_LIQUIDITY_CANDLES"
+            self._complete_liquidity_run(Direction.DEMAND, index, bar)
+            self._complete_liquidity_run(Direction.SUPPLY, index, bar)
 
-    def _complete_liquidity_run(
-        self, zone: Zone, tracker: _LiquidityTracker, decision_index: int
-    ) -> None:
-        if tracker.run_count >= 2:
-            decision = self._bars[decision_index]
-            near_extreme = (
-                min(tracker.run_near_extreme, decision.low)
-                if zone.direction is Direction.DEMAND
-                else max(tracker.run_near_extreme, decision.high)
-            )
-            tracker.candidates.append(
-                _LiquidityCandidate(
-                    anchor=tracker.run_anchor,
-                    near_extreme=near_extreme,
-                    formed_index=decision_index - 1,
+        still_pending: list[LiquidityLevel] = []
+        for level in self._pending_liquidity_levels:
+            taken = (
+                index > level.formed_index
+                and (
+                    bar.high > level.anchor
+                    if level.direction is Direction.DEMAND
+                    else bar.low < level.anchor
                 )
             )
-            zone.eligibility_reason = "WAIT_LIQUIDITY_OWN_EXTREME"
+            if taken:
+                level.taken_index = index
+            else:
+                still_pending.append(level)
+        self._pending_liquidity_levels = still_pending
+
+    def _extend_liquidity_run(
+        self, direction: Direction, index: int, bar: Bar
+    ) -> None:
+        tracker = self._liquidity_trackers[direction]
+        if tracker.run_count == 0:
+            previous = self._bars[index - 1]
+            if direction is Direction.DEMAND:
+                prior_is_anchor = previous.high >= bar.high
+                tracker.run_anchor = max(previous.high, bar.high)
+                tracker.run_near_extreme = bar.low
+            else:
+                prior_is_anchor = previous.low <= bar.low
+                tracker.run_anchor = min(previous.low, bar.low)
+                tracker.run_near_extreme = bar.high
+            tracker.run_anchor_index = index - 1 if prior_is_anchor else index
+            tracker.run_near_extreme_index = index
+            tracker.run_start_index = index
+        elif direction is Direction.DEMAND:
+            if bar.high > tracker.run_anchor:
+                tracker.run_anchor = bar.high
+                tracker.run_anchor_index = index
+            if bar.low < tracker.run_near_extreme:
+                tracker.run_near_extreme = bar.low
+                tracker.run_near_extreme_index = index
+        else:
+            if bar.low < tracker.run_anchor:
+                tracker.run_anchor = bar.low
+                tracker.run_anchor_index = index
+            if bar.high > tracker.run_near_extreme:
+                tracker.run_near_extreme = bar.high
+                tracker.run_near_extreme_index = index
+        tracker.run_count += 1
+
+    def _complete_liquidity_run(
+        self, direction: Direction, decision_index: int, decision: Bar
+    ) -> None:
+        tracker = self._liquidity_trackers[direction]
+        if tracker.run_count >= 2:
+            if direction is Direction.DEMAND:
+                decision_extends = decision.low < tracker.run_near_extreme
+                near_extreme = min(tracker.run_near_extreme, decision.low)
+            else:
+                decision_extends = decision.high > tracker.run_near_extreme
+                near_extreme = max(tracker.run_near_extreme, decision.high)
+            level = LiquidityLevel(
+                direction=direction,
+                anchor=tracker.run_anchor,
+                anchor_index=tracker.run_anchor_index,
+                near_extreme=near_extreme,
+                near_extreme_index=(
+                    decision_index
+                    if decision_extends
+                    else tracker.run_near_extreme_index
+                ),
+                run_start_index=tracker.run_start_index,
+                formed_index=decision_index - 1,
+            )
+            self._liquidity_levels.append(level)
+            self._pending_liquidity_levels.append(level)
         elif tracker.run_count == 1:
-            zone.eligibility_reason = "REJECT_ONE_CANDLE_LIQUIDITY"
+            self._last_one_candle_liquidity[direction] = (
+                tracker.run_start_index,
+                decision_index,
+            )
         tracker.run_count = 0
         tracker.run_anchor = None
+        tracker.run_anchor_index = None
         tracker.run_near_extreme = None
+        tracker.run_near_extreme_index = None
+        tracker.run_start_index = None
 
     def _route_blocker(self, zone: Zone, index: int) -> Zone | None:
         if zone.eligibility_state is not EligibilityState.ELIGIBLE:
@@ -680,22 +728,30 @@ class RawZoneDetector:
             return min(blockers, key=lambda candidate: candidate.bottom - zone.top)
         return min(blockers, key=lambda candidate: zone.bottom - candidate.top)
 
-    @staticmethod
-    def _primary_liquidity(
-        zone: Zone, tracker: _LiquidityTracker
-    ) -> _LiquidityCandidate | None:
-        if not tracker.candidates:
+    def _primary_liquidity(self, zone: Zone) -> LiquidityLevel | None:
+        candidates = [
+            candidate
+            for candidate in self._liquidity_levels
+            if candidate.direction is zone.direction
+            and candidate.run_start_index > zone.confirmation_index
+            and (
+                candidate.near_extreme > zone.top
+                if zone.direction is Direction.DEMAND
+                else candidate.near_extreme < zone.bottom
+            )
+        ]
+        if not candidates:
             return None
         if zone.direction is Direction.DEMAND:
             return min(
-                tracker.candidates,
+                candidates,
                 key=lambda candidate: (
                     candidate.near_extreme,
                     -candidate.formed_index,
                 ),
             )
         return max(
-            tracker.candidates,
+            candidates,
             key=lambda candidate: (
                 candidate.near_extreme,
                 candidate.formed_index,
