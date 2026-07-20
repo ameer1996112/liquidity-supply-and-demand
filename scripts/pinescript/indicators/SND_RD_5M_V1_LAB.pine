@@ -44,11 +44,13 @@ const string REJECT_AMBIGUOUS_SAME_BAR_ROUTE = "REJECT_AMBIGUOUS_SAME_BAR_ROUTE"
 maxZones = input.int(120, "Maximum zones", minval = 10, maxval = 200, group = "Display")
 projectionBars = input.int(120, "Fresh-zone projection bars", minval = 1, maxval = 500, group = "Display")
 displayMode = input.string(DISPLAY_CLEAN, "View", options = [DISPLAY_CLEAN, DISPLAY_RAW_AUDIT], group = "Display")
+premiumVisuals = input.bool(true, "Premium visuals", group = "Display")
 cleanZonesPerLevel = input.int(1, "Clean zones per overlapping level", minval = 1, maxval = 3, group = "Display")
 showFresh = input.bool(true, "Show fresh zones", group = "Display")
 showTapped = input.bool(false, "Show tapped zones", group = "Display")
 showInvalidated = input.bool(false, "Show invalidated zones", group = "Display")
 showLiquidityLines = input.bool(true, "Show liquidity lines", group = "Display")
+showStatusPanel = input.bool(false, "Show status panel", group = "Display")
 showLabels = input.bool(false, "Show diagnostic labels", group = "Diagnostics")
 emitDiagnostics = input.bool(false, "Emit non-executable diagnostic alerts", group = "Diagnostics")
 
@@ -294,12 +296,19 @@ zoneVisible(RawZone zone, array<RawZone> allZones) =>
     bool lifecycleVisible = zone.state == STATE_FRESH ? showFresh : zone.state == STATE_TAPPED ? showTapped : showInvalidated
     displayMode == DISPLAY_RAW_AUDIT ? lifecycleVisible : showFresh and zoneQualifiedForCleanView(zone) and zoneSelectedForCleanView(zone, allZones)
 
-zoneColor(RawZone zone) =>
+zoneBaseColor(RawZone zone) =>
     color result = zone.state == STATE_TAPPED ? tappedColor : zone.state == STATE_INVALIDATED ? invalidatedColor : zone.geometry == GEOMETRY_ACCURACY ? (zone.demand ? accuracyDemandColor : accuracySupplyColor) : (zone.demand ? demandColor : supplyColor)
     result
 
+zoneColor(RawZone zone) =>
+    color baseColor = zoneBaseColor(zone)
+    premiumVisuals ? color.new(baseColor, 84) : baseColor
+
 zoneBorderColor(RawZone zone) =>
-    zone.demand ? color.teal : color.red
+    premiumVisuals ? color.new(zoneBaseColor(zone), 28) : zone.demand ? color.teal : color.red
+
+zoneBorderWidth(RawZone zone) =>
+    premiumVisuals ? 1 : zone.geometry == GEOMETRY_ACCURACY ? 2 : 1
 
 zoneRightBar(RawZone zone) =>
     zone.state == STATE_FRESH ? bar_index + projectionBars : zone.stateBar
@@ -314,14 +323,16 @@ updateZoneDrawing(RawZone zone, array<RawZone> allZones) =>
     if visible
         int rightBar = zoneRightBar(zone)
         if na(zone.zoneBox)
-            zone.zoneBox := box.new(zone.originBar, zone.top, rightBar, zone.bottom, xloc = xloc.bar_index, bgcolor = zoneColor(zone), border_color = zoneBorderColor(zone), border_width = zone.geometry == GEOMETRY_ACCURACY ? 2 : 1)
+            zone.zoneBox := box.new(zone.originBar, zone.top, rightBar, zone.bottom, xloc = xloc.bar_index, bgcolor = zoneColor(zone), border_color = zoneBorderColor(zone), border_width = zoneBorderWidth(zone))
         else
             box.set_right(zone.zoneBox, rightBar)
             box.set_top(zone.zoneBox, zone.top)
             box.set_bottom(zone.zoneBox, zone.bottom)
             box.set_bgcolor(zone.zoneBox, zoneColor(zone))
             box.set_border_color(zone.zoneBox, zoneBorderColor(zone))
-        if showLabels
+            box.set_border_width(zone.zoneBox, zoneBorderWidth(zone))
+        bool diagnosticLabelsVisible = not premiumVisuals and displayMode == DISPLAY_RAW_AUDIT and showLabels
+        if diagnosticLabelsVisible
             if na(zone.debugLabel)
                 zone.debugLabel := label.new(zone.originBar, zone.demand ? zone.bottom : zone.top, zoneText(zone), xloc = xloc.bar_index, style = zone.demand ? label.style_label_up : label.style_label_down, color = color.new(color.black, 15), textcolor = color.white, size = size.tiny)
             else
@@ -385,9 +396,9 @@ updateLiquidityDrawings(array<LiquidityLevel> levels, array<int> drawnIndexes, a
                 LiquidityLevel level = array.get(levels, candidateIndex)
                 bool primary = liquidityIsPrimary(candidateIndex, allZones)
                 int rightBar = level.taken ? level.takenBar : bar_index + projectionBars
-                color lineColor = level.taken ? liquiditySweptColor : liquidityPendingColor
-                string lineStyle = level.taken ? line.style_solid : line.style_dashed
-                int lineWidth = primary ? 2 : 1
+                color lineColor = premiumVisuals ? color.new(color.gray, level.taken ? 55 : 25) : level.taken ? liquiditySweptColor : liquidityPendingColor
+                string lineStyle = premiumVisuals ? line.style_dotted : level.taken ? line.style_solid : line.style_dashed
+                int lineWidth = premiumVisuals ? 1 : primary ? 2 : 1
                 if na(level.liquidityLine)
                     level.liquidityLine := line.new(level.nearExtremeBar, level.nearExtreme, rightBar, level.nearExtreme, xloc = xloc.bar_index, extend = extend.none, color = lineColor, style = lineStyle, width = lineWidth)
                 else
@@ -397,7 +408,7 @@ updateLiquidityDrawings(array<LiquidityLevel> levels, array<int> drawnIndexes, a
                     line.set_style(level.liquidityLine, lineStyle)
                     line.set_width(level.liquidityLine, lineWidth)
 
-                if displayMode == DISPLAY_RAW_AUDIT
+                if not premiumVisuals and displayMode == DISPLAY_RAW_AUDIT
                     if na(level.ownExtremeLine)
                         level.ownExtremeLine := line.new(level.anchorBar, level.anchor, rightBar, level.anchor, xloc = xloc.bar_index, extend = extend.none, color = liquiditySecondaryColor, style = line.style_dotted, width = 1)
                     else
@@ -809,7 +820,11 @@ if drawCount > 0
         array.set(zones, index, zone)
 updateLiquidityDrawings(liquidityLevels, drawnLiquidityIndexes, zones)
 
-var table statusTable = table.new(position.top_right, 1, 2, border_width = 1)
+var table statusTable = table.new(position.top_right, 1, 2, border_width = 0)
 if barstate.islast
-    table.cell(statusTable, 0, 0, isFiveMinute ? "SND RD 5M V1 LAB - " + str.upper(displayMode) : "5m chart required", text_color = color.white, bgcolor = isFiveMinute ? color.new(color.teal, 25) : color.new(color.red, 15))
-    table.cell(statusTable, 0, 1, lastDecision, text_color = color.white, bgcolor = color.new(color.black, 15), text_size = size.tiny)
+    if showStatusPanel
+        table.cell(statusTable, 0, 0, isFiveMinute ? "SND RD | " + str.upper(displayMode) : "5m chart required", text_color = color.white, bgcolor = isFiveMinute ? color.new(color.black, 58) : color.new(color.red, 25), text_size = size.small)
+        table.cell(statusTable, 0, 1, premiumVisuals ? "" : lastDecision, text_color = color.white, bgcolor = premiumVisuals ? color.new(color.black, 100) : color.new(color.black, 28), text_size = size.tiny)
+    else
+        table.cell(statusTable, 0, 0, "", bgcolor = color.new(color.black, 100))
+        table.cell(statusTable, 0, 1, "", bgcolor = color.new(color.black, 100))

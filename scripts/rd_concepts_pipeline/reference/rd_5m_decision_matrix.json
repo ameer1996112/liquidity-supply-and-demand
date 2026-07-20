@@ -1,5 +1,5 @@
 {
-  "version": 10,
+  "version": 11,
   "timeframe": "5m",
   "market_scope": ["all"],
   "runtime_contract": "closed_bar_deterministic",
@@ -155,6 +155,14 @@
     "supply_high_strictly_below_zone_required": true,
     "global_unlinked_levels_drawn": false,
     "raw_audit_bypasses_zone_relationship": false
+  },
+  "presentation_contract": {
+    "stage": "display_only",
+    "premium_visuals_default": true,
+    "diagnostic_labels_hidden_in_premium": true,
+    "own_extreme_audit_lines_hidden_in_premium": true,
+    "status_panel_default": false,
+    "detector_and_setup_state_unchanged": true
   },
   "eligibility_decisions": [
     {

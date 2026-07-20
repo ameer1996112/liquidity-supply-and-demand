@@ -184,10 +184,32 @@ def test_liquidity_line_renderer_only_draws_zone_relative_levels() -> None:
     assert "line.style_dotted" in text
     assert "line.new(level.nearExtremeBar, level.nearExtreme" in text
     assert "line.new(level.anchorBar, level.anchor" in text
-    assert "if displayMode == DISPLAY_RAW_AUDIT" in text
+    assert "if not premiumVisuals and displayMode == DISPLAY_RAW_AUDIT" in text
     assert "updateLiquidityDrawings(liquidityLevels, drawnLiquidityIndexes, zones)" in text
     assert "line.delete(previousLevel.liquidityLine)" in text
     assert "line.delete(previousLevel.ownExtremeLine)" in text
+
+
+def test_premium_visuals_are_clean_by_default_without_changing_detection() -> None:
+    text = source()
+    assert 'premiumVisuals = input.bool(true, "Premium visuals"' in text
+    assert 'showStatusPanel = input.bool(false, "Show status panel"' in text
+    assert "premiumVisuals ? color.new(baseColor, 84) : baseColor" in text
+    assert "premiumVisuals ? 1 : zone.geometry == GEOMETRY_ACCURACY ? 2 : 1" in text
+    assert "box.set_border_width(zone.zoneBox, zoneBorderWidth(zone))" in text
+    assert "not premiumVisuals and displayMode == DISPLAY_RAW_AUDIT and showLabels" in text
+    assert "premiumVisuals ? color.new(color.gray" in text
+    assert "premiumVisuals ? line.style_dotted" in text
+    assert "premiumVisuals ? 1 : primary ? 2 : 1" in text
+    assert "if not premiumVisuals and displayMode == DISPLAY_RAW_AUDIT" in text
+    assert "if showStatusPanel" in text
+    assert 'premiumVisuals ? "" : lastDecision' in text
+
+    decision_body = text.split(
+        "if barstate.isconfirmed and isFiveMinute", 1
+    )[1].split("int drawCount", 1)[0]
+    assert "premiumVisuals" not in decision_body
+    assert "showStatusPanel" not in decision_body
 
 
 def test_global_liquidity_runs_are_bidirectional_and_zone_independent() -> None:
