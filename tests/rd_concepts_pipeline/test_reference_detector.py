@@ -7,6 +7,7 @@ from scripts.rd_concepts_pipeline.reference_detector import (
     Direction,
     EligibilityState,
     Geometry,
+    LiquidityLevel,
     RawZoneDetector,
     SetupState,
     ZoneState,
@@ -238,6 +239,64 @@ def test_zone_does_not_reuse_liquidity_started_before_confirmation() -> None:
     assert zone.eligibility_state is EligibilityState.WAITING_FOR_LIQUIDITY
     assert zone.liquidity_qualified is False
     assert zone.liquidity_anchor is None
+
+
+def test_primary_liquidity_must_be_strictly_in_front_of_demand_zone() -> None:
+    case = next(
+        case for case in load_cases() if case["expected"]["direction"] == "DEMAND"
+    )
+    zone = detect_zones([Bar.from_mapping(row) for row in case["bars"]]).zones[0]
+    invalid = LiquidityLevel(
+        direction=Direction.DEMAND,
+        anchor=zone.top + Decimal("0.2"),
+        anchor_index=zone.confirmation_index + 1,
+        near_extreme=zone.top,
+        near_extreme_index=zone.confirmation_index + 2,
+        run_start_index=zone.confirmation_index + 1,
+        formed_index=zone.confirmation_index + 2,
+    )
+    valid = LiquidityLevel(
+        direction=Direction.DEMAND,
+        anchor=zone.top + Decimal("0.3"),
+        anchor_index=zone.confirmation_index + 3,
+        near_extreme=zone.top + Decimal("0.1"),
+        near_extreme_index=zone.confirmation_index + 4,
+        run_start_index=zone.confirmation_index + 3,
+        formed_index=zone.confirmation_index + 4,
+    )
+    detector = RawZoneDetector()
+    detector._liquidity_levels = [invalid, valid]
+
+    assert detector._primary_liquidity(zone) is valid
+
+
+def test_primary_liquidity_must_be_strictly_in_front_of_supply_zone() -> None:
+    case = next(
+        case for case in load_cases() if case["expected"]["direction"] == "SUPPLY"
+    )
+    zone = detect_zones([Bar.from_mapping(row) for row in case["bars"]]).zones[0]
+    invalid = LiquidityLevel(
+        direction=Direction.SUPPLY,
+        anchor=zone.bottom - Decimal("0.2"),
+        anchor_index=zone.confirmation_index + 1,
+        near_extreme=zone.bottom,
+        near_extreme_index=zone.confirmation_index + 2,
+        run_start_index=zone.confirmation_index + 1,
+        formed_index=zone.confirmation_index + 2,
+    )
+    valid = LiquidityLevel(
+        direction=Direction.SUPPLY,
+        anchor=zone.bottom - Decimal("0.3"),
+        anchor_index=zone.confirmation_index + 3,
+        near_extreme=zone.bottom - Decimal("0.1"),
+        near_extreme_index=zone.confirmation_index + 4,
+        run_start_index=zone.confirmation_index + 3,
+        formed_index=zone.confirmation_index + 4,
+    )
+    detector = RawZoneDetector()
+    detector._liquidity_levels = [invalid, valid]
+
+    assert detector._primary_liquidity(zone) is valid
 
 
 def test_demand_zone_becomes_eligible_after_two_bearish_candles_take_own_high() -> None:

@@ -166,13 +166,17 @@ def test_liquidity_lines_preserve_anchor_and_sweep_provenance() -> None:
     assert "level.takenBar := bar_index" in text
 
 
-def test_liquidity_line_renderer_is_bounded_and_auditable() -> None:
+def test_liquidity_line_renderer_only_draws_zone_relative_levels() -> None:
     text = source()
     assert 'showLiquidityLines = input.bool(true, "Show liquidity lines"' in text
-    assert 'rawAuditLiquidityLevels = input.int(20, "Raw-audit liquidity levels"' in text
-    assert "levelCount - rawAuditLiquidityLevels" in text
-    assert "nearestDemandIndex" in text
-    assert "nearestSupplyIndex" in text
+    assert "if zoneVisible(zone, allZones)" in text
+    assert "addUniqueLiquidityIndex(selectedIndexes, zone.liquidityPrimaryIndex)" in text
+    assert "candidate.runStartBar > zone.confirmationBar" in text
+    assert "candidate.nearExtreme > zone.top" in text
+    assert "candidate.nearExtreme < zone.bottom" in text
+    assert "rawAuditLiquidityLevels" not in text
+    assert "nearestDemandIndex" not in text
+    assert "nearestSupplyIndex" not in text
     assert "level.taken ? level.takenBar" in text
     assert "bar_index + projectionBars" in text
     assert "line.style_dashed" in text

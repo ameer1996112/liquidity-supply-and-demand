@@ -49,7 +49,6 @@ showFresh = input.bool(true, "Show fresh zones", group = "Display")
 showTapped = input.bool(false, "Show tapped zones", group = "Display")
 showInvalidated = input.bool(false, "Show invalidated zones", group = "Display")
 showLiquidityLines = input.bool(true, "Show liquidity lines", group = "Display")
-rawAuditLiquidityLevels = input.int(20, "Raw-audit liquidity levels", minval = 2, maxval = 100, group = "Display")
 showLabels = input.bool(false, "Show diagnostic labels", group = "Diagnostics")
 emitDiagnostics = input.bool(false, "Emit non-executable diagnostic alerts", group = "Diagnostics")
 
@@ -363,29 +362,6 @@ updateLiquidityDrawings(array<LiquidityLevel> levels, array<int> drawnIndexes, a
             RawZone zone = array.get(allZones, zoneIndex)
             if zoneVisible(zone, allZones)
                 addUniqueLiquidityIndex(selectedIndexes, zone.liquidityPrimaryIndex)
-
-    if levelCount > 0
-        if displayMode == DISPLAY_RAW_AUDIT
-            int firstAuditIndex = math.max(0, levelCount - rawAuditLiquidityLevels)
-            for candidateIndex = firstAuditIndex to levelCount - 1
-                addUniqueLiquidityIndex(selectedIndexes, candidateIndex)
-        else
-            int nearestDemandIndex = na
-            int nearestSupplyIndex = na
-            float nearestDemandExtreme = na
-            float nearestSupplyExtreme = na
-            int firstScanIndex = math.max(0, levelCount - 300)
-            for candidateIndex = firstScanIndex to levelCount - 1
-                LiquidityLevel level = array.get(levels, candidateIndex)
-                if not level.taken
-                    if level.demand and level.nearExtreme < close and (na(nearestDemandExtreme) or level.nearExtreme > nearestDemandExtreme)
-                        nearestDemandIndex := candidateIndex
-                        nearestDemandExtreme := level.nearExtreme
-                    else if not level.demand and level.nearExtreme > close and (na(nearestSupplyExtreme) or level.nearExtreme < nearestSupplyExtreme)
-                        nearestSupplyIndex := candidateIndex
-                        nearestSupplyExtreme := level.nearExtreme
-            addUniqueLiquidityIndex(selectedIndexes, nearestDemandIndex)
-            addUniqueLiquidityIndex(selectedIndexes, nearestSupplyIndex)
 
     int previousCount = array.size(drawnIndexes)
     if previousCount > 0

@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "timeframe": "5m",
   "market_scope": ["all"],
   "runtime_contract": "closed_bar_deterministic",
@@ -146,6 +146,15 @@
     "current_eligibility_state_required": false,
     "current_setup_state_required": false,
     "raw_audit_unchanged": true
+  },
+  "liquidity_display_contract": {
+    "stage": "display_only",
+    "visible_zone_link_required": true,
+    "formed_after_zone_confirmation_required": true,
+    "demand_low_strictly_above_zone_required": true,
+    "supply_high_strictly_below_zone_required": true,
+    "global_unlinked_levels_drawn": false,
+    "raw_audit_bypasses_zone_relationship": false
   },
   "eligibility_decisions": [
     {
