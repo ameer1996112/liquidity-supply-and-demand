@@ -20,6 +20,7 @@ const string SETUP_ARMED = "ARMED"
 const string SETUP_TRIGGERED = "TRIGGERED"
 const string SETUP_REJECTED = "REJECTED"
 const string DISPLAY_CLEAN = "Clean"
+const string DISPLAY_QUALIFIED_ONLY = "Qualified only"
 const string DISPLAY_RAW_AUDIT = "Raw audit"
 const int APPROACH_LOOKBACK_BARS = 20
 
@@ -43,7 +44,7 @@ const string REJECT_AMBIGUOUS_SAME_BAR_ROUTE = "REJECT_AMBIGUOUS_SAME_BAR_ROUTE"
 
 maxZones = input.int(120, "Maximum zones", minval = 10, maxval = 200, group = "Display")
 projectionBars = input.int(120, "Fresh-zone projection bars", minval = 1, maxval = 500, group = "Display")
-displayMode = input.string(DISPLAY_CLEAN, "View", options = [DISPLAY_CLEAN, DISPLAY_RAW_AUDIT], group = "Display")
+displayMode = input.string(DISPLAY_CLEAN, "View", options = [DISPLAY_CLEAN, DISPLAY_QUALIFIED_ONLY, DISPLAY_RAW_AUDIT], group = "Display")
 premiumVisuals = input.bool(true, "Premium visuals", group = "Display")
 cleanZonesPerLevel = input.int(1, "Clean zones per overlapping level", minval = 1, maxval = 3, group = "Display")
 showFresh = input.bool(true, "Show fresh zones", group = "Display")
@@ -274,8 +275,8 @@ zoneDistanceFromPrice(RawZone zone) =>
 zonesOverlap(RawZone first, RawZone other) =>
     first.bottom <= other.top and first.top >= other.bottom
 
-zoneQualifiedForCleanView(RawZone zone) =>
-    zone.state == STATE_FRESH and zone.liquidityQualified
+zoneIncludedInCuratedView(RawZone zone) =>
+    zone.state == STATE_FRESH and (displayMode != DISPLAY_QUALIFIED_ONLY or zone.liquidityQualified)
 
 zoneSelectedForCleanView(RawZone target, array<RawZone> allZones) =>
     int closerCount = 0
@@ -284,7 +285,7 @@ zoneSelectedForCleanView(RawZone target, array<RawZone> allZones) =>
     if candidateCount > 0
         for candidateIndex = 0 to candidateCount - 1
             RawZone candidate = array.get(allZones, candidateIndex)
-            bool comparable = candidate.id != target.id and candidate.demand == target.demand and zoneQualifiedForCleanView(candidate) and zonesOverlap(candidate, target)
+            bool comparable = candidate.id != target.id and candidate.demand == target.demand and zoneIncludedInCuratedView(candidate) and zonesOverlap(candidate, target)
             if comparable
                 float candidateDistance = zoneDistanceFromPrice(candidate)
                 bool ranksAhead = candidateDistance < targetDistance or (candidateDistance == targetDistance and candidate.id > target.id)
@@ -294,7 +295,7 @@ zoneSelectedForCleanView(RawZone target, array<RawZone> allZones) =>
 
 zoneVisible(RawZone zone, array<RawZone> allZones) =>
     bool lifecycleVisible = zone.state == STATE_FRESH ? showFresh : zone.state == STATE_TAPPED ? showTapped : showInvalidated
-    displayMode == DISPLAY_RAW_AUDIT ? lifecycleVisible : showFresh and zoneQualifiedForCleanView(zone) and zoneSelectedForCleanView(zone, allZones)
+    displayMode == DISPLAY_RAW_AUDIT ? lifecycleVisible : showFresh and zoneIncludedInCuratedView(zone) and zoneSelectedForCleanView(zone, allZones)
 
 zoneBaseColor(RawZone zone) =>
     color result = zone.state == STATE_TAPPED ? tappedColor : zone.state == STATE_INVALIDATED ? invalidatedColor : zone.geometry == GEOMETRY_ACCURACY ? (zone.demand ? accuracyDemandColor : accuracySupplyColor) : (zone.demand ? demandColor : supplyColor)
@@ -302,7 +303,7 @@ zoneBaseColor(RawZone zone) =>
 
 zoneColor(RawZone zone) =>
     color baseColor = zoneBaseColor(zone)
-    premiumVisuals ? color.new(baseColor, 84) : baseColor
+    premiumVisuals ? color.new(baseColor, 76) : baseColor
 
 zoneBorderColor(RawZone zone) =>
     premiumVisuals ? color.new(zoneBaseColor(zone), 28) : zone.demand ? color.teal : color.red

@@ -46,7 +46,7 @@ def test_decision_matrix_is_complete_and_resolved() -> None:
     matrix_decisions = all_decisions(matrix)
     decision_ids = [decision["decision_id"] for decision in matrix_decisions]
 
-    assert matrix["version"] == 11
+    assert matrix["version"] == 12
     assert matrix["timeframe"] == "5m"
     assert matrix["runtime_contract"] == "closed_bar_deterministic"
     assert len(decision_ids) == len(set(decision_ids))
@@ -128,16 +128,30 @@ def test_liquidity_eligibility_does_not_hide_raw_zones() -> None:
     }
 
 
-def test_clean_view_requires_fresh_zones_that_qualified_at_least_once() -> None:
+def test_clean_view_shows_all_fresh_deduplicated_zones() -> None:
     matrix = load_matrix()
 
     assert matrix["clean_view_contract"] == {
-        "stage": "display_only_post_eligibility",
+        "stage": "display_only",
         "fresh_zone_required": True,
-        "liquidity_qualified_once_required": True,
+        "overlapping_zone_deduplication_required": True,
+        "liquidity_qualified_once_required": False,
         "current_eligibility_state_required": False,
         "current_setup_state_required": False,
         "raw_audit_unchanged": True,
+    }
+
+
+def test_qualified_only_view_preserves_the_strategy_filter() -> None:
+    matrix = load_matrix()
+
+    assert matrix["qualified_only_view_contract"] == {
+        "stage": "display_only_post_eligibility",
+        "fresh_zone_required": True,
+        "overlapping_zone_deduplication_required": True,
+        "liquidity_qualified_once_required": True,
+        "current_eligibility_state_required": False,
+        "current_setup_state_required": False,
     }
 
 

@@ -1,5 +1,5 @@
 {
-  "version": 11,
+  "version": 12,
   "timeframe": "5m",
   "market_scope": ["all"],
   "runtime_contract": "closed_bar_deterministic",
@@ -140,12 +140,21 @@
     "default_policy": "fail_closed"
   },
   "clean_view_contract": {
-    "stage": "display_only_post_eligibility",
+    "stage": "display_only",
     "fresh_zone_required": true,
-    "liquidity_qualified_once_required": true,
+    "overlapping_zone_deduplication_required": true,
+    "liquidity_qualified_once_required": false,
     "current_eligibility_state_required": false,
     "current_setup_state_required": false,
     "raw_audit_unchanged": true
+  },
+  "qualified_only_view_contract": {
+    "stage": "display_only_post_eligibility",
+    "fresh_zone_required": true,
+    "overlapping_zone_deduplication_required": true,
+    "liquidity_qualified_once_required": true,
+    "current_eligibility_state_required": false,
+    "current_setup_state_required": false
   },
   "liquidity_display_contract": {
     "stage": "display_only",

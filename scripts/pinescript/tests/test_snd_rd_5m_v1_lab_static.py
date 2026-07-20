@@ -194,7 +194,7 @@ def test_premium_visuals_are_clean_by_default_without_changing_detection() -> No
     text = source()
     assert 'premiumVisuals = input.bool(true, "Premium visuals"' in text
     assert 'showStatusPanel = input.bool(false, "Show status panel"' in text
-    assert "premiumVisuals ? color.new(baseColor, 84) : baseColor" in text
+    assert "premiumVisuals ? color.new(baseColor, 76) : baseColor" in text
     assert "premiumVisuals ? 1 : zone.geometry == GEOMETRY_ACCURACY ? 2 : 1" in text
     assert "box.set_border_width(zone.zoneBox, zoneBorderWidth(zone))" in text
     assert "not premiumVisuals and displayMode == DISPLAY_RAW_AUDIT and showLabels" in text
@@ -297,11 +297,13 @@ def test_setup_state_does_not_control_raw_audit_visibility() -> None:
     assert "setup" not in raw_branch.lower()
 
 
-def test_clean_view_keeps_only_ever_qualified_fresh_zones_then_deduplicates() -> None:
+def test_clean_view_shows_fresh_zones_and_qualified_only_is_explicit() -> None:
     text = source()
     assert 'DISPLAY_CLEAN = "Clean"' in text
+    assert 'DISPLAY_QUALIFIED_ONLY = "Qualified only"' in text
     assert 'DISPLAY_RAW_AUDIT = "Raw audit"' in text
     assert 'displayMode = input.string(DISPLAY_CLEAN, "View"' in text
+    assert "options = [DISPLAY_CLEAN, DISPLAY_QUALIFIED_ONLY, DISPLAY_RAW_AUDIT]" in text
     assert 'cleanZonesPerLevel = input.int(1, "Clean zones per overlapping level"' in text
     assert 'showTapped = input.bool(false, "Show tapped zones"' in text
     assert "zonesOverlap(RawZone first, RawZone other) =>" in text
@@ -309,15 +311,15 @@ def test_clean_view_keeps_only_ever_qualified_fresh_zones_then_deduplicates() ->
     assert "bool liquidityQualified" in text
     assert "zone.liquidityQualified := false" in text
     assert "zone.liquidityQualified := true" in text
-    assert "zoneQualifiedForCleanView(RawZone zone) =>" in text
+    assert "zoneIncludedInCuratedView(RawZone zone) =>" in text
     assert "zone.state == STATE_FRESH" in text
-    assert "zone.liquidityQualified" in text
+    assert "displayMode != DISPLAY_QUALIFIED_ONLY or zone.liquidityQualified" in text
     assert "zoneSelectedForCleanView(RawZone target, array<RawZone> allZones) =>" in text
     assert "candidate.demand == target.demand" in text
-    assert "zoneQualifiedForCleanView(candidate)" in text
+    assert "zoneIncludedInCuratedView(candidate)" in text
     assert "zonesOverlap(candidate, target)" in text
     assert "closerCount < cleanZonesPerLevel" in text
-    assert "showFresh and zoneQualifiedForCleanView(zone)" in text
+    assert "showFresh and zoneIncludedInCuratedView(zone)" in text
 
     decision_body = text.split(
         "if barstate.isconfirmed and isFiveMinute", 1
