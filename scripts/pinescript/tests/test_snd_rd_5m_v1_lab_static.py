@@ -40,13 +40,13 @@ def test_formation_wicks_extend_only_distal_boundary_before_confirmation() -> No
     assert len(re.findall(r"zone\.bottom\s*:=", text)) == 1
 
 
-def test_inside_base_interruption_rebases_and_keeps_formation_envelope() -> None:
+def test_inside_base_interruption_restarts_formation_envelope() -> None:
     text = source()
     assert "method rebaseInsideFormation(Candidate this, bool demand)" in text
     assert "high <= this.originHigh and low >= this.originLow" in text
-    assert "float rebasedDistal = demand ? math.min(this.distal, low) : math.max(this.distal, high)" in text
     assert "this.originBar := bar_index" in text
-    assert "this.distal := rebasedDistal" in text
+    assert "this.distal := demand ? low : high" in text
+    assert "float rebasedDistal" not in text
     assert "bool rebasedSupply = supplyCandidate.rebaseInsideFormation(false)" in text
     assert "bool rebasedDemand = demandCandidate.rebaseInsideFormation(true)" in text
 
@@ -57,6 +57,14 @@ def test_reversal_and_continuation_are_independent_of_geometry() -> None:
     assert "FORMATION_CONTINUATION" in text
     assert "GEOMETRY_STANDARD" in text
     assert "GEOMETRY_ACCURACY" in text
+
+
+def test_approach_classification_skips_intervening_dojis() -> None:
+    text = source()
+    assert "const int APPROACH_LOOKBACK_BARS = 20" in text
+    assert "previousDirectionalCandle() =>" in text
+    assert "for offset = 1 to APPROACH_LOOKBACK_BARS" in text
+    assert text.count("this.approachDirection := previousDirectionalCandle()") == 2
     assert "bool continuation = demand ? candidate.approachDirection == 1" in text
 
 
@@ -222,3 +230,18 @@ def test_clean_view_deduplicates_overlapping_levels_without_changing_detection()
     )[1].split("int drawCount", 1)[0]
     assert "displayMode" not in decision_body
     assert "cleanZonesPerLevel" not in decision_body
+
+
+def test_diagnostic_labels_expose_frozen_geometry_provenance() -> None:
+    text = source()
+    for field in (
+        "originHigh",
+        "originLow",
+        "firstDepartureHigh",
+        "firstDepartureLow",
+        "formationDistal",
+    ):
+        assert f"zone.{field} := candidate.{field.replace('formationDistal', 'distal')}" in text
+    assert 'string bounds = "oH "' in text
+    assert 'str.tostring(zone.top, format.mintick)' in text
+    assert 'str.tostring(zone.bottom, format.mintick)' in text

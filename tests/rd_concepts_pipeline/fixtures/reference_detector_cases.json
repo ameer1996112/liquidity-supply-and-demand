@@ -86,7 +86,7 @@
       {"time": "2026-07-16T20:20:00+03:00", "open": "162.487", "high": "162.487", "low": "162.483", "close": "162.484"},
       {"time": "2026-07-16T20:25:00+03:00", "open": "162.484", "high": "162.495", "low": "162.473", "close": "162.473"}
     ],
-    "expected": {"direction": "SUPPLY", "formation": "CONTINUATION", "geometry": "STANDARD", "origin_index": 3, "confirmation_index": 4, "top": "162.506", "bottom": "162.493"}
+    "expected": {"direction": "SUPPLY", "formation": "CONTINUATION", "geometry": "STANDARD", "origin_index": 3, "confirmation_index": 4, "top": "162.501", "bottom": "162.493"}
   },
   {
     "case_id": "DEMAND-ACCURACY-REBASE-WICK",
@@ -111,5 +111,36 @@
       {"time": "t5", "open": "9.7", "high": "10.3", "low": "9.1", "close": "9.2"}
     ],
     "expected": {"direction": "SUPPLY", "formation": "CONTINUATION", "geometry": "ACCURACY", "origin_index": 3, "confirmation_index": 5, "top": "10.9", "bottom": "9.6"}
+  },
+  {
+    "case_id": "DEMAND-STANDARD-DIRECT-FORMATION-WICK",
+    "bars": [
+      {"time": "t0", "open": "9.5", "high": "10.0", "low": "9.4", "close": "9.9"},
+      {"time": "t1", "open": "9.9", "high": "10.0", "low": "9.5", "close": "9.7"},
+      {"time": "t2", "open": "9.7", "high": "10.2", "low": "9.4", "close": "10.1"}
+    ],
+    "expected": {"direction": "DEMAND", "formation": "CONTINUATION", "geometry": "STANDARD", "origin_index": 1, "confirmation_index": 2, "top": "10.0", "bottom": "9.4"}
+  },
+  {
+    "case_id": "GBPJPY-DEMAND-REBASE-RESETS-PRIOR-WICK",
+    "bars": [
+      {"time": "2026-07-20T04:35:00+03:00", "open": "218.405", "high": "218.429", "low": "218.392", "close": "218.413"},
+      {"time": "2026-07-20T04:40:00+03:00", "open": "218.413", "high": "218.430", "low": "218.351", "close": "218.365"},
+      {"time": "2026-07-20T04:45:00+03:00", "open": "218.365", "high": "218.417", "low": "218.362", "close": "218.416"},
+      {"time": "2026-07-20T04:50:00+03:00", "open": "218.413", "high": "218.423", "low": "218.386", "close": "218.410"},
+      {"time": "2026-07-20T04:55:00+03:00", "open": "218.410", "high": "218.440", "low": "218.410", "close": "218.438"}
+    ],
+    "expected": {"direction": "DEMAND", "formation": "CONTINUATION", "geometry": "STANDARD", "origin_index": 3, "confirmation_index": 4, "top": "218.423", "bottom": "218.386"}
+  },
+  {
+    "case_id": "GBPJPY-DEMAND-DOJI-APPROACH-LOOKBACK",
+    "bars": [
+      {"time": "2026-07-20T00:40:00+03:00", "open": "218.215", "high": "218.300", "low": "218.205", "close": "218.286"},
+      {"time": "2026-07-20T00:45:00+03:00", "open": "218.286", "high": "218.292", "low": "218.217", "close": "218.286"},
+      {"time": "2026-07-20T00:50:00+03:00", "open": "218.286", "high": "218.289", "low": "218.190", "close": "218.228"},
+      {"time": "2026-07-20T00:55:00+03:00", "open": "218.228", "high": "218.274", "low": "218.182", "close": "218.229"},
+      {"time": "2026-07-20T01:00:00+03:00", "open": "218.279", "high": "218.551", "low": "218.265", "close": "218.441"}
+    ],
+    "expected": {"direction": "DEMAND", "formation": "CONTINUATION", "geometry": "ACCURACY", "origin_index": 2, "confirmation_index": 4, "top": "218.286", "bottom": "218.182"}
   }
 ]

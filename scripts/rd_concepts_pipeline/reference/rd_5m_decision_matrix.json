@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 8,
   "timeframe": "5m",
   "market_scope": ["all"],
   "runtime_contract": "closed_bar_deterministic",
@@ -70,15 +70,15 @@
     },
     {
       "decision_id": "formation_classification",
-      "condition": "The pre-origin approach candle has a known direction.",
-      "outcome": "Classify continuation when approach matches departure direction; otherwise reversal.",
+      "condition": "The nearest directional candle within 20 bars before the origin exists, skipping intervening dojis.",
+      "outcome": "Classify continuation when that nearest directional approach matches departure direction; otherwise reversal.",
       "reason_code": null,
       "rule_ids": ["RD5M-ZONE-FORMATION-CLASSIFICATION"],
       "implementations": ["reference_detector.RawZoneDetector._classify_formation", "SND_RD_5M_V1_LAB.candidateFormation"]
     },
     {
       "decision_id": "reject_unknown_approach",
-      "condition": "The origin has no prior bar or its approach candle is a doji.",
+      "condition": "No directional approach candle exists within 20 bars before the origin.",
       "outcome": "Reject the candidate without guessing a formation class.",
       "reason_code": "REJECT_UNKNOWN_APPROACH",
       "rule_ids": ["RD5M-ZONE-FORMATION-CLASSIFICATION"],
@@ -87,7 +87,7 @@
     {
       "decision_id": "rebase_inside_formation",
       "condition": "An opposite-color candle appears after formation starts and its full range remains inside the prior origin range.",
-      "outcome": "Move the origin to the contained candle, merge its low into the retained demand distal envelope or its high into the retained supply distal envelope, and wait for a new same-direction departure.",
+      "outcome": "Move the origin to the contained candle, restart the formation envelope at that candle's distal edge, discard pre-rebase departure wicks, and wait for a new same-direction departure.",
       "reason_code": null,
       "rule_ids": ["RD5M-ZONE-INSIDE-BASE-REBASE"],
       "implementations": ["reference_detector.RawZoneDetector._rebase_inside_formation", "SND_RD_5M_V1_LAB.Candidate.rebaseInsideFormation"]

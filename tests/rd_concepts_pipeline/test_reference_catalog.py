@@ -97,7 +97,7 @@ def test_first_manual_case_has_exact_ohlc_and_positive_release_coverage() -> Non
 
     inside_base_case = cases[1]
     assert inside_base_case["case_id"] == "USDJPY-5M-INSIDE-BASE-SUPPLY-001"
-    assert inside_base_case["expected_zones"][0]["top"] == "162.506"
+    assert inside_base_case["expected_zones"][0]["top"] == "162.501"
     assert "RD5M-ZONE-INSIDE-BASE-REBASE" in inside_base_case["rules"]
     assert validate_benchmark_case(inside_base_case) == []
     assert "RD5M-ZONE-INSIDE-BASE-REBASE" not in coverage["missing_positive"]

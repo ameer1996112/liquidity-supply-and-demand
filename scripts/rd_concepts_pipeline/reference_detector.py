@@ -6,6 +6,9 @@ from enum import Enum
 from typing import Any, Mapping, Sequence
 
 
+APPROACH_LOOKBACK_BARS = 20
+
+
 class Direction(str, Enum):
     DEMAND = "DEMAND"
     SUPPLY = "SUPPLY"
@@ -257,18 +260,7 @@ class RawZoneDetector:
         bar = self._bars[index]
         if bar.high > origin.high or bar.low < origin.low:
             return None
-        if candidate.direction is Direction.DEMAND:
-            distal = (
-                bar.low
-                if candidate.distal is None
-                else min(candidate.distal, bar.low)
-            )
-        else:
-            distal = (
-                bar.high
-                if candidate.distal is None
-                else max(candidate.distal, bar.high)
-            )
+        distal = bar.low if candidate.direction is Direction.DEMAND else bar.high
         return _Candidate(candidate.direction, index, distal=distal)
 
     def _advance_candidate(
@@ -330,10 +322,14 @@ class RawZoneDetector:
             self._supply_candidate = None
 
     def _classify_formation(self, candidate: _Candidate) -> Formation | None:
-        if candidate.origin_index == 0:
-            return None
-        approach = self._bars[candidate.origin_index - 1]
-        if not approach.bullish and not approach.bearish:
+        approach = None
+        first_index = max(-1, candidate.origin_index - APPROACH_LOOKBACK_BARS - 1)
+        for index in range(candidate.origin_index - 1, first_index, -1):
+            candidate_bar = self._bars[index]
+            if candidate_bar.bullish or candidate_bar.bearish:
+                approach = candidate_bar
+                break
+        if approach is None:
             return None
         if candidate.direction is Direction.DEMAND:
             return Formation.CONTINUATION if approach.bullish else Formation.REVERSAL
