@@ -1,5 +1,5 @@
 {
-  "version": 13,
+  "version": 14,
   "timeframe": "5m",
   "market_scope": ["all"],
   "runtime_contract": "closed_bar_deterministic",
@@ -164,6 +164,8 @@
     "supply_high_strictly_below_zone_required": true,
     "global_unlinked_levels_drawn": false,
     "all_zone_linked_levels_drawn": true,
+    "linked_levels_project_to_zone_horizon": true,
+    "swept_levels_remain_visible": true,
     "primary_only_display": false,
     "primary_eligibility_gate_unchanged": true,
     "raw_audit_bypasses_zone_relationship": false
@@ -173,6 +175,10 @@
     "premium_visuals_default": true,
     "diagnostic_labels_hidden_in_premium": true,
     "own_extreme_audit_lines_hidden_in_premium": true,
+    "pending_liquidity_style": "dashed",
+    "swept_liquidity_style": "solid",
+    "primary_liquidity_line_width": 2,
+    "secondary_liquidity_line_width": 1,
     "status_panel_default": false,
     "detector_and_setup_state_unchanged": true
   },

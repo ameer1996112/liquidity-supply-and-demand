@@ -46,7 +46,7 @@ def test_decision_matrix_is_complete_and_resolved() -> None:
     matrix_decisions = all_decisions(matrix)
     decision_ids = [decision["decision_id"] for decision in matrix_decisions]
 
-    assert matrix["version"] == 13
+    assert matrix["version"] == 14
     assert matrix["timeframe"] == "5m"
     assert matrix["runtime_contract"] == "closed_bar_deterministic"
     assert len(decision_ids) == len(set(decision_ids))
@@ -166,6 +166,8 @@ def test_liquidity_display_requires_a_zone_relative_level() -> None:
         "supply_high_strictly_below_zone_required": True,
         "global_unlinked_levels_drawn": False,
         "all_zone_linked_levels_drawn": True,
+        "linked_levels_project_to_zone_horizon": True,
+        "swept_levels_remain_visible": True,
         "primary_only_display": False,
         "primary_eligibility_gate_unchanged": True,
         "raw_audit_bypasses_zone_relationship": False,
@@ -180,6 +182,10 @@ def test_premium_presentation_is_display_only_and_default_on() -> None:
         "premium_visuals_default": True,
         "diagnostic_labels_hidden_in_premium": True,
         "own_extreme_audit_lines_hidden_in_premium": True,
+        "pending_liquidity_style": "dashed",
+        "swept_liquidity_style": "solid",
+        "primary_liquidity_line_width": 2,
+        "secondary_liquidity_line_width": 1,
         "status_panel_default": False,
         "detector_and_setup_state_unchanged": True,
     }

@@ -401,10 +401,10 @@ updateLiquidityDrawings(array<LiquidityLevel> levels, array<int> drawnIndexes, a
             if candidateIndex < levelCount
                 LiquidityLevel level = array.get(levels, candidateIndex)
                 bool primary = liquidityIsPrimary(candidateIndex, allZones)
-                int rightBar = level.taken ? level.takenBar : bar_index + projectionBars
-                color lineColor = premiumVisuals ? color.new(color.gray, level.taken ? 55 : 25) : level.taken ? liquiditySweptColor : liquidityPendingColor
-                string lineStyle = premiumVisuals ? line.style_dotted : level.taken ? line.style_solid : line.style_dashed
-                int lineWidth = premiumVisuals ? 1 : primary ? 2 : 1
+                int rightBar = bar_index + projectionBars
+                color lineColor = premiumVisuals ? color.new(color.gray, level.taken ? 40 : 10) : level.taken ? liquiditySweptColor : liquidityPendingColor
+                string lineStyle = level.taken ? line.style_solid : line.style_dashed
+                int lineWidth = primary ? 2 : 1
                 if na(level.liquidityLine)
                     level.liquidityLine := line.new(level.nearExtremeBar, level.nearExtreme, rightBar, level.nearExtreme, xloc = xloc.bar_index, extend = extend.none, color = lineColor, style = lineStyle, width = lineWidth)
                 else

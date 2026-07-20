@@ -181,8 +181,8 @@ def test_liquidity_line_renderer_draws_all_zone_relative_levels() -> None:
     assert "rawAuditLiquidityLevels" not in text
     assert "nearestDemandIndex" not in text
     assert "nearestSupplyIndex" not in text
-    assert "level.taken ? level.takenBar" in text
-    assert "bar_index + projectionBars" in text
+    assert "int rightBar = bar_index + projectionBars" in text
+    assert "level.taken ? level.takenBar" not in text
     assert "line.style_dashed" in text
     assert "line.style_solid" in text
     assert "line.style_dotted" in text
@@ -202,9 +202,9 @@ def test_premium_visuals_are_clean_by_default_without_changing_detection() -> No
     assert "premiumVisuals ? 1 : zone.geometry == GEOMETRY_ACCURACY ? 2 : 1" in text
     assert "box.set_border_width(zone.zoneBox, zoneBorderWidth(zone))" in text
     assert "not premiumVisuals and displayMode == DISPLAY_RAW_AUDIT and showLabels" in text
-    assert "premiumVisuals ? color.new(color.gray" in text
-    assert "premiumVisuals ? line.style_dotted" in text
-    assert "premiumVisuals ? 1 : primary ? 2 : 1" in text
+    assert "premiumVisuals ? color.new(color.gray, level.taken ? 40 : 10)" in text
+    assert "string lineStyle = level.taken ? line.style_solid : line.style_dashed" in text
+    assert "int lineWidth = primary ? 2 : 1" in text
     assert "if not premiumVisuals and displayMode == DISPLAY_RAW_AUDIT" in text
     assert "if showStatusPanel" in text
     assert 'premiumVisuals ? "" : lastDecision' in text
