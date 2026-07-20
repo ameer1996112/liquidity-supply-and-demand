@@ -103,6 +103,9 @@ def test_object_budgets_stay_below_tradingview_limits() -> None:
         match = re.search(rf"{field}\s*=\s*(\d+)", header)
         assert match is not None
         assert int(match.group(1)) <= 300
+    line_match = re.search(r"max_lines_count\s*=\s*(\d+)", header)
+    assert line_match is not None
+    assert int(line_match.group(1)) <= 500
     assert 'maxZones = input.int(120, "Maximum zones", minval = 10, maxval = 200' in text
 
 
@@ -143,6 +146,36 @@ def test_closest_completed_liquidity_is_the_primary_candidate() -> None:
     assert "zone.eligibilityState := nextEligibility" in text
     assert "bool primaryChanged = na(previousPrimaryIndex)" in text
     assert "if primaryChanged or stateChanged" in text
+
+
+def test_liquidity_lines_preserve_anchor_and_sweep_provenance() -> None:
+    text = source()
+    assert "int liquidityRunAnchorBar" in text
+    assert "array<int> liquidityAnchorBars" in text
+    assert "array<int> liquidityTakenBars" in text
+    assert "array<line> liquidityLines" in text
+    assert "zone.liquidityRunAnchorBar := priorIsAnchor ? bar_index - 1 : bar_index" in text
+    assert "zone.liquidityRunAnchorBar := bar_index" in text
+    assert "array.push(zone.liquidityAnchorBars, zone.liquidityRunAnchorBar)" in text
+    assert "array.set(zone.liquidityTakenBars, candidateIndex, bar_index)" in text
+
+
+def test_liquidity_line_renderer_is_bounded_and_auditable() -> None:
+    text = source()
+    assert 'showLiquidityLines = input.bool(true, "Show liquidity lines"' in text
+    assert "liquiditySecondaryIndex(RawZone zone) =>" in text
+    assert "primary or (displayMode == DISPLAY_RAW_AUDIT and candidateIndex == secondaryIndex)" in text
+    assert "not na(takenBar) ? takenBar" in text
+    assert "bar_index + projectionBars" in text
+    assert "line.style_dashed" in text
+    assert "line.style_solid" in text
+    assert "line.style_dotted" in text
+    assert "line.new(anchorBar, anchor, rightBar, anchor" in text
+    assert "updateLiquidityDrawings(zone, zones)" in text
+    delete_body = text.split("deleteZone(RawZone zone) =>", 1)[1].split(
+        "var Candidate demandCandidate", 1
+    )[0]
+    assert "line.delete(liquidityLine)" in delete_body
 
 
 def test_opposite_zone_route_blocker_expires_only_strategy_eligibility() -> None:
