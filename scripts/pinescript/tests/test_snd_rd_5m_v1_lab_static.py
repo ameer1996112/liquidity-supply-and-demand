@@ -202,20 +202,23 @@ def test_setup_state_does_not_control_raw_zone_visibility() -> None:
     assert "setup" not in visible_body.lower()
 
 
-def test_clean_view_limits_visible_raw_zones_without_changing_detection() -> None:
+def test_clean_view_deduplicates_overlapping_levels_without_changing_detection() -> None:
     text = source()
     assert 'DISPLAY_CLEAN = "Clean"' in text
     assert 'DISPLAY_RAW_AUDIT = "Raw audit"' in text
     assert 'displayMode = input.string(DISPLAY_CLEAN, "View"' in text
-    assert 'cleanZonesPerSide = input.int(3, "Clean zones per side"' in text
+    assert 'cleanZonesPerLevel = input.int(1, "Clean zones per overlapping level"' in text
     assert 'showTapped = input.bool(false, "Show tapped zones"' in text
+    assert "zonesOverlap(RawZone first, RawZone second) =>" in text
+    assert "first.bottom <= second.top and first.top >= second.bottom" in text
     assert "zoneSelectedForCleanView(RawZone target, array<RawZone> allZones) =>" in text
     assert "candidate.demand == target.demand" in text
     assert "candidate.state == STATE_FRESH" in text
-    assert "closerCount < cleanZonesPerSide" in text
+    assert "zonesOverlap(candidate, target)" in text
+    assert "closerCount < cleanZonesPerLevel" in text
 
     decision_body = text.split(
         "if barstate.isconfirmed and isFiveMinute", 1
     )[1].split("int drawCount", 1)[0]
     assert "displayMode" not in decision_body
-    assert "cleanZonesPerSide" not in decision_body
+    assert "cleanZonesPerLevel" not in decision_body

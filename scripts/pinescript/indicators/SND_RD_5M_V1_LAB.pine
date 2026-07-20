@@ -43,7 +43,7 @@ const string REJECT_AMBIGUOUS_SAME_BAR_ROUTE = "REJECT_AMBIGUOUS_SAME_BAR_ROUTE"
 maxZones = input.int(120, "Maximum zones", minval = 10, maxval = 200, group = "Display")
 projectionBars = input.int(120, "Fresh-zone projection bars", minval = 1, maxval = 500, group = "Display")
 displayMode = input.string(DISPLAY_CLEAN, "View", options = [DISPLAY_CLEAN, DISPLAY_RAW_AUDIT], group = "Display")
-cleanZonesPerSide = input.int(3, "Clean zones per side", minval = 1, maxval = 10, group = "Display")
+cleanZonesPerLevel = input.int(1, "Clean zones per overlapping level", minval = 1, maxval = 3, group = "Display")
 showFresh = input.bool(true, "Show fresh zones", group = "Display")
 showTapped = input.bool(false, "Show tapped zones", group = "Display")
 showInvalidated = input.bool(false, "Show invalidated zones", group = "Display")
@@ -233,6 +233,9 @@ buildConfirmedZone(Candidate candidate, bool demand, int zoneId, string formatio
 zoneDistanceFromPrice(RawZone zone) =>
     close < zone.bottom ? zone.bottom - close : close > zone.top ? close - zone.top : 0.0
 
+zonesOverlap(RawZone first, RawZone second) =>
+    first.bottom <= second.top and first.top >= second.bottom
+
 zoneSelectedForCleanView(RawZone target, array<RawZone> allZones) =>
     int closerCount = 0
     float targetDistance = zoneDistanceFromPrice(target)
@@ -240,13 +243,13 @@ zoneSelectedForCleanView(RawZone target, array<RawZone> allZones) =>
     if candidateCount > 0
         for candidateIndex = 0 to candidateCount - 1
             RawZone candidate = array.get(allZones, candidateIndex)
-            bool comparable = candidate.id != target.id and candidate.demand == target.demand and candidate.state == STATE_FRESH
+            bool comparable = candidate.id != target.id and candidate.demand == target.demand and candidate.state == STATE_FRESH and zonesOverlap(candidate, target)
             if comparable
                 float candidateDistance = zoneDistanceFromPrice(candidate)
                 bool ranksAhead = candidateDistance < targetDistance or (candidateDistance == targetDistance and candidate.id > target.id)
                 if ranksAhead
                     closerCount += 1
-    closerCount < cleanZonesPerSide
+    closerCount < cleanZonesPerLevel
 
 zoneVisible(RawZone zone, array<RawZone> allZones) =>
     bool lifecycleVisible = zone.state == STATE_FRESH ? showFresh : zone.state == STATE_TAPPED ? showTapped : showInvalidated
