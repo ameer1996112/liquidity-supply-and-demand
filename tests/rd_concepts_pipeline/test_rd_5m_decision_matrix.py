@@ -46,7 +46,7 @@ def test_decision_matrix_is_complete_and_resolved() -> None:
     matrix_decisions = all_decisions(matrix)
     decision_ids = [decision["decision_id"] for decision in matrix_decisions]
 
-    assert matrix["version"] == 12
+    assert matrix["version"] == 13
     assert matrix["timeframe"] == "5m"
     assert matrix["runtime_contract"] == "closed_bar_deterministic"
     assert len(decision_ids) == len(set(decision_ids))
@@ -165,6 +165,9 @@ def test_liquidity_display_requires_a_zone_relative_level() -> None:
         "demand_low_strictly_above_zone_required": True,
         "supply_high_strictly_below_zone_required": True,
         "global_unlinked_levels_drawn": False,
+        "all_zone_linked_levels_drawn": True,
+        "primary_only_display": False,
+        "primary_eligibility_gate_unchanged": True,
         "raw_audit_bypasses_zone_relationship": False,
     }
 

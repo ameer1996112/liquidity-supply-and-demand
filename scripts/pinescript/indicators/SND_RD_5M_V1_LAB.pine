@@ -133,6 +133,7 @@ type RawZone
     bool liquidityQualified
     float liquidityAnchor
     float liquidityExtreme
+    array<int> liquidityIndexes
     int liquidityPrimaryIndex
     int routeBlockerId
     string setupState
@@ -259,6 +260,7 @@ buildConfirmedZone(Candidate candidate, bool demand, int zoneId, string formatio
     zone.liquidityQualified := false
     zone.liquidityAnchor := na
     zone.liquidityExtreme := na
+    zone.liquidityIndexes := array.new<int>()
     zone.liquidityPrimaryIndex := na
     zone.routeBlockerId := na
     zone.setupState := SETUP_WAITING
@@ -373,7 +375,10 @@ updateLiquidityDrawings(array<LiquidityLevel> levels, array<int> drawnIndexes, a
         for zoneIndex = 0 to zoneCount - 1
             RawZone zone = array.get(allZones, zoneIndex)
             if zoneVisible(zone, allZones)
-                addUniqueLiquidityIndex(selectedIndexes, zone.liquidityPrimaryIndex)
+                int linkedCount = array.size(zone.liquidityIndexes)
+                if linkedCount > 0
+                    for linkedOffset = 0 to linkedCount - 1
+                        addUniqueLiquidityIndex(selectedIndexes, array.get(zone.liquidityIndexes, linkedOffset))
 
     int previousCount = array.size(drawnIndexes)
     if previousCount > 0
@@ -563,6 +568,7 @@ updateZoneEligibility(RawZone zone, array<LiquidityLevel> levels, array<int> cre
                 bool formedAfterConfirmation = candidate.runStartBar > zone.confirmationBar
                 bool inFront = zone.demand ? candidate.nearExtreme > zone.top : candidate.nearExtreme < zone.bottom
                 if correctDirection and formedAfterConfirmation and inFront
+                    addUniqueLiquidityIndex(zone.liquidityIndexes, candidateIndex)
                     bool closer = na(zone.liquidityPrimaryIndex)
                     if not closer
                         LiquidityLevel primary = array.get(levels, zone.liquidityPrimaryIndex)

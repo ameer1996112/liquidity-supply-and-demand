@@ -1,5 +1,5 @@
 {
-  "version": 12,
+  "version": 13,
   "timeframe": "5m",
   "market_scope": ["all"],
   "runtime_contract": "closed_bar_deterministic",
@@ -163,6 +163,9 @@
     "demand_low_strictly_above_zone_required": true,
     "supply_high_strictly_below_zone_required": true,
     "global_unlinked_levels_drawn": false,
+    "all_zone_linked_levels_drawn": true,
+    "primary_only_display": false,
+    "primary_eligibility_gate_unchanged": true,
     "raw_audit_bypasses_zone_relationship": false
   },
   "presentation_contract": {
